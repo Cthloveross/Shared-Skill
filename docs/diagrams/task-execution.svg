@@ -1,0 +1,107 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="740" height="1732" viewBox="0 0 740 1732"
+     role="img" aria-labelledby="task-title task-desc">
+  <title id="task-title">sharedskill 任务执行流程：外部 Agent 执行工具，代理转发并记录</title>
+  <desc id="task-desc">八个竖排步骤：用户提交任务；外部 Agent 发送消息和工具定义；sharedskill 代理注入技能目录并转发；模型返回 read 或业务工具调用；外部 Agent 实际执行工具；工具结果经代理返回模型，步骤三至六按需重复；代理记录技能读取和工具反馈，结束后汇总；会话上传到同一 group 的队列等待演化。技能目录不会自动加载全部技能正文，代理不执行业务工具。</desc>
+  <defs>
+    <marker id="task-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#71879b"/>
+    </marker>
+    <style>
+      text { font-family: "Noto Sans CJK SC", "Microsoft YaHei", "PingFang SC", "WenQuanYi Micro Hei", sans-serif; fill: #1e293b; }
+      .heading { font-size: 32px; font-weight: 700; }
+      .step-title { font-size: 24px; font-weight: 600; }
+      .detail { font-size: 19px; fill: #475569; }
+      .number { font-size: 24px; font-weight: 600; fill: #ffffff; text-anchor: middle; }
+      .arrow { fill: none; stroke: #71879b; stroke-width: 2.5; marker-end: url(#task-arrow); }
+      .card { stroke: #cbd5e1; stroke-width: 1.5; }
+    </style>
+  </defs>
+
+  <rect width="740" height="1732" fill="#ffffff"/>
+  <text x="45" y="52" class="heading">任务执行：谁负责什么</text>
+  <text x="45" y="91" class="detail">代理注入目录并记录；外部 Agent 执行业务工具。</text>
+
+  <g>
+    <rect x="45" y="124" width="650" height="112" rx="16" class="card" fill="#f8fafc"/>
+    <circle cx="84" cy="163" r="22" fill="#475569"/>
+    <text x="84" y="172" class="number">1</text>
+    <text x="125" y="170" class="step-title">用户提交任务</text>
+    <text x="125" y="209" class="detail">提供业务目标、输入文件与输出要求。</text>
+  </g>
+  <path d="M 370 248 V 278" class="arrow"/>
+
+  <g>
+    <rect x="45" y="290" width="650" height="128" rx="16" class="card" fill="#f5f3ff"/>
+    <circle cx="84" cy="329" r="22" fill="#6d5b91"/>
+    <text x="84" y="338" class="number">2</text>
+    <text x="125" y="336" class="step-title">外部 Agent 发送消息与工具定义</text>
+    <text x="125" y="375" class="detail">使用相同 session_id 串联多轮请求。</text>
+  </g>
+  <path d="M 370 430 V 452" class="arrow"/>
+
+  <g>
+    <rect x="45" y="464" width="650" height="144" rx="16" class="card" fill="#eff6ff"/>
+    <circle cx="84" cy="503" r="22" fill="#356a9b"/>
+    <text x="84" y="512" class="number">3</text>
+    <text x="125" y="510" class="step-title">sharedskill 代理注入技能目录并转发</text>
+    <text x="125" y="549" class="detail">目录包含技能名称、说明与 SKILL.md 位置。</text>
+    <text x="125" y="579" class="detail">模型按需选择并读取技能正文。</text>
+  </g>
+  <path d="M 370 620 V 642" class="arrow"/>
+
+  <g>
+    <rect x="45" y="654" width="650" height="144" rx="16" class="card" fill="#fffbeb"/>
+    <circle cx="84" cy="693" r="22" fill="#927342"/>
+    <text x="84" y="702" class="number">4</text>
+    <text x="125" y="700" class="step-title">模型返回 read 或业务工具调用</text>
+    <text x="125" y="739" class="detail">read 用于读取模型选中的技能正文。</text>
+    <text x="125" y="769" class="detail">外部 Agent 接收模型提出的工具调用。</text>
+  </g>
+  <path d="M 370 810 V 832" class="arrow"/>
+
+  <g>
+    <rect x="45" y="844" width="650" height="144" rx="16" class="card" fill="#f5f3ff"/>
+    <circle cx="84" cy="883" r="22" fill="#6d5b91"/>
+    <text x="84" y="892" class="number">5</text>
+    <text x="125" y="890" class="step-title">外部 Agent 实际执行工具</text>
+    <text x="125" y="929" class="detail">真实读取文件、操作工作簿或执行其他业务动作。</text>
+    <text x="125" y="959" class="detail">sharedskill 代理不执行业务工具。</text>
+  </g>
+  <path d="M 370 1000 V 1022" class="arrow"/>
+
+  <g>
+    <rect x="45" y="1034" width="650" height="128" rx="16" class="card" fill="#eff6ff"/>
+    <circle cx="84" cy="1073" r="22" fill="#356a9b"/>
+    <text x="84" y="1082" class="number">6</text>
+    <text x="125" y="1080" class="step-title">工具结果经代理回到模型</text>
+    <text x="125" y="1119" class="detail">Agent 提交实际结果；模型据此继续或完成工作。</text>
+  </g>
+
+  <g>
+    <rect x="125" y="1188" width="490" height="66" rx="12" fill="#f1f5f9"/>
+    <text x="370" y="1216" class="step-title" text-anchor="middle">步骤 3–6 按需重复，直到任务完成</text>
+    <text x="370" y="1243" class="detail" text-anchor="middle">记录贯穿每轮请求与工具反馈</text>
+  </g>
+  <path d="M 370 1266 V 1288" class="arrow"/>
+
+  <g>
+    <rect x="45" y="1300" width="650" height="144" rx="16" class="card" fill="#f0fdfa"/>
+    <circle cx="84" cy="1339" r="22" fill="#397b73"/>
+    <text x="84" y="1348" class="number">7</text>
+    <text x="125" y="1346" class="step-title">代理每轮记录，结束后汇总会话</text>
+    <text x="125" y="1385" class="detail">记录技能读取、实际工具结果与错误反馈。</text>
+    <text x="125" y="1415" class="detail">会话结束时形成可上传的 session 记录。</text>
+  </g>
+  <path d="M 370 1456 V 1478" class="arrow"/>
+
+  <g>
+    <rect x="45" y="1490" width="650" height="144" rx="16" class="card" fill="#f0fdfa"/>
+    <circle cx="84" cy="1529" r="22" fill="#397b73"/>
+    <text x="84" y="1538" class="number">8</text>
+    <text x="125" y="1536" class="step-title">上传同一 group 的会话队列</text>
+    <text x="125" y="1575" class="detail">与对应技能库使用相同 group 与共享存储。</text>
+    <text x="125" y="1605" class="detail">上传会话证据，等待演化服务处理。</text>
+  </g>
+
+  <text x="370" y="1690" class="detail" text-anchor="middle">技能正文由 Agent 按需读取，不会随目录自动加载。</text>
+</svg>

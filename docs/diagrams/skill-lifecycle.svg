@@ -1,0 +1,123 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="740" height="1840" viewBox="0 0 740 1840"
+     role="img" aria-labelledby="lifecycle-title lifecycle-desc">
+  <title id="lifecycle-title">sharedskill 技能演化与多用户复用：同一 group 的共享存储和客户端同步</title>
+  <desc id="lifecycle-desc">本地 xlsx/SKILL.md 和资源通过显式 push 发布为同一 group 的技能库 v1。用户 A 与用户 B 各自 pull 到本地并执行任务，将实际工具反馈上传到同一 group 的会话队列。演化服务进行会话摘要、按技能归组与候选生成，满足当前启用的评审和发布条件且有更新时才发布 v2。两名用户再次 pull 或 reload 后，在后续任务中使用 v2。user_alias 记录来源，不会按用户自动分配技能。</desc>
+  <defs>
+    <marker id="lifecycle-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#71879b"/>
+    </marker>
+    <style>
+      text { font-family: "Noto Sans CJK SC", "Microsoft YaHei", "PingFang SC", "WenQuanYi Micro Hei", sans-serif; fill: #1e293b; }
+      .heading { font-size: 32px; font-weight: 700; }
+      .step-title { font-size: 24px; font-weight: 600; }
+      .detail { font-size: 19px; fill: #475569; }
+      .number { font-size: 24px; font-weight: 600; fill: #ffffff; text-anchor: middle; }
+      .arrow { fill: none; stroke: #71879b; stroke-width: 2.5; marker-end: url(#lifecycle-arrow); }
+      .connector { fill: none; stroke: #71879b; stroke-width: 2.5; }
+      .card { stroke: #cbd5e1; stroke-width: 1.5; }
+    </style>
+  </defs>
+
+  <rect width="740" height="1840" fill="#ffffff"/>
+  <text x="45" y="52" class="heading">技能演化与多用户复用</text>
+  <text x="45" y="91" class="detail">共享依赖相同 group、共享存储与客户端同步。</text>
+
+  <g>
+    <rect x="45" y="124" width="650" height="116" rx="16" class="card" fill="#f8fafc"/>
+    <circle cx="84" cy="163" r="22" fill="#475569"/>
+    <text x="84" y="172" class="number">1</text>
+    <text x="125" y="170" class="step-title">本地技能包</text>
+    <text x="125" y="209" class="detail">xlsx/SKILL.md + references / scripts / assets</text>
+  </g>
+  <path d="M 370 252 V 273" class="arrow"/>
+
+  <g>
+    <rect x="45" y="285" width="650" height="132" rx="16" class="card" fill="#eff6ff"/>
+    <circle cx="84" cy="324" r="22" fill="#356a9b"/>
+    <text x="84" y="333" class="number">2</text>
+    <text x="125" y="331" class="step-title">显式 push 到同一 group 的技能库</text>
+    <text x="125" y="370" class="detail">共享存储保存正文、资源、清单与版本 v1。</text>
+  </g>
+  <path d="M 370 429 V 446 H 198 V 458" class="arrow"/>
+  <path d="M 370 446 H 542 V 458" class="arrow"/>
+
+  <g>
+    <rect x="45" y="470" width="306" height="150" rx="16" class="card" fill="#eff6ff"/>
+    <text x="65" y="513" class="step-title">3  用户 A：pull v1</text>
+    <text x="65" y="554" class="detail">本地 Agent 与技能目录</text>
+    <text x="65" y="585" class="detail">读取本地 xlsx/SKILL.md</text>
+  </g>
+  <g>
+    <rect x="389" y="470" width="306" height="150" rx="16" class="card" fill="#f0fdfa"/>
+    <text x="409" y="513" class="step-title">3  用户 B：pull v1</text>
+    <text x="409" y="554" class="detail">本地 Agent 与技能目录</text>
+    <text x="409" y="585" class="detail">读取本地 xlsx/SKILL.md</text>
+  </g>
+  <path d="M 198 632 V 656" class="arrow"/>
+  <path d="M 542 632 V 656" class="arrow"/>
+
+  <g>
+    <rect x="45" y="668" width="306" height="132" rx="16" class="card" fill="#eff6ff"/>
+    <text x="65" y="711" class="step-title">4  A 的任务与工具结果</text>
+    <text x="65" y="750" class="detail">真实读取技能并执行工具</text>
+    <text x="65" y="779" class="detail">保留结果与错误反馈</text>
+  </g>
+  <g>
+    <rect x="389" y="668" width="306" height="132" rx="16" class="card" fill="#f0fdfa"/>
+    <text x="409" y="711" class="step-title">4  B 的任务与工具结果</text>
+    <text x="409" y="750" class="detail">真实读取技能并执行工具</text>
+    <text x="409" y="779" class="detail">保留结果与错误反馈</text>
+  </g>
+  <path d="M 198 812 V 836 H 370" class="connector"/>
+  <path d="M 542 812 V 836 H 370 V 854" class="arrow"/>
+
+  <g>
+    <rect x="45" y="866" width="650" height="144" rx="16" class="card" fill="#f8fafc"/>
+    <circle cx="84" cy="905" r="22" fill="#475569"/>
+    <text x="84" y="914" class="number">5</text>
+    <text x="125" y="912" class="step-title">同一 group 的会话队列</text>
+    <text x="125" y="951" class="detail">A 与 B 的会话证据进入相同队列。</text>
+    <text x="125" y="981" class="detail">user_alias 记录来源，保留真实任务与工具反馈。</text>
+  </g>
+  <path d="M 370 1022 V 1046" class="arrow"/>
+
+  <g>
+    <rect x="45" y="1058" width="650" height="220" rx="16" class="card" fill="#fffbeb"/>
+    <circle cx="84" cy="1097" r="22" fill="#927342"/>
+    <text x="84" y="1106" class="number">6</text>
+    <text x="125" y="1104" class="step-title">演化服务生成候选技能</text>
+    <text x="125" y="1147" class="detail">会话摘要 → 按技能归组 → 候选更新</text>
+    <text x="125" y="1188" class="step-title">满足发布条件，且有更新时发布 v2</text>
+    <text x="125" y="1229" class="detail">启用的评审未通过或决定 skip 时，保留当前版本。</text>
+  </g>
+  <path d="M 370 1290 V 1314" class="arrow"/>
+
+  <g>
+    <rect x="45" y="1326" width="650" height="116" rx="16" class="card" fill="#f0fdfa"/>
+    <circle cx="84" cy="1365" r="22" fill="#397b73"/>
+    <text x="84" y="1374" class="number">7</text>
+    <text x="125" y="1372" class="step-title">同一 group 的技能库：v2</text>
+    <text x="125" y="1411" class="detail">发布新正文，并更新清单与版本记录。</text>
+  </g>
+  <path d="M 370 1454 V 1469 H 198 V 1478" class="arrow"/>
+  <path d="M 370 1469 H 542 V 1478" class="arrow"/>
+
+  <g>
+    <rect x="45" y="1490" width="306" height="150" rx="16" class="card" fill="#eff6ff"/>
+    <text x="65" y="1533" class="step-title">8  用户 A 的后续任务</text>
+    <text x="65" y="1574" class="detail">pull / reload 后使用 v2</text>
+    <text x="65" y="1605" class="detail">读取已同步的新技能</text>
+  </g>
+  <g>
+    <rect x="389" y="1490" width="306" height="150" rx="16" class="card" fill="#f0fdfa"/>
+    <text x="409" y="1533" class="step-title">8  用户 B 的后续任务</text>
+    <text x="409" y="1574" class="detail">pull / reload 后使用 v2</text>
+    <text x="409" y="1605" class="detail">读取已同步的新技能</text>
+  </g>
+
+  <g>
+    <rect x="45" y="1696" width="650" height="110" rx="16" fill="#f1f5f9"/>
+    <text x="370" y="1735" class="step-title" text-anchor="middle">共享关系：相同 group + 相同共享存储</text>
+    <text x="370" y="1776" class="detail" text-anchor="middle">各客户端主动同步；不会按用户自动分配技能。</text>
+  </g>
+</svg>
