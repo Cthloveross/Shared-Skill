@@ -1,0 +1,138 @@
+{
+  "retrieved_date": "2026-10-10",
+  "benchmark_repository": "https://github.com/RUCKBReasoning/SpreadsheetBench",
+  "benchmark_commit": "49b73a94775fb489063f60ca1865e3a650079a79",
+  "skill_repository": "https://github.com/anthropics/skills",
+  "skill_commit": "dbd4588f9e1033efb41dad4bef2f7947c8993d44",
+  "files": [
+    {
+      "path": "SpreadsheetBench-README.md",
+      "url": "https://raw.githubusercontent.com/RUCKBReasoning/SpreadsheetBench/49b73a94775fb489063f60ca1865e3a650079a79/README.md",
+      "bytes": 10534,
+      "sha256": "ba96370b14fa897a61d7a68f3ada6399391d0a4f5d4a8bb9be2a1a38a4316143"
+    },
+    {
+      "path": "spreadsheetbench_912_v0.1.tar.gz",
+      "url": "https://raw.githubusercontent.com/RUCKBReasoning/SpreadsheetBench/49b73a94775fb489063f60ca1865e3a650079a79/data/spreadsheetbench_912_v0.1.tar.gz",
+      "bytes": 95752357,
+      "sha256": "9cf7228b54f1edcdd4b372eb736774adf29cb4f804c9920229bac6c154833399"
+    },
+    {
+      "path": "evaluation/evaluation.py",
+      "url": "https://raw.githubusercontent.com/RUCKBReasoning/SpreadsheetBench/49b73a94775fb489063f60ca1865e3a650079a79/evaluation/evaluation.py",
+      "bytes": 7868,
+      "sha256": "4ae77cee8df01d1f34684fceab972810d696886533d33be2e89373de6b4d3de3"
+    },
+    {
+      "path": "evaluation/open_spreadsheet.py",
+      "url": "https://raw.githubusercontent.com/RUCKBReasoning/SpreadsheetBench/49b73a94775fb489063f60ca1865e3a650079a79/evaluation/open_spreadsheet.py",
+      "bytes": 7063,
+      "sha256": "8eafeb70aee06eaefc995ddc0b10747a713792ce15a122cdcd406d90b30ef9b8"
+    },
+    {
+      "path": "xlsx/SKILL.md",
+      "url": "https://raw.githubusercontent.com/anthropics/skills/dbd4588f9e1033efb41dad4bef2f7947c8993d44/skills/xlsx/SKILL.md",
+      "bytes": 8598,
+      "sha256": "6712b39718fe815054abca9c3ee72f989613e6f771c8a5c58f30a65a6c905622"
+    },
+    {
+      "path": "xlsx/LICENSE.txt",
+      "url": "https://raw.githubusercontent.com/anthropics/skills/dbd4588f9e1033efb41dad4bef2f7947c8993d44/skills/xlsx/LICENSE.txt",
+      "bytes": 1467,
+      "sha256": "79f6d8f5b427252fa3b1c11ecdbdb6bf610b944f7530b4de78f770f38741cfaa"
+    },
+    {
+      "path": "xlsx/scripts/recalc.py",
+      "url": "https://raw.githubusercontent.com/anthropics/skills/dbd4588f9e1033efb41dad4bef2f7947c8993d44/skills/xlsx/scripts/recalc.py",
+      "bytes": 10670,
+      "sha256": "66f6e726d5a53cfabea0b6471d6669deb95e54e96cb7913b687e4388da1bb3d9"
+    },
+    {
+      "path": "xlsx/scripts/office/soffice.py",
+      "url": "https://raw.githubusercontent.com/anthropics/skills/dbd4588f9e1033efb41dad4bef2f7947c8993d44/skills/xlsx/scripts/office/soffice.py",
+      "bytes": 5927,
+      "sha256": "df2c8d7249c132a4512d744482e4b5ed0ecbe885f0bcfb1295e7e6a7ced0432c"
+    },
+    {
+      "path": "inference/code_exec.py",
+      "url": "https://raw.githubusercontent.com/RUCKBReasoning/SpreadsheetBench/49b73a94775fb489063f60ca1865e3a650079a79/inference/code_exec.py",
+      "bytes": 960,
+      "sha256": "16e7ac9c4b2c169d2d58da9fbfe827adf3597344bafff1760ab2dca582caaea9"
+    },
+    {
+      "path": "inference/inference_multiple.py",
+      "url": "https://raw.githubusercontent.com/RUCKBReasoning/SpreadsheetBench/49b73a94775fb489063f60ca1865e3a650079a79/inference/inference_multiple.py",
+      "bytes": 6382,
+      "sha256": "3b971fec51e1137ce307e9c9970d6b5cfb26d092557b8b109a3da24108a2da7a"
+    },
+    {
+      "path": "inference/inference_single.py",
+      "url": "https://raw.githubusercontent.com/RUCKBReasoning/SpreadsheetBench/49b73a94775fb489063f60ca1865e3a650079a79/inference/inference_single.py",
+      "bytes": 5308,
+      "sha256": "40d647ff7c931b0e05a67c0673fb73b7f7dfabf34b9d9673bcf07fe921c1ead8"
+    },
+    {
+      "path": "inference/jupyter_kernel_cli.py",
+      "url": "https://raw.githubusercontent.com/RUCKBReasoning/SpreadsheetBench/49b73a94775fb489063f60ca1865e3a650079a79/inference/jupyter_kernel_cli.py",
+      "bytes": 591,
+      "sha256": "4c498960e2a7b38f2f0266271cd84c7c66deed3c7e13920405a5b6471c2f4a2d"
+    },
+    {
+      "path": "inference/llm_api.py",
+      "url": "https://raw.githubusercontent.com/RUCKBReasoning/SpreadsheetBench/49b73a94775fb489063f60ca1865e3a650079a79/inference/llm_api.py",
+      "bytes": 448,
+      "sha256": "e0d20e999282fd1e1e07c687f9879573fac98f931dec3d3e7f5810db8efdf485"
+    },
+    {
+      "path": "inference/prompt_format.py",
+      "url": "https://raw.githubusercontent.com/RUCKBReasoning/SpreadsheetBench/49b73a94775fb489063f60ca1865e3a650079a79/inference/prompt_format.py",
+      "bytes": 5027,
+      "sha256": "763eb1ece57becd65ddf15f341d7fd24e7d5ff410d19c9cc75a29998c1e4ac89"
+    },
+    {
+      "path": "inference/scripts/inference_multiple_react_exec.sh",
+      "url": "https://raw.githubusercontent.com/RUCKBReasoning/SpreadsheetBench/49b73a94775fb489063f60ca1865e3a650079a79/inference/scripts/inference_multiple_react_exec.sh",
+      "bytes": 122,
+      "sha256": "5fcc83d0c7b7434ccaed14e9175091622f50adae0ad20769fc0b58db8b80cbcf"
+    },
+    {
+      "path": "inference/scripts/inference_multiple_row_exec.sh",
+      "url": "https://raw.githubusercontent.com/RUCKBReasoning/SpreadsheetBench/49b73a94775fb489063f60ca1865e3a650079a79/inference/scripts/inference_multiple_row_exec.sh",
+      "bytes": 120,
+      "sha256": "bf980bf108442da4cf942728d9ba57ee639efbc0afda99b89d95243645510f47"
+    },
+    {
+      "path": "inference/scripts/inference_multiple_row_react_exec.sh",
+      "url": "https://raw.githubusercontent.com/RUCKBReasoning/SpreadsheetBench/49b73a94775fb489063f60ca1865e3a650079a79/inference/scripts/inference_multiple_row_react_exec.sh",
+      "bytes": 126,
+      "sha256": "99068463dbb5a528ac9264cec430e717f378ade999dfe0eda1c64a807357a82e"
+    },
+    {
+      "path": "inference/scripts/inference_single.sh",
+      "url": "https://raw.githubusercontent.com/RUCKBReasoning/SpreadsheetBench/49b73a94775fb489063f60ca1865e3a650079a79/inference/scripts/inference_single.sh",
+      "bytes": 93,
+      "sha256": "951e135eec50441a38e3cb23b84848f5b18b5fd9d06fcf8b230254a990c93969"
+    },
+    {
+      "path": "requirements.txt",
+      "url": "https://raw.githubusercontent.com/RUCKBReasoning/SpreadsheetBench/49b73a94775fb489063f60ca1865e3a650079a79/requirements.txt",
+      "bytes": 111,
+      "sha256": "bb3cd66a19bf9d1b9b8ffd50eea2e7c81c4a9063e3d94c76e5554632226777d5"
+    }
+  ],
+  "subset": {
+    "directory": "spreadsheetbench_100",
+    "selection": "First 100 metadata entries of official dataset archive, in source order",
+    "task_count": 100,
+    "case_count": 300,
+    "input_files": 300,
+    "answer_files": 300,
+    "is_paper_original_split": false,
+    "metadata_sha256": "755b57d02124429039cd0eee5e8537ca2ff4eb01422127278b2d2aad171516ae"
+  },
+  "public_logs_check": {
+    "repository_tree": "SpreadsheetBench-tree.json",
+    "result": "This official benchmark tree contains inference/evaluation code and workbook archives, not a released GLM-5 xlsx trajectory corpus."
+  },
+  "xlsx_baseline_note": "Current official Anthropic xlsx skill pinned at recorded commit; paper original xlsx version/hash is not established by this download."
+}

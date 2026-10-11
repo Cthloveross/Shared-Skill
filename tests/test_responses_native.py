@@ -1,0 +1,789 @@
+import gzip
+import json
+
+import httpx
+import pytest
+
+from sharedskill.api_server import SharedSkillAPIServer
+from sharedskill.config import SharedSkillConfig
+
+
+@pytest.mark.asyncio
+async def test_forward_to_llm_responses_preserves_codex_native_tools(monkeypatch):
+    captured = {}
+
+    class FakeResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {
+                "id": "resp_native",
+                "object": "response",
+                "status": "completed",
+                "output": [],
+            }
+
+    class FakeAsyncClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def post(self, url, json, headers):
+            captured["url"] = url
+            captured["json"] = json
+            captured["headers"] = headers
+            return FakeResponse()
+
+    monkeypatch.setattr(httpx, "AsyncClient", FakeAsyncClient)
+    server = object.__new__(SharedSkillAPIServer)
+    server.config = SharedSkillConfig(
+        llm_api_base="http://upstream.test/v1",
+        llm_api_key="upstream-key",
+        llm_model_id="upstream-model",
+        llm_api_mode="responses",
+    )
+
+    body = {
+        "model": "sharedskill-model",
+        "input": "hi",
+        "stream": True,
+        "tools": [
+            {"type": "function", "name": "exec_command", "parameters": {"type": "object"}},
+            {"type": "custom", "name": "js_repl"},
+            {"type": "web_search"},
+            {"type": "namespace", "name": "mcp__cccc__"},
+        ],
+    }
+
+    result = await server._forward_to_llm_responses(body)
+
+    assert result["id"] == "resp_native"
+    assert captured["url"] == "http://upstream.test/v1/responses"
+    assert captured["json"]["model"] == "upstream-model"
+    assert captured["json"]["stream"] is False
+    assert captured["json"]["tools"] == body["tools"]
+    assert captured["headers"] == {"Authorization": "Bearer upstream-key"}
+
+
+@pytest.mark.asyncio
+async def test_responses_endpoint_uses_native_forward_when_enabled():
+    server = SharedSkillAPIServer(
+        SharedSkillConfig(
+            llm_api_mode="responses",
+            llm_api_base="http://upstream.test/v1",
+            llm_model_id="upstream-model",
+            proxy_api_key="sharedskill",
+            record_enabled=False,
+        )
+    )
+    seen = {}
+
+    async def fake_forward(body):
+        seen["body"] = body
+        return {
+            "id": "resp_native",
+            "object": "response",
+            "created_at": 0,
+            "status": "completed",
+            "model": "upstream-model",
+            "output": [
+                {
+                    "id": "msg_1",
+                    "type": "message",
+                    "role": "assistant",
+                    "status": "completed",
+                    "content": [{"type": "output_text", "text": "native ok", "annotations": []}],
+                }
+            ],
+            "usage": {"input_tokens": 1, "output_tokens": 1, "total_tokens": 2},
+        }
+
+    server._forward_to_llm_responses = fake_forward
+    client = httpx.AsyncClient(transport=httpx.ASGITransport(app=server.app), base_url="http://test")
+    try:
+        response = await client.post(
+            "/v1/responses",
+            headers={"Authorization": "Bearer sharedskill", "Session_id": "codex-session-1"},
+            json={
+                "model": "sharedskill-model",
+                "input": "hi",
+                "stream": False,
+                "tools": [{"type": "custom", "name": "js_repl"}],
+            },
+        )
+    finally:
+        await client.aclose()
+
+    assert response.status_code == 200
+    assert response.json()["id"] == "resp_native"
+    assert seen["body"]["tools"] == [{"type": "custom", "name": "js_repl"}]
+
+
+@pytest.mark.asyncio
+async def test_native_responses_records_original_prompt_before_skill_injection():
+    class FakeSkillManager:
+        def refresh_if_changed(self):
+            return None
+
+        def build_injection_prompt(self, *, max_chars):
+            return "<available_skills>\n" + ("catalog filler " * 300) + "\n</available_skills>"
+
+        def get_all_skills(self):
+            return [{"name": "demo-skill"}]
+
+        def record_injection(self, names):
+            self.names = names
+
+    server = SharedSkillAPIServer(
+        SharedSkillConfig(
+            llm_api_mode="responses",
+            llm_api_base="http://upstream.test/v1",
+            llm_model_id="upstream-model",
+            proxy_api_key="sharedskill",
+            record_enabled=False,
+        ),
+        skill_manager=FakeSkillManager(),
+    )
+    seen = {}
+
+    async def fake_forward(body):
+        seen["instructions"] = body.get("instructions", "")
+        return {
+            "id": "resp_native",
+            "object": "response",
+            "created_at": 0,
+            "status": "completed",
+            "model": "upstream-model",
+            "output": [
+                {
+                    "id": "msg_1",
+                    "type": "message",
+                    "role": "assistant",
+                    "status": "completed",
+                    "content": [{"type": "output_text", "text": "native ok", "annotations": []}],
+                }
+            ],
+        }
+
+    server._forward_to_llm_responses = fake_forward
+    client = httpx.AsyncClient(transport=httpx.ASGITransport(app=server.app), base_url="http://test")
+    try:
+        response = await client.post(
+            "/v1/responses",
+            headers={"Authorization": "Bearer sharedskill", "Session_id": "codex-session-1"},
+            json={
+                "model": "sharedskill-model",
+                "instructions": "original instructions",
+                "input": "actual user task",
+                "stream": False,
+            },
+        )
+    finally:
+        await client.aclose()
+
+    assert response.status_code == 200
+    assert "<available_skills>" in seen["instructions"]
+    turn = server._session_turns["codex-session-1"][0]
+    assert turn["prompt_text"] == "original instructions\nactual user task"
+    assert "<available_skills>" not in turn["prompt_text"]
+    assert turn["injected_skills"] == ["demo-skill"]
+    assert turn["raw_turn_kind"] == "final"
+    assert turn["user_turn_num"] == 1
+
+
+def test_native_responses_upload_cadence_uses_user_turn_counter() -> None:
+    server = object.__new__(SharedSkillAPIServer)
+    server.config = SharedSkillConfig(sharing_enabled=True, sharing_session_upload_interval=2)
+    server._session_turns = {}
+    server._user_turn_counts = {}
+    server._session_last_active = {}
+    queued = []
+
+    def fake_create_task(coro):
+        queued.append(coro)
+        return None
+
+    server._safe_create_task = fake_create_task
+
+    response_payload = {
+        "output": [
+            {
+                "type": "message",
+                "content": [{"type": "output_text", "text": "ok"}],
+            }
+        ]
+    }
+    server._record_responses_turn(
+        "codex-session-1",
+        {"input": "first"},
+        response_payload,
+        turn_type="main",
+        injected_skills=[],
+        session_done=False,
+    )
+    server._record_responses_turn(
+        "codex-session-1",
+        {"input": "second"},
+        response_payload,
+        turn_type="main",
+        injected_skills=[],
+        session_done=False,
+    )
+
+    assert [turn["turn_num"] for turn in server._session_turns["codex-session-1"]] == [1, 2]
+    assert [turn["user_turn_num"] for turn in server._session_turns["codex-session-1"]] == [1, 2]
+    assert len(queued) == 1
+
+    queued[0].close()
+
+
+@pytest.mark.asyncio
+async def test_forward_to_llm_responses_stream_preserves_upstream_sse(monkeypatch):
+    captured = {}
+
+    class FakeStreamResponse:
+        def raise_for_status(self):
+            return None
+
+        async def aiter_bytes(self):
+            yield b'data: {"type":"response.created"}\n\n'
+            yield b'data: {"type":"response.completed"}\n\n'
+            yield b"data: [DONE]\n\n"
+
+    class FakeStreamContext:
+        async def __aenter__(self):
+            return FakeStreamResponse()
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+    class FakeAsyncClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        def stream(self, method, url, json, headers):
+            captured["method"] = method
+            captured["url"] = url
+            captured["json"] = json
+            captured["headers"] = headers
+            return FakeStreamContext()
+
+    monkeypatch.setattr(httpx, "AsyncClient", FakeAsyncClient)
+    server = object.__new__(SharedSkillAPIServer)
+    server.config = SharedSkillConfig(
+        llm_api_base="http://upstream.test/v1",
+        llm_api_key="upstream-key",
+        llm_model_id="upstream-model",
+        llm_api_mode="responses",
+    )
+
+    body = {
+        "model": "sharedskill-model",
+        "input": "hi",
+        "stream": True,
+        "tools": [{"type": "custom", "name": "js_repl"}],
+    }
+
+    chunks = []
+    async for chunk in server._stream_llm_responses(body):
+        chunks.append(chunk)
+
+    assert chunks == [
+        b'data: {"type":"response.created"}\n\n',
+        b'data: {"type":"response.completed"}\n\n',
+        b"data: [DONE]\n\n",
+    ]
+    assert captured["method"] == "POST"
+    assert captured["url"] == "http://upstream.test/v1/responses"
+    assert captured["json"]["stream"] is True
+    assert captured["json"]["model"] == "upstream-model"
+    assert captured["json"]["tools"] == body["tools"]
+
+
+@pytest.mark.asyncio
+async def test_forward_to_llm_responses_stream_decodes_compressed_upstream_sse(monkeypatch):
+    raw_sse = b'data: {"type":"response.created"}\n\ndata: {"type":"response.completed"}\n\ndata: [DONE]\n\n'
+
+    class FakeStreamResponse:
+        def raise_for_status(self):
+            return None
+
+        def aiter_bytes(self):
+            response = httpx.Response(
+                200,
+                headers={"content-encoding": "gzip"},
+                stream=httpx.ByteStream(gzip.compress(raw_sse)),
+            )
+            return response.aiter_bytes()
+
+    class FakeStreamContext:
+        async def __aenter__(self):
+            return FakeStreamResponse()
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+    class FakeAsyncClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        def stream(self, method, url, json, headers):
+            return FakeStreamContext()
+
+    monkeypatch.setattr(httpx, "AsyncClient", FakeAsyncClient)
+    server = object.__new__(SharedSkillAPIServer)
+    server.config = SharedSkillConfig(
+        llm_api_base="http://upstream.test/v1",
+        llm_api_key="upstream-key",
+        llm_model_id="upstream-model",
+        llm_api_mode="responses",
+    )
+
+    chunks = []
+    async for chunk in server._stream_llm_responses({"model": "sharedskill-model", "input": "hi", "stream": True}):
+        chunks.append(chunk)
+
+    assert b"".join(chunks) == raw_sse
+
+
+@pytest.mark.asyncio
+async def test_stream_and_track_responses_records_before_completed_chunk_is_consumed():
+    server = object.__new__(SharedSkillAPIServer)
+    server._session_turns = {}
+    server._safe_create_task = lambda coro: None
+    recorded = {}
+
+    completed_event = {
+        "type": "response.completed",
+        "response": {
+            "id": "resp_native",
+            "object": "response",
+            "status": "completed",
+            "output": [
+                {
+                    "id": "msg_1",
+                    "type": "message",
+                    "role": "assistant",
+                    "status": "completed",
+                    "content": [{"type": "output_text", "text": "tracked ok", "annotations": []}],
+                }
+            ],
+        },
+    }
+
+    async def fake_stream(_body):
+        payload = ("data: " + json.dumps(completed_event) + "\n\n").encode()
+        yield payload[:20]
+        yield payload[20:]
+        yield b"data: [DONE]\n\n"
+
+    def fake_record(session_id, request_body, response_payload, *, turn_type, injected_skills, session_done):
+        recorded["session_id"] = session_id
+        recorded["request_body"] = request_body
+        recorded["response_text"] = response_payload["output"][0]["content"][0]["text"]
+        recorded["turn_type"] = turn_type
+        recorded["injected_skills"] = injected_skills
+        recorded["session_done"] = session_done
+
+    server._stream_llm_responses = fake_stream
+    server._record_responses_turn = fake_record
+
+    stream = server._stream_and_track_responses(
+        {"model": "sharedskill-model", "instructions": "<available_skills>catalog</available_skills>", "stream": True},
+        record_body={"model": "sharedskill-model", "instructions": "original instructions", "stream": True},
+        session_id="codex-session-1",
+        turn_type="main",
+        injected_skills=["demo"],
+        session_done=False,
+    )
+    first = await stream.__anext__()
+    second = await stream.__anext__()
+    assert first + second == ("data: " + json.dumps(completed_event) + "\n\n").encode()
+    assert recorded == {
+        "session_id": "codex-session-1",
+        "request_body": {"model": "sharedskill-model", "instructions": "original instructions", "stream": True},
+        "response_text": "tracked ok",
+        "turn_type": "main",
+        "injected_skills": ["demo"],
+        "session_done": False,
+    }
+    await stream.aclose()
+
+
+@pytest.mark.asyncio
+async def test_stream_and_track_responses_records_output_from_stream_events_when_completed_lacks_output():
+    server = object.__new__(SharedSkillAPIServer)
+    recorded = {}
+
+    events = [
+        {
+            "type": "response.output_item.added",
+            "output_index": 0,
+            "item": {
+                "id": "msg_1",
+                "type": "message",
+                "role": "assistant",
+                "status": "in_progress",
+                "content": [],
+            },
+        },
+        {
+            "type": "response.output_text.delta",
+            "output_index": 0,
+            "content_index": 0,
+            "item_id": "msg_1",
+            "delta": "real ",
+        },
+        {
+            "type": "response.output_text.delta",
+            "output_index": 0,
+            "content_index": 0,
+            "item_id": "msg_1",
+            "delta": "ok",
+        },
+        {
+            "type": "response.output_text.done",
+            "output_index": 0,
+            "content_index": 0,
+            "item_id": "msg_1",
+            "text": "real ok",
+        },
+        {
+            "type": "response.completed",
+            "response": {
+                "id": "resp_1",
+                "object": "response",
+                "status": "completed",
+                "model": "gpt-5.5",
+            },
+        },
+    ]
+
+    async def fake_stream(_body):
+        for event in events:
+            yield ("event: " + event["type"] + "\n").encode()
+            yield ("data: " + json.dumps(event) + "\n\n").encode()
+
+    def fake_record(session_id, request_body, response_payload, *, turn_type, injected_skills, session_done):
+        recorded["session_id"] = session_id
+        recorded["response_text"] = response_payload["output"][0]["content"][0]["text"]
+        recorded["turn_type"] = turn_type
+
+    server._stream_llm_responses = fake_stream
+    server._record_responses_turn = fake_record
+
+    chunks = []
+    async for chunk in server._stream_and_track_responses(
+        {"model": "sharedskill-model", "input": "hi", "stream": True},
+        session_id="codex-session-1",
+        turn_type="main",
+        injected_skills=[],
+        session_done=False,
+    ):
+        chunks.append(chunk)
+
+    assert b"".join(chunks).startswith(b"event: response.output_item.added\n")
+    assert recorded == {
+        "session_id": "codex-session-1",
+        "response_text": "real ok",
+        "turn_type": "main",
+    }
+
+
+@pytest.mark.asyncio
+async def test_responses_endpoint_passthroughs_native_stream():
+    server = SharedSkillAPIServer(
+        SharedSkillConfig(
+            llm_api_mode="responses",
+            llm_api_base="http://upstream.test/v1",
+            llm_model_id="upstream-model",
+            proxy_api_key="sharedskill",
+            record_enabled=False,
+        )
+    )
+
+    async def fake_stream(body):
+        yield b'data: {"type":"response.created","upstream":true}\n\n'
+        yield b"data: [DONE]\n\n"
+
+    server._stream_llm_responses = fake_stream
+    client = httpx.AsyncClient(transport=httpx.ASGITransport(app=server.app), base_url="http://test")
+    try:
+        response = await client.post(
+            "/v1/responses",
+            headers={"Authorization": "Bearer sharedskill", "Session_id": "codex-session-1"},
+            json={"model": "sharedskill-model", "input": "hi", "stream": True},
+        )
+    finally:
+        await client.aclose()
+
+    assert response.status_code == 200
+    assert response.text == 'data: {"type":"response.created","upstream":true}\n\ndata: [DONE]\n\n'
+
+
+@pytest.mark.asyncio
+async def test_responses_chat_bridge_merges_previous_response_history(tmp_path):
+    server = SharedSkillAPIServer(
+        SharedSkillConfig(
+            proxy_api_key="sharedskill",
+            record_enabled=False,
+            record_dir=str(tmp_path),
+            claw_type="nanoclaw",
+        )
+    )
+    calls = []
+
+    async def fake_handle_request(body, session_id, turn_type, session_done):
+        calls.append(body)
+        idx = len(calls)
+        return {
+            "response": {
+                "id": f"chatcmpl_{idx}",
+                "created": 0,
+                "choices": [{"message": {"role": "assistant", "content": f"ok {idx}"}, "finish_reason": "stop"}],
+                "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+            }
+        }
+
+    server._handle_request = fake_handle_request
+    client = httpx.AsyncClient(transport=httpx.ASGITransport(app=server.app), base_url="http://test")
+    try:
+        first = await client.post(
+            "/v1/responses",
+            headers={"Authorization": "Bearer sharedskill", "Session_id": "codex-session-1"},
+            json={"model": "sharedskill-model", "input": "first", "store": True},
+        )
+        second = await client.post(
+            "/v1/responses",
+            headers={"Authorization": "Bearer sharedskill", "Session_id": "codex-session-1"},
+            json={
+                "model": "sharedskill-model",
+                "input": "second",
+                "previous_response_id": first.json()["id"],
+                "store": True,
+            },
+        )
+    finally:
+        await client.aclose()
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert calls[1]["messages"] == [
+        {"role": "user", "content": "first"},
+        {"role": "assistant", "content": "ok 1"},
+        {"role": "user", "content": "second"},
+    ]
+
+
+@pytest.mark.asyncio
+async def test_responses_continuation_keeps_new_instructions_first(tmp_path):
+    server = SharedSkillAPIServer(
+        SharedSkillConfig(
+            proxy_api_key="sharedskill",
+            record_enabled=False,
+            record_dir=str(tmp_path),
+            claw_type="nanoclaw",
+        )
+    )
+    calls = []
+
+    async def fake_handle_request(body, session_id, turn_type, session_done):
+        calls.append(body)
+        idx = len(calls)
+        return {
+            "response": {
+                "id": f"chatcmpl_{idx}",
+                "created": 0,
+                "choices": [{"message": {"role": "assistant", "content": f"ok {idx}"}, "finish_reason": "stop"}],
+                "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+            }
+        }
+
+    server._handle_request = fake_handle_request
+    client = httpx.AsyncClient(transport=httpx.ASGITransport(app=server.app), base_url="http://test")
+    try:
+        first = await client.post(
+            "/v1/responses",
+            headers={"Authorization": "Bearer sharedskill", "Session_id": "codex-session-1"},
+            json={"model": "sharedskill-model", "input": "first", "store": True},
+        )
+        second = await client.post(
+            "/v1/responses",
+            headers={"Authorization": "Bearer sharedskill", "Session_id": "codex-session-1"},
+            json={
+                "model": "sharedskill-model",
+                "instructions": "new system instructions",
+                "input": "second",
+                "previous_response_id": first.json()["id"],
+                "store": True,
+            },
+        )
+    finally:
+        await client.aclose()
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert calls[1]["messages"] == [
+        {"role": "system", "content": "new system instructions"},
+        {"role": "user", "content": "first"},
+        {"role": "assistant", "content": "ok 1"},
+        {"role": "user", "content": "second"},
+    ]
+
+
+@pytest.mark.asyncio
+async def test_responses_continuation_deduplicates_replayed_output_items(tmp_path):
+    server = SharedSkillAPIServer(
+        SharedSkillConfig(
+            proxy_api_key="sharedskill",
+            record_enabled=False,
+            record_dir=str(tmp_path),
+            claw_type="nanoclaw",
+        )
+    )
+    calls = []
+
+    async def fake_handle_request(body, session_id, turn_type, session_done):
+        calls.append(body)
+        idx = len(calls)
+        if idx == 1:
+            return {
+                "response": {
+                    "id": "chatcmpl_1",
+                    "created": 0,
+                    "choices": [
+                        {
+                            "message": {
+                                "role": "assistant",
+                                "content": "need tool",
+                                "tool_calls": [
+                                    {
+                                        "id": "call_1",
+                                        "type": "function",
+                                        "function": {"name": "Skill", "arguments": '{"name":"debug"}'},
+                                    }
+                                ],
+                            },
+                            "finish_reason": "tool_calls",
+                        }
+                    ],
+                    "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+                }
+            }
+        return {
+            "response": {
+                "id": f"chatcmpl_{idx}",
+                "created": 0,
+                "choices": [{"message": {"role": "assistant", "content": f"ok {idx}"}, "finish_reason": "stop"}],
+                "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+            }
+        }
+
+    server._handle_request = fake_handle_request
+    client = httpx.AsyncClient(transport=httpx.ASGITransport(app=server.app), base_url="http://test")
+    try:
+        first = await client.post(
+            "/v1/responses",
+            headers={"Authorization": "Bearer sharedskill", "Session_id": "codex-session-1"},
+            json={"model": "sharedskill-model", "input": "first", "store": True},
+        )
+        first_payload = first.json()
+        second = await client.post(
+            "/v1/responses",
+            headers={"Authorization": "Bearer sharedskill", "Session_id": "codex-session-1"},
+            json={
+                "model": "sharedskill-model",
+                "input": [
+                    *first_payload["output"],
+                    {
+                        "type": "message",
+                        "role": "user",
+                        "content": [{"type": "input_text", "text": "second"}],
+                    },
+                ],
+                "previous_response_id": first_payload["id"],
+                "store": True,
+            },
+        )
+    finally:
+        await client.aclose()
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert calls[1]["messages"] == [
+        {"role": "user", "content": "first"},
+        {
+            "role": "assistant",
+            "content": "need tool",
+            "tool_calls": [
+                {
+                    "id": "call_1",
+                    "type": "function",
+                    "function": {"name": "Skill", "arguments": '{"name":"debug"}'},
+                }
+            ],
+        },
+        {"role": "user", "content": "second"},
+    ]
+
+
+def test_prepare_responses_forward_keeps_native_codex_items_out_of_chat_conversion():
+    server = object.__new__(SharedSkillAPIServer)
+    server.config = SharedSkillConfig(
+        llm_api_base="http://upstream.test/v1/",
+        llm_api_key="upstream-key",
+        llm_model_id="upstream-model",
+        llm_api_mode="responses",
+    )
+    native_tools = [
+        {"type": "custom", "name": "js_repl", "description": "Run JavaScript"},
+        {"type": "web_search", "search_context_size": "medium"},
+        {
+            "type": "namespace",
+            "name": "mcp__cccc__",
+            "tools": [{"name": "cccc_context_get", "input_schema": {"type": "object"}}],
+        },
+    ]
+    body = {
+        "model": "sharedskill-model",
+        "input": [{"role": "user", "content": [{"type": "input_text", "text": "hi"}]}],
+        "tools": native_tools,
+        "tool_choice": {"type": "custom", "name": "js_repl"},
+        "parallel_tool_calls": True,
+        "session_id": "private-session",
+        "session_done": False,
+        "turn_type": "user",
+    }
+
+    url, send_body, headers = server._prepare_responses_forward(body, stream=True)
+
+    assert url == "http://upstream.test/v1/responses"
+    assert headers == {"Authorization": "Bearer upstream-key"}
+    assert send_body["model"] == "upstream-model"
+    assert send_body["stream"] is True
+    assert send_body["tools"] is native_tools
+    assert send_body["tool_choice"] == {"type": "custom", "name": "js_repl"}
+    assert send_body["parallel_tool_calls"] is True
+    assert send_body["input"] == body["input"]
+    assert "messages" not in send_body
+    assert "session_id" not in send_body
+    assert "session_done" not in send_body
+    assert "turn_type" not in send_body
