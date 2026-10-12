@@ -18,6 +18,10 @@ evolve_history.jsonl
 evolve_processed.json
 .DS_Store
 
+# Reproduction downloads, GPU logs, Docker data and complete task evidence.
+experiment/reproduction/*/runtime/
+experiment/reproduction/*/local.json
+
 # Keep download provenance; obtain third-party datasets separately.
 reproduction/reference/*
 !reproduction/reference/source-manifest.json

@@ -58,6 +58,7 @@ sharedskill dashboard serve --host 127.0.0.1 --port 3788
 
 ## 实验与参考数据
 
+- [Qwen3.8 全本地六轮复现实验](../experiment/reproduction/wildclawbench-qwen3.8-27b/EXPERIMENT.md)：完整 60 题、9 个初始共享技能、真实候选 A/B 和终点 S0/S6 对照，包含运行入口、参数、耗时与当前状态。
 - [原始 SkillClaw 实验设置](paper-experiments.md)：正常进化流程、8 用户和 6 轮参数、WildClawBench 来源与本地正常闭环验证。
 - [PoisonedEvolution 实验设计](poisoned-evolution-experiments.md)：轨迹采集与投毒流程、模型角色、30/3 批次、600 次主实验、消融参数和两篇论文的设置区别。
 
