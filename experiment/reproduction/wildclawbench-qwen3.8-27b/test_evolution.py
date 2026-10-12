@@ -245,6 +245,58 @@ class EvolutionTests(unittest.TestCase):
         self.assertEqual(e._bank_source_name("/root/skills/newly-created/SKILL.md", {"newly-created"}), "newly-created")
         self.assertIsNone(e._bank_source_name("/root/skills/../alpha/SKILL.md", {"alpha"}))
 
+    def test_successful_tilde_and_parent_alias_reads_match_only_normalized_bank_paths(self):
+        for path in ("~/skills/alpha/SKILL.md", "/root/skills/beta/../alpha/SKILL.md"):
+            with self.subTest(path=path):
+                messages = [
+                    dict(message=dict(role="user", content="Task")),
+                    dict(
+                        message=dict(
+                            role="assistant",
+                            content=[dict(type="toolCall", id="r", name="read", arguments=dict(path=path))],
+                        )
+                    ),
+                    dict(
+                        message=dict(
+                            role="toolResult",
+                            toolCallId="r",
+                            content=[dict(type="text", text="actual skill contents")],
+                            isError=False,
+                        )
+                    ),
+                ]
+                normalized = e._normalize_session(
+                    dict(task_id="task-a", session_id="s", phase="day", messages=messages), {"alpha", "beta"}
+                )
+                self.assertEqual(normalized["_skills_referenced"], ["alpha"])
+                read = normalized["turns"][0]["actual_skill_reads"][0]
+                self.assertEqual(read["path"], "/root/skills/alpha/SKILL.md")
+                self.assertEqual(read["original_path"], path)
+                self.assertEqual(read["environment_or_shared"], "shared")
+                self.assertIn(path, normalized["turns"][0]["tool_calls"][0]["function"]["arguments"])
+                messages[-1]["message"]["isError"] = True
+                failed = e._normalize_session(
+                    dict(task_id="task-a", session_id="s", phase="day", messages=messages), {"alpha", "beta"}
+                )
+                self.assertEqual(failed["_skills_referenced"], [])
+        self.assertIsNone(
+            e._bank_source_name("~/skills/../../usr/lib/node_modules/openclaw/skills/alpha/SKILL.md", {"alpha"})
+        )
+
+    def test_native_modified_and_injected_aliases_preserve_original_metadata(self):
+        session = self.session(skill=None)
+        turn = session["turns"][0]
+        turn["modified_skills"] = [dict(skill_name="alpha", path="~/skills/beta/../alpha/SKILL.md")]
+        turn["injected_skills"] = ["~/skills/alpha/SKILL.md", "/usr/lib/node_modules/openclaw/skills/beta/SKILL.md"]
+        normalized = e._normalize_session(session, {"alpha", "beta"})
+        self.assertEqual(normalized["_skills_referenced"], ["alpha"])
+        self.assertEqual(normalized["turns"][0]["modified_skills"][0]["path"], "/root/skills/alpha/SKILL.md")
+        self.assertEqual(
+            normalized["turns"][0]["modified_skills"][0]["original_path"], "~/skills/beta/../alpha/SKILL.md"
+        )
+        self.assertEqual(normalized["turns"][0]["injected_skills"], ["alpha"])
+        self.assertEqual(normalized["turns"][0]["source_injected_skills"], session["turns"][0]["injected_skills"])
+
     def test_external_inference_url_and_validation_logs_are_rejected(self):
         config = dict(self.config, llm_base_url="https://api.openai.com/v1")
         with self.assertRaises(e.EvolutionError):

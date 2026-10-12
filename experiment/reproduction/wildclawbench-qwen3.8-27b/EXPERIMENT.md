@@ -58,7 +58,11 @@ DinD 内部使用外层 Docker bridge gateway 访问同一台机器的这些接�
 
 任务和进化容器清空镜像内的代理变量，固定收费模型域名解析到容器 loopback，并仅给本地占位凭据；免费搜索、代码和素材下载仍可联网。策略和真实 DNS／本地接口探针保存在 `runtime/assets/network-policy.json`。这不是给题目追加提示词。
 
+社会 mock 的官方 20% 错误注入保持启用。私有容器以独立 `sitecustomize.py` 初始化 Python random seed=42，不改原始 workspace 文件；A/B 恢复到相同初始随机状态，后续随机数由实际请求顺序消耗，各分支的 429／500 和重试情况留档。bootstrap 内容 hash 保存在每次执行产物中。
+
 官方 bundled `openai-image-gen` 和 `openai-whisper-api` 原脚本硬编码 OpenAI 域名，不能仅靠 `OPENAI_BASE_URL` 完成本地化。实验在每个干净容器里将这两个脚本的 endpoint 固定改为本地网关，保存原／改后 hash；原镜像 archive 和共享库不修改。图像生成走真实 SDXL，转录走真实 Omni。OpenClaw 原生 TTS 也固定到本地 `audio/speech`，关闭 Edge 与 ElevenLabs 回退；`speech.platform.bing.com` 同样被阻断。音色使用 Omni 的 Chelsie／Ethan，不能冒称与原题指定的 Edge 音色相同。这些是整个实验统一采用的工具环境差异。
+
+原生 TTS 使用每题独立 prefs 文件、固定 provider／model／voice，关闭文本中的 provider 覆盖，单次 timeout=120 秒；完整任务 timeout 仍沿用各题原值。
 
 官方 OpenClaw 镜像 archive 为 13,479,787,008 bytes，固定 workspace 约 1.01 GiB，另外下载官方准备脚本要求的视频和 SAM3 权重。专用 DinD 容器及内层镜像、可写层位于 `runtime/docker/` 的 `/home` 磁盘，不改共享 daemon、全局 Docker context 或其它项目容器。
 
@@ -172,4 +176,15 @@ uv pip install --python .venv/bin/python -r experiment/reproduction/wildclawbenc
 - 2026-10-12：真实容器 smoke 发现官方镜像的代理设置会阻断本地地址，已在实验容器中清空；随后发现工具 JSON schema 中的 `type` 对象触发网关异常，已修复并增加回归检查。两次均记录为基础设施故障，未虚报零分或完成任务。
 - 2026-10-12：独立 smoke 已跑通实际 OpenClaw 任务执行、官方评分、有效 token 统计；原生进化器读取全部 9 个技能并用真实工具写出私有候选，原库字节未变。证据分别在 `runtime/smoke/` 和 `runtime/native-evolver-smoke/`，均不计入预跑、白天成绩或夜间学习证据。
 - 2026-10-12：确定主模型统一 16384 输出额度，解决 thinking 耗尽原 GPT 小额度的问题；真实任务保留原输出后，仅重新评分，得到有效 Qwen JSON 和 `judge_method=llm`。明确评分解析失败为待评分，任务产物缺失仍为有效任务失败。正式启动前，64 项测试、136 项子测试及 Ruff 全部通过。
+- 2026-10-12：首个预跑运行 `20261012T213129Z` 的真实社会任务成功用 `~/skills/03_task6/SKILL.md` 读取技能，暴露记录器漏识别 home 缩写的归因问题。终止本实验自己的预跑进程，保留旧容器轨迹，修复后以新运行编号和新代码 hash 重启；旧记录标记 `superseded_during_pilot`，没有产生正式 Day 1 成绩，不复用为新版本结果。
+- 2026-10-12：真实旧轨迹已正确归因到 `03_task6`；两个独立容器 Python 进程验证 seed42 初始序列一致，20% 注错仍启用。重启前最新检查为 68 项测试、138 项子测试、Ruff 全部通过。
 - 预跑及正式成绩以随后真实运行记录为准。
+
+<!-- LIVE_STATUS -->
+## 当前运行记录
+
+- 状态：`superseded_during_pilot`。
+- 运行：`runtime/runs/20261012T213129Z/`。
+- 更新：`2026-10-12T21:33:15.198388+00:00`。
+- 已记录任务执行：0；终点有效配对：0/60。
+- [运行报告](runtime/runs/20261012T213129Z/report/REPORT.md)。

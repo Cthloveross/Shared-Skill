@@ -9,6 +9,7 @@ from __future__ import annotations
 import ast
 import hashlib
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -220,6 +221,10 @@ class MockExecution:
         self.events.append(("adapters", name, api_url, str(manifest)))
         return {"scope": "mock container-local adapter setup"}
 
+    def python_bootstrap(self, name, config, manifest):
+        self.events.append(("python_bootstrap", name, str(manifest)))
+        return {"seed": 42, "scope": "mock container Python startup bootstrap"}
+
     def copy_out(self, name, source, path, config, **kwargs):
         self.events.append(("copy_out", source, str(path)))
         if source.endswith("chat.jsonl"):
@@ -256,13 +261,18 @@ class MockExecution:
         grading.extract_usage_from_jsonl = lambda path: {"input_tokens": 13, "output_tokens": 5}
         stack.enter_context(patch.dict(sys.modules, {"src.utils.grading": grading}))
         stack.enter_context(
-            patch.object(environment, "paths", return_value={"upstream": self.source, "runtime": self.root})
+            patch.object(
+                environment,
+                "paths",
+                return_value={"upstream": self.source, "runtime": self.root, "assets": self.root / "assets"},
+            )
         )
         stack.enter_context(
             patch.object(environment, "container_api_url", return_value="http://mock-gateway:18182/runs/test/v1")
         )
         stack.enter_context(patch.object(environment, "openclaw_config", return_value={"mock": True}))
         stack.enter_context(patch.object(environment, "apply_local_tool_adapters", side_effect=self.adapters))
+        stack.enter_context(patch.object(environment, "apply_python_bootstrap", side_effect=self.python_bootstrap))
         stack.enter_context(
             patch.object(
                 environment, "_run", side_effect=AssertionError("Unmocked subprocess escaped the runtime test boundary")
@@ -351,6 +361,8 @@ class TaskExecutionTests(unittest.TestCase):
             self.assertEqual(agent_command[agent_command.index("--message") + 1], execution.spec["prompt"])
             launch = next(e[1] for e in execution.events if e[0] == "docker" and e[1][0] == "run")
             self.assertIn(f"type=bind,src={execution.workspace / 'exec'},dst=/app,readonly", launch)
+            self.assertIn("PYTHONHASHSEED=42", launch)
+            self.assertIn("PYTHONPATH=" + environment.PYTHON_BOOTSTRAP_DIRECTORY, launch)
             self.assertTrue(
                 any(
                     e[0] == "docker" and e[1][0] == "cp" and str(execution.workspace / "tmp") in e[1][1]
@@ -360,6 +372,11 @@ class TaskExecutionTests(unittest.TestCase):
             self.assertEqual((execution.workspace / "exec" / "input.txt").read_text(), "immutable original input")
             adapter_index = next(i for i, e in enumerate(execution.events) if e[0] == "adapters")
             self.assertLess(adapter_index, agent_index, "Local tool routing must be ready before real Agent starts")
+            seed_index = next(i for i, e in enumerate(execution.events) if e[0] == "python_bootstrap")
+            warmup_index = next(
+                i for i, e in enumerate(execution.events) if e[0] == "docker" and "/tmp/sharedskill-warmup.sh" in e[1]
+            )
+            self.assertLess(seed_index, warmup_index, "Mock servers must start from the seeded Python state")
 
     def test_swallowed_scoring_api_failure_cannot_be_reported_as_zero(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -517,6 +534,50 @@ class TaskExecutionTests(unittest.TestCase):
             shared = [r for r in session["actual_skill_reads"] if r["environment_or_shared"] == "shared"]
             self.assertEqual([r["path"] for r in shared], ["/root/skills/video-frames/SKILL.md"])
 
+    def test_successful_tilde_and_parent_alias_reads_keep_original_path_and_shared_membership(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary)
+            (output / "shared-skill-names.json").write_text(json.dumps(["03_task6"]))
+            paths = (
+                "~/skills/03_task6/SKILL.md",
+                "/root/skills/unused/../03_task6/SKILL.md",
+                "~/skills/../../usr/lib/node_modules/openclaw/skills/03_task6/SKILL.md",
+            )
+            entries = []
+            for number, path in enumerate(paths):
+                entries.append(
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": [
+                                {"type": "toolCall", "id": str(number), "name": "read", "arguments": {"path": path}}
+                            ],
+                        }
+                    }
+                )
+                entries.append(
+                    {
+                        "message": {
+                            "role": "toolResult",
+                            "toolCallId": str(number),
+                            "content": [{"type": "text", "text": "actual tool read succeeded"}],
+                            "isError": False,
+                        }
+                    }
+                )
+            (output / "chat.jsonl").write_text("\n".join(json.dumps(e) for e in entries) + "\n")
+            session = runtime._session(output, {"task_id": "task", "prompt": "original"})
+            self.assertEqual(session["actual_used_skill_refs"], ["03_task6"])
+            self.assertEqual(session["messages"], entries)
+            reads = session["actual_skill_reads"]
+            shared = [r for r in reads if r["environment_or_shared"] == "shared"]
+            self.assertTrue(shared)
+            self.assertTrue(all(r["path"] == "/root/skills/03_task6/SKILL.md" for r in shared))
+            originals = {r["original_path"] for r in shared}
+            self.assertTrue(set(paths[:2]).issubset(originals))
+            external = [r for r in reads if r["environment_or_shared"] == "environment"]
+            self.assertTrue(any(r["original_path"] == paths[2] for r in external))
+
     def test_invalid_score_values_are_pending_not_completed(self):
         for score in (float("nan"), float("inf"), -0.1, 1.1, "not a score", True):
             with self.subTest(score=score), tempfile.TemporaryDirectory() as temporary:
@@ -550,6 +611,40 @@ class TaskExecutionTests(unittest.TestCase):
 
 
 class SourceProvenanceTests(unittest.TestCase):
+    def test_two_independent_python_startups_have_identical_seeded_random_sequences(self):
+        # Real stdlib Python startups, no Docker, services, or inference.
+        with tempfile.TemporaryDirectory() as temporary:
+            config = {"experiment_root": temporary, "runtime_dir": str(Path(temporary) / "runtime"), "seed": 42}
+            bootstrap = environment.python_bootstrap_source(config)
+            self.assertEqual(bootstrap.name, "sitecustomize.py")
+            self.assertIn("random.seed(42)", bootstrap.read_text())
+            env = {"PATH": os.environ.get("PATH", ""), "PYTHONPATH": str(bootstrap.parent), "PYTHONHASHSEED": "42"}
+            probe = """import json, random, sitecustomize
+draws=[random.random() for _ in range(1000)]
+print(json.dumps({'draws':draws, 'injected_errors':[x<0.2 for x in draws],
+                  'choices':random.choices(['slow','reject','success'], weights=[1,1,8], k=100),
+                  'bootstrap':sitecustomize.__file__, 'hash':hash('sharedskill-probe')}))
+"""
+            results = [
+                json.loads(
+                    subprocess.run(
+                        [sys.executable, "-c", probe],
+                        env=env,
+                        cwd=temporary,
+                        capture_output=True,
+                        text=True,
+                        check=True,
+                        timeout=10,
+                    ).stdout
+                )
+                for _ in range(2)
+            ]
+            self.assertEqual(results[0], results[1])
+            self.assertEqual(Path(results[0]["bootstrap"]).resolve(), bootstrap.resolve())
+            self.assertEqual(results[0]["draws"][0], 0.6394267984578837)
+            self.assertGreater(sum(results[0]["injected_errors"]), 0, "Seeding must not disable random error injection")
+            self.assertLess(sum(results[0]["injected_errors"]), len(results[0]["draws"]))
+
     def test_dirty_tracked_files_rejected_even_when_head_is_pinned(self):
         with tempfile.TemporaryDirectory() as temporary:
             config = {"experiment_root": temporary}

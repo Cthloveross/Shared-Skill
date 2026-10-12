@@ -8,6 +8,7 @@ No global Docker context, daemon settings, or existing containers are changed.
 from __future__ import annotations
 
 import concurrent.futures
+import fcntl
 import hashlib
 import json
 import os
@@ -27,6 +28,8 @@ DIND_IMAGE = "docker@sha256:7613944c7bc318c7b97541bd0e65b8a18d033e37e204305f1ee2
 TASK_IMAGE = "wildclawbench-ubuntu:v1.3"
 IMAGE_BYTES = 13_479_787_008
 ROOT = Path(__file__).resolve().parent
+PYTHON_BOOTSTRAP_SOURCE = "import random\nrandom.seed(42)\n"
+PYTHON_BOOTSTRAP_DIRECTORY = "/opt/sharedskill-bootstrap"
 BLOCKED_MODEL_HOSTS = (
     "api.openai.com",
     "openrouter.ai",
@@ -46,6 +49,49 @@ BLOCKED_MODEL_HOSTS = (
 def provider_network_args() -> list[str]:
     """Only this experiment's containers block paid provider DNS names."""
     return [value for host in BLOCKED_MODEL_HOSTS for value in ("--add-host", host + ":127.0.0.1")]
+
+
+def python_bootstrap_source(config: Mapping[str, Any]) -> Path:
+    """Generate the exact stdlib-only bootstrap once, with a process-safe lock."""
+    directory = paths(config)["assets"] / "python-bootstrap"
+    directory.mkdir(parents=True, exist_ok=True)
+    source = directory / "sitecustomize.py"
+    with (directory / ".write.lock").open("a") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        if source.exists() and source.read_text() != PYTHON_BOOTSTRAP_SOURCE:
+            raise RuntimeError("Python seed bootstrap has unexpected modifications")
+        if not source.exists():
+            source.write_text(PYTHON_BOOTSTRAP_SOURCE)
+    return source
+
+
+def python_seed_args(config: Mapping[str, Any]) -> list[str]:
+    original = config.get("image_pythonpath")
+    cache = paths(config)["assets"] / "task-image-python-environment.json"
+    if original is None and cache.exists():
+        original = json.loads(cache.read_text()).get("PYTHONPATH", "")
+    pythonpath = PYTHON_BOOTSTRAP_DIRECTORY + (":" + str(original) if original else "")
+    return ["--env", "PYTHONPATH=" + pythonpath, "--env", "PYTHONHASHSEED=42"]
+
+
+def apply_python_bootstrap(name: str, config: Mapping[str, Any], manifest: Path) -> dict[str, Any]:
+    source = python_bootstrap_source(config)
+    _run(["docker", "exec", name, "mkdir", "-p", PYTHON_BOOTSTRAP_DIRECTORY], config=config)
+    target = PYTHON_BOOTSTRAP_DIRECTORY + "/sitecustomize.py"
+    _run(["docker", "cp", str(source), name + ":" + target], config=config)
+    seed_args = python_seed_args(config)
+    record = {
+        "seed": 42,
+        "sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
+        "source_path": str(source),
+        "container_path": target,
+        "pythonpath": seed_args[1].partition("=")[2],
+        "pythonhashseed": "42",
+        "original_workspace_unchanged": True,
+        "mock_error_rate_unchanged": True,
+    }
+    _write_json(manifest, record)
+    return record
 
 
 LOCAL_SCRIPT_ADAPTERS = {
@@ -301,6 +347,19 @@ def prepare_docker(config: Mapping[str, Any], load_image: bool = True) -> dict[s
         )
         inner_image = _run(["docker", "image", "inspect", TASK_IMAGE], config=config, check=False)
     image_info = json.loads(inner_image.stdout)[0] if inner_image.returncode == 0 else {}
+    if image_info:
+        original_pythonpath = next(
+            (
+                value.partition("=")[2]
+                for value in image_info.get("Config", {}).get("Env", [])
+                if value.startswith("PYTHONPATH=")
+            ),
+            "",
+        )
+        _write_json(
+            p["assets"] / "task-image-python-environment.json",
+            {"task_image_id": image_info["Id"], "PYTHONPATH": original_pythonpath},
+        )
     outer = json.loads(_run(["docker", "inspect", name]).stdout)[0]
     gateways = [n.get("Gateway") for n in outer["NetworkSettings"]["Networks"].values() if n.get("Gateway")]
     return {
@@ -499,6 +558,9 @@ def openclaw_config(config: Mapping[str, Any], workspace: str, *, api_url: str |
         "messages": {
             "tts": {
                 "provider": "openai",
+                "timeoutMs": 120000,
+                "prefsPath": str(Path(workspace) / ".sharedskill-tts-prefs.json"),
+                "modelOverrides": {"enabled": False},
                 "openai": {
                     "apiKey": config.get("local_api_key", "sharedskill-local"),
                     "baseUrl": api_url or container_api_url(config),
@@ -506,6 +568,7 @@ def openclaw_config(config: Mapping[str, Any], workspace: str, *, api_url: str |
                     "voice": "Chelsie",
                 },
                 "edge": {"enabled": False},
+                "elevenlabs": {"baseUrl": api_url or container_api_url(config)},
             }
         },
         "tools": {"web": {"search": {"enabled": False}}, "profile": "full"},
@@ -555,6 +618,7 @@ def run_evolver(
                 "--name",
                 name,
                 *provider_network_args(),
+                *python_seed_args(config),
                 "--mount",
                 f"type=bind,src={workspace_dir},dst={workspace_dir}",
                 "--mount",
@@ -605,6 +669,7 @@ def run_evolver(
             config=config,
             timeout=120,
         )
+        apply_python_bootstrap(name, config, openclaw_home / "python-bootstrap.json")
         apply_local_tool_adapters(
             name, config, container_api_url(config, run_id=session_id), openclaw_home / "local-tool-adapters.json"
         )
@@ -789,6 +854,13 @@ def prepare(config: Mapping[str, Any]) -> dict[str, Any]:
     result["assets"] = prepare_assets(config)
     result["docker"] = prepare_docker(config)
     result["docker"]["blocked_paid_model_hosts"] = list(BLOCKED_MODEL_HOSTS)
+    seed_source = python_bootstrap_source(config)
+    result["python_bootstrap"] = {
+        "source": str(seed_source),
+        "seed": 42,
+        "sha256": hashlib.sha256(seed_source.read_bytes()).hexdigest(),
+        "environment_args": python_seed_args(config),
+    }
     result["image_skills"] = prepare_skill_inventory(config)
     result["supplemental_assets"] = prepare_supplemental_assets(config)
     result["status"] = (

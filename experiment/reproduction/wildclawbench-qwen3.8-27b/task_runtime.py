@@ -13,6 +13,7 @@ import csv
 import hashlib
 import json
 import math
+import posixpath
 import re
 import shlex
 import shutil
@@ -601,7 +602,7 @@ def _session(output: Path, spec: Mapping[str, Any]) -> dict[str, Any]:
     reads: set[str] = set()
     calls: dict[str, dict[str, Any]] = {}
     tool_errors = 0
-    skill_reads: dict[str, dict[str, str]] = {}
+    skill_reads: dict[tuple[str, str], dict[str, str]] = {}
     membership = output / "shared-skill-names.json"
     shared_names = set(json.loads(membership.read_text())) if membership.exists() else set()
     chat = output / "chat.jsonl"
@@ -628,11 +629,14 @@ def _session(output: Path, spec: Mapping[str, Any]) -> dict[str, Any]:
                 if call.get("name") in ("read", "read_file", "readFile") or (
                     call.get("name") in ("exec", "bash") and re.search(r"\b(cat|sed|head|less)\b", raw)
                 ):
-                    for path in re.findall(r"(/[^\s\"']+/SKILL\.md)", raw):
+                    for original_path in re.findall(r"((?:~/|/)[^\s\"']+/SKILL\.md)", raw):
+                        expanded = "/root/" + original_path[2:] if original_path.startswith("~/") else original_path
+                        path = posixpath.normpath(expanded)
                         name = Path(path).parent.name
                         shared = path == f"/root/skills/{name}/SKILL.md" and name in shared_names
-                        skill_reads[path] = {
+                        skill_reads[(path, original_path)] = {
                             "path": path,
+                            "original_path": original_path,
                             "name": name,
                             "environment_or_shared": "shared" if shared else "environment",
                         }
@@ -734,6 +738,7 @@ def _execute_child(
             "--name",
             name,
             *environment.provider_network_args(),
+            *environment.python_seed_args(config),
             "--label",
             "org.sharedskill.run_id=" + run_id,
             "--mount",
@@ -838,6 +843,7 @@ def _execute_child(
         tools_file.write_text(_local_tools(api_url, str(config.get("model_id", "qwen3.8-27b"))))
         _copy_in(tools_file, name, "/tmp_workspace/TOOLS.md", config)
         if not live_rescore:
+            environment.apply_python_bootstrap(name, config, output / "python-bootstrap.json")
             environment.apply_local_tool_adapters(name, config, api_url, output / "local-tool-adapters.json")
         # Warmup services are backgrounded with detached stdin/stdout so the
         # parent docker-exec does not hang while mock servers stay alive.

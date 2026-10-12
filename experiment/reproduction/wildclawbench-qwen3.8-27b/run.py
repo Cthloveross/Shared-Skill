@@ -560,6 +560,7 @@ def pilot(tasks: list[dict], bank: Path, run_dir: Path, config: dict):
         extrapolated_fixed_hours=elapsed * 480 / len(result) / 3600,
     )
     update_state(run_dir, "pilot_complete")
+    generate(run_dir, tasks)
 
 
 def run_experiment(tasks: list[dict], initial: Path, run_dir: Path, config: dict):

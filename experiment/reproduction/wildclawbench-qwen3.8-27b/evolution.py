@@ -14,6 +14,7 @@ import hashlib
 import importlib
 import json
 import os
+import posixpath
 import re
 import subprocess
 import time
@@ -76,11 +77,17 @@ def _content_text(content: Any) -> str:
     return ""
 
 
+def _normalize_skill_path(path: str) -> str:
+    """Match OpenClaw's container-root home expansion without host filesystem IO."""
+    expanded = path.replace("\\", "/")
+    if expanded.startswith("~/"):
+        expanded = "/root/" + expanded[2:]
+    return posixpath.normpath(expanded)
+
+
 def _bank_source_name(path: str, bank_names: set[str]) -> str | None:
     """An image skill with the same basename is not the shared bank copy."""
-    parts = PurePosixPath(path.replace("\\", "/")).parts
-    if ".." in parts:
-        return None
+    parts = PurePosixPath(_normalize_skill_path(path)).parts
     if len(parts) == 5 and parts[:3] == ("/", "root", "skills"):
         name, filename = parts[3:]
     elif len(parts) == 3 and parts[0] == "skills":
@@ -97,10 +104,21 @@ def _restrict_bank_references(session: dict, bank_names: set[str]) -> None:
             original = turn.get(field) or []
             retained = []
             for item in original:
-                name = str(item.get("skill_name", "") if isinstance(item, dict) else item).strip()
+                name = str(item.get("skill_name", item.get("name", "")) if isinstance(item, dict) else item).strip()
                 path = item.get("path", item.get("file_path")) if isinstance(item, dict) else None
-                if name in bank_names and (not path or _bank_source_name(str(path), bank_names) == name):
-                    retained.append(item)
+                if not path and name.endswith("/SKILL.md"):
+                    path = name
+                path_name = _bank_source_name(str(path), bank_names) if path else None
+                if (path and path_name) or (not path and name in bank_names):
+                    if isinstance(item, dict) and path:
+                        record = copy.deepcopy(item)
+                        record.update(skill_name=path_name, path=_normalize_skill_path(str(path)))
+                        record.setdefault("original_path", str(path))
+                    elif path:
+                        record = path_name
+                    else:
+                        record = item
+                    retained.append(record)
             if retained != original:
                 turn.setdefault("source_" + field, copy.deepcopy(original))
                 turn[field] = retained
@@ -185,18 +203,20 @@ def _messages_to_turns(messages: list[dict], bank_names: set[str]) -> list[dict]
             )
             if not error and reads_file:
                 argument_text = json.dumps(info["arguments"], ensure_ascii=False)
-                for match in re.finditer(r"[a-zA-Z0-9_./\\-]+[/\\]SKILL\.md", argument_text):
+                for match in re.finditer(r"[~a-zA-Z0-9_./\\-]+[/\\]SKILL\.md", argument_text):
                     source_path = match[0]
+                    normalized_path = _normalize_skill_path(source_path)
                     name = _bank_source_name(source_path, bank_names)
                     provenance = {
-                        "path": source_path,
-                        "name": PurePosixPath(source_path.replace("\\", "/")).parent.name,
+                        "path": normalized_path,
+                        "original_path": source_path,
+                        "name": PurePosixPath(normalized_path).parent.name,
                         "environment_or_shared": "shared" if name else "environment",
                     }
                     if provenance not in turn.setdefault("actual_skill_reads", []):
                         turn["actual_skill_reads"].append(provenance)
                     if name:
-                        record = {"skill_name": name, "path": source_path}
+                        record = {"skill_name": name, "path": normalized_path, "original_path": source_path}
                         if record not in turn["read_skills"]:
                             turn["read_skills"].append(record)
     return turns

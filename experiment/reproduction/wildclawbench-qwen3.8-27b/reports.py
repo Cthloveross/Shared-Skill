@@ -177,6 +177,10 @@ def generate(run_dir: Path, tasks: list[dict]) -> dict:
         if r["short_id"] == "02.06"
     ]
     write_json(output / "ocr-variant.json", ocr_records)
+    pilot_path = run_dir / "pilot-gate.json"
+    pilot_calibration = json.loads(pilot_path.read_text()) if pilot_path.exists() else None
+    initial_bank, final_bank = run_dir / "banks/S0", run_dir / "banks/S6"
+    bank_changed = tree_hash(initial_bank) != tree_hash(final_bank) if final_bank.is_dir() else None
     summary = {
         "state": state,
         "stages": stages,
@@ -193,6 +197,8 @@ def generate(run_dir: Path, tasks: list[dict]) -> dict:
         "execution_wall_span_seconds": wall_span(records),
         "formal_wall_span_seconds": wall_span([r for r in records if r["phase"] in {"day", "validation", "endpoint"}]),
         "ocr_task_results": ocr_records,
+        "pilot_calibration": pilot_calibration,
+        "final_bank_changed": bank_changed,
     }
     write_json(output / "summary.json", summary)
     lines = [
@@ -211,6 +217,13 @@ def generate(run_dir: Path, tasks: list[dict]) -> dict:
             f"| {stage['phase']} | {stage['arm'] or stage['round']} | {stage['attempted']} | "
             f"{stage['graded']} | {score} | {stage['task_seconds'] / 3600:.2f} | {stage['timeouts']} |"
         )
+    if pilot_calibration:
+        lines += [
+            "",
+            f"预跑实际墙钟 {pilot_calibration['wall_seconds'] / 60:.1f} 分钟；"
+            f"按这 8 题外推固定 480 次为 {pilot_calibration['extrapolated_fixed_wall_hours']:.1f} 小时。",
+            "此估计包含预跑样本与单卡排队的影响，不含夜间摘要、提案和 A/B；候选数量尚未确定，不能作为总实验完成时间。",
+        ]
     lines += [
         "",
         f"候选接受 {summary['candidate_accepts']} 个，拒绝 {summary['candidate_rejects']} 个。",
@@ -222,6 +235,8 @@ def generate(run_dir: Path, tasks: list[dict]) -> dict:
             f"终点 S6−S0：{summary['endpoint_delta'] * 100:+.2f} 个百分点；"
             f"59 道保留原提示题：{summary['unchanged_prompt_delta'] * 100:+.2f} 个百分点。"
         )
+        if bank_changed is False:
+            lines.append("S6 与 S0 的文件 hash 相同；上述差值属于同库重复测量，不能归因于技能内容进化。")
     else:
         lines.append("终点对照尚未完成，不能给出最终技能进步幅度。")
     lines += [
