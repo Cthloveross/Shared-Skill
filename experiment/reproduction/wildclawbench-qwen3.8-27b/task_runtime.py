@@ -697,9 +697,9 @@ def _session(output: Path, spec: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
-def _gateway_main_failures(config: Mapping[str, Any], run_id: str, started_unix: float = 0) -> list[dict[str, Any]]:
+def _gateway_main_records(config: Mapping[str, Any], run_id: str, started_unix: float = 0) -> list[dict[str, Any]]:
     root = Path(config.get("gateway_log_dir", environment.paths(config)["runtime"] / "api-evidence")) / run_id
-    failures = []
+    records = []
     for file in root.glob("*/record.json"):
         try:
             record = json.loads(file.read_text())
@@ -707,11 +707,75 @@ def _gateway_main_failures(config: Mapping[str, Any], run_id: str, started_unix:
             continue
         if record.get("started_unix", 0) < started_unix:
             continue
-        if record.get("role") == "main" and (
-            record.get("status") == "error" or (record.get("http_status") or 200) >= 400
-        ):
-            failures.append(record)
-    return failures
+        if record.get("role") == "main":
+            records.append(record)
+    return records
+
+
+def _gateway_main_failures(
+    config: Mapping[str, Any],
+    run_id: str,
+    started_unix: float = 0,
+    *,
+    records: list[dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
+    if records is None:
+        records = _gateway_main_records(config, run_id, started_unix)
+    return [r for r in records if r.get("status") == "error" or (r.get("http_status") or 200) >= 400]
+
+
+def _task_deadline_evidence(
+    stdout: str,
+    stderr: str,
+    timeout: int,
+    started_unix: float,
+    finished_unix: float,
+    *,
+    outer_timeout: bool = False,
+) -> dict[str, Any]:
+    """Only the native task timer or the outer task wait proves a deadline."""
+    clean_stderr = re.sub(r"\x1b\[[0-?]*[ -/]*[@-~]", "", stderr)
+    markers = []
+    for line in clean_stderr.splitlines():
+        match = re.search(r"embedded run timeout: runId=(\S+) sessionId=chat timeoutMs=(\d+)(?:\s|$)", line)
+        if match and int(match.group(2)) == timeout * 1000:
+            markers.append({"run_id": match.group(1), "session_id": "chat", "timeout_ms": timeout * 1000, "line": line})
+    try:
+        payload = json.loads(stdout)
+        meta = payload.get("meta", {}) if isinstance(payload, dict) else {}
+    except (ValueError, TypeError):
+        meta = {}
+    if not isinstance(meta, dict):
+        meta = {}
+    return {
+        "confirmed": outer_timeout or bool(markers),
+        "timeout_seconds": timeout,
+        "agent_started_unix": started_unix,
+        "agent_finished_unix": finished_unix,
+        "deadline_not_before_unix": started_unix + timeout,
+        "outer_timeout": outer_timeout,
+        "native_deadline_markers": markers,
+        # Aborted metadata also occurs on manual cancellation; retain it only as evidence.
+        "native_meta": {key: meta[key] for key in ("aborted", "durationMs", "stopReason") if key in meta},
+    }
+
+
+def _deadline_stream_cancellations(
+    failures: list[dict[str, Any]], records: list[dict[str, Any]], evidence: Mapping[str, Any]
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    if not evidence["confirmed"]:
+        return failures, []
+    last_started = max((r.get("started_unix", 0) for r in records), default=0)
+    cancelled = [
+        r
+        for r in failures
+        if r.get("http_status") == 200
+        and r.get("error") == "Streaming client disconnected before completion"
+        and r.get("started_unix", 0) == last_started
+        and evidence["agent_started_unix"] <= r.get("started_unix", 0) <= evidence["agent_finished_unix"]
+        and evidence["deadline_not_before_unix"] <= (r.get("finished_unix") or 0) <= evidence["agent_finished_unix"] + 1
+    ]
+    return [r for r in failures if r not in cancelled], cancelled
 
 
 def _execute_child(
@@ -858,6 +922,9 @@ def _execute_child(
             _copy_in(output / "chat.jsonl", name, "/root/.openclaw/agents/main/sessions/chat.jsonl", config)
             execution = json.loads(execution_file.read_text())
             result["timed_out"] = execution.get("timed_out", False)
+            if "task_deadline_evidence" in execution:
+                result["task_deadline_evidence"] = execution["task_deadline_evidence"]
+                result["artifacts"]["deadline_evidence"] = str(output / "agent-deadline.json")
             result["agent_wall_seconds"] = execution.get("agent_wall_seconds", 0)
             result["rescore"] = True
         else:
@@ -937,6 +1004,8 @@ def _execute_child(
                 spec["prompt"],
             ]
             start = time.monotonic()
+            agent_started_unix = time.time()
+            outer_timeout = False
             # A failed artifact copy must not reuse a transcript from an earlier
             # failed attempt in this output directory.
             (output / "chat.jsonl").unlink(missing_ok=True)
@@ -947,12 +1016,27 @@ def _execute_child(
                 if proc.returncode:
                     result["agent_error"] = proc.stderr[-3000:]
             except subprocess.TimeoutExpired as exc:
-                result["timed_out"] = True
+                outer_timeout = True
                 (output / "agent.stdout").write_text(
                     (exc.stdout or b"").decode(errors="replace") if isinstance(exc.stdout, bytes) else exc.stdout or ""
                 )
-                (output / "agent.stderr").write_text("Agent timeout")
+                stderr = (
+                    (exc.stderr or b"").decode(errors="replace") if isinstance(exc.stderr, bytes) else exc.stderr or ""
+                )
+                (output / "agent.stderr").write_text(stderr + "\nAgent timeout")
                 _docker(["exec", name, "pkill", "-f", "openclaw"], config, check=False)
+            deadline = _task_deadline_evidence(
+                (output / "agent.stdout").read_text(),
+                (output / "agent.stderr").read_text(),
+                timeout,
+                agent_started_unix,
+                time.time(),
+                outer_timeout=outer_timeout,
+            )
+            result["timed_out"] = deadline["confirmed"]
+            result["task_deadline_evidence"] = deadline
+            result["artifacts"]["deadline_evidence"] = str(output / "agent-deadline.json")
+            _save(output / "agent-deadline.json", deadline)
             _copy_out(
                 name, "/root/.openclaw/agents/main/sessions/chat.jsonl", output / "chat.jsonl", config, required=False
             )
@@ -970,20 +1054,33 @@ def _execute_child(
                 )
                 for entry in session["messages"]
             )
-            main_errors = _gateway_main_failures(config, run_id, begin_unix)
+            main_records = _gateway_main_records(config, run_id, begin_unix)
+            main_errors = _gateway_main_failures(config, run_id, begin_unix, records=main_records)
+            main_errors, cancelled = _deadline_stream_cancellations(main_errors, main_records, deadline)
+            deadline["cancelled_gateway_requests"] = cancelled
+            _save(output / "agent-deadline.json", deadline)
             transcript_model_errors = [
                 entry["message"].get("errorMessage", "model returned an error")
                 for entry in session["messages"]
                 if entry.get("message", {}).get("role") == "assistant"
                 and entry.get("message", {}).get("stopReason") == "error"
             ]
-            if not assistant_activity or main_errors or transcript_model_errors:
+            unconfirmed_abort = deadline["native_meta"].get("aborted") is True and not deadline["confirmed"]
+            if (
+                (not assistant_activity and not result["timed_out"])
+                or main_errors
+                or transcript_model_errors
+                or unconfirmed_abort
+            ):
                 result["gateway_main_errors"] = main_errors
                 result["transcript_model_errors"] = transcript_model_errors
+                result["unconfirmed_agent_abort"] = unconfirmed_abort
                 raise RuntimeError(
                     "Agent infrastructure failure: "
                     + (
-                        "main model API failed"
+                        "native agent aborted without a confirmed task deadline"
+                        if unconfirmed_abort
+                        else "main model API failed"
                         if main_errors or transcript_model_errors
                         else "no actual assistant execution in transcript"
                     )
@@ -998,6 +1095,7 @@ def _execute_child(
                 {
                     "status": "agent_completed",
                     "timed_out": result["timed_out"],
+                    "task_deadline_evidence": deadline,
                     "agent_error": result.get("agent_error"),
                     "task_id": spec["task_id"],
                     "container": name,

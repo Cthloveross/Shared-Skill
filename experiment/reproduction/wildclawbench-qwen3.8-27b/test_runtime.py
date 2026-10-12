@@ -388,12 +388,20 @@ class MockExecution:
         self.events = []
         self.agent_calls = 0
         self.agent_returncode = 0
+        self.agent_stdout = "{}"
+        self.agent_stderr = ""
+        self.agent_exception = None
+        self.agent_elapsed = 0
+        self.agent_wait_timeouts = []
+        self.unix_time = 100.0
         self.actual_assistant = True
+        self.chat_entries = None
         self.assistant_stop_reason = None
         self.thinking_only = False
         self.grade_scores = {"overall_score": 0.0}
         self.grade_events = []
         self.gateway_errors = []
+        self.gateway_records = None
         self.warmup_returncode = 0
         self.live_container = True
 
@@ -402,7 +410,15 @@ class MockExecution:
         if "openclaw" in args and "agent" in args:
             self.agent_calls += 1
             self.events.append(("agent", args))
-            return completed("{}", "agent failed" if self.agent_returncode else "", self.agent_returncode)
+            self.agent_wait_timeouts.append(kwargs.get("timeout"))
+            self.unix_time += self.agent_elapsed
+            if self.agent_exception:
+                raise self.agent_exception
+            return completed(
+                self.agent_stdout,
+                self.agent_stderr or ("agent failed" if self.agent_returncode else ""),
+                self.agent_returncode,
+            )
         if args and args[0] == "inspect":
             run_id = "wcb-" + hashlib.sha256(str(self.output.resolve()).encode()).hexdigest()[:20]
             return completed(
@@ -433,6 +449,9 @@ class MockExecution:
     def copy_out(self, name, source, path, config, **kwargs):
         self.events.append(("copy_out", source, str(path)))
         if source.endswith("chat.jsonl"):
+            if self.chat_entries is not None:
+                path.write_text("".join(json.dumps(entry) + "\n" for entry in self.chat_entries))
+                return True
             if self.actual_assistant:
                 content = (
                     [{"type": "thinking", "thinking": "mock reasoning only"}]
@@ -489,14 +508,164 @@ class MockExecution:
         stack.enter_context(patch.object(runtime, "_copy_in", side_effect=self.copy_in))
         stack.enter_context(patch.object(runtime, "_copy_out", side_effect=self.copy_out))
         stack.enter_context(patch.object(runtime, "_grade", side_effect=self.grade))
+        stack.enter_context(patch.object(runtime.time, "time", side_effect=lambda: self.unix_time))
         stack.enter_context(
-            patch.object(runtime, "_gateway_main_failures", side_effect=lambda *args: self.gateway_errors)
+            patch.object(
+                runtime,
+                "_gateway_main_records",
+                side_effect=lambda *args: (
+                    self.gateway_records if self.gateway_records is not None else self.gateway_errors
+                ),
+            )
+        )
+        stack.enter_context(
+            patch.object(runtime, "_gateway_main_failures", side_effect=lambda *args, **kwargs: self.gateway_errors)
         )
         return stack
 
     def execute(self, rescore=False):
         with self.context():
             return runtime._execute_child(self.spec["task_id"], self.bank, self.output, {}, rescore)
+
+
+class TaskDeadlineTests(unittest.TestCase):
+    NATIVE_MARKER = "[agent/embedded] embedded run timeout: runId=native-1 sessionId=chat timeoutMs=5000"
+
+    def cancellation(self, **changes):
+        record = {
+            "request_id": "terminal-request",
+            "role": "main",
+            "status": "error",
+            "http_status": 200,
+            "started_unix": 101.0,
+            "finished_unix": 105.0,
+            "error": "Streaming client disconnected before completion",
+        }
+        return dict(record, **changes)
+
+    def deadline_execution(self, directory, *, outer=False):
+        execution = MockExecution(directory)
+        execution.agent_elapsed = 35 if outer else 5
+        execution.agent_stdout = json.dumps({"payloads": [], "meta": {"aborted": True, "durationMs": 5000}})
+        execution.agent_stderr = self.NATIVE_MARKER
+        execution.gateway_errors = [self.cancellation(finished_unix=135.0 if outer else 105.0)]
+        if outer:
+            execution.agent_stderr = ""
+            execution.agent_exception = subprocess.TimeoutExpired(
+                "mock agent", 35, output=execution.agent_stdout.encode(), stderr=b"original native stderr"
+            )
+        return execution
+
+    def assert_graded_deadline(self, execution, result):
+        self.assertEqual(result["status"], "completed")
+        self.assertEqual(result["score"], 0.0)
+        self.assertTrue(result["timed_out"])
+        self.assertEqual(execution.agent_wait_timeouts, [35])
+        args = next(e[1] for e in execution.events if e[0] == "agent")
+        self.assertEqual(args[args.index("--timeout") + 1], "5")
+        workspace_index = next(
+            i for i, e in enumerate(execution.events) if e[0] == "copy_out" and e[1] == "/tmp_workspace/."
+        )
+        grade_index = next(i for i, e in enumerate(execution.events) if e[0] == "grade")
+        self.assertLess(workspace_index, grade_index)
+        self.assertEqual((execution.output / "workspace/output.txt").read_text(), "actual mock execution output")
+        self.assertTrue((execution.output / "chat.jsonl").exists())
+        self.assertEqual(json.loads((execution.output / "raw-score.json").read_text()), {"overall_score": 0.0})
+        saved = json.loads((execution.output / "execution.json").read_text())
+        self.assertTrue(saved["timed_out"])
+        evidence = json.loads((execution.output / "agent-deadline.json").read_text())
+        self.assertTrue(evidence["confirmed"])
+        self.assertEqual(evidence, result["task_deadline_evidence"])
+        self.assertEqual(evidence["cancelled_gateway_requests"], execution.gateway_errors)
+
+    def test_native_deadline_cancellation_preserves_outputs_and_official_grading(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            execution = self.deadline_execution(Path(temporary))
+            result = execution.execute()
+            self.assert_graded_deadline(execution, result)
+            self.assertFalse(result["task_deadline_evidence"]["outer_timeout"])
+            self.assertEqual(result["task_deadline_evidence"]["native_deadline_markers"][0]["timeout_ms"], 5000)
+
+    def test_outer_deadline_cancellation_preserves_outputs_and_original_stderr(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            execution = self.deadline_execution(Path(temporary), outer=True)
+            result = execution.execute()
+            self.assert_graded_deadline(execution, result)
+            self.assertTrue(result["task_deadline_evidence"]["outer_timeout"])
+            self.assertIn("original native stderr", (execution.output / "agent.stderr").read_text())
+
+    def test_deadline_before_assistant_activity_still_preserves_trace_and_grades(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            execution = self.deadline_execution(Path(temporary))
+            execution.chat_entries = [{"type": "message", "message": {"role": "user", "content": "task"}}]
+            result = execution.execute()
+            self.assert_graded_deadline(execution, result)
+            self.assertEqual(result["session"]["messages"], execution.chat_entries)
+
+    def test_confirmed_deadline_does_not_mask_http500_network_or_earlier_cancellation(self):
+        genuine_failures = [
+            self.cancellation(http_status=500, error="server failed"),
+            self.cancellation(error="ReadError: connection closed"),
+            self.cancellation(request_id="earlier-request", started_unix=100.5, finished_unix=104.0),
+        ]
+        for failure in genuine_failures:
+            with self.subTest(failure=failure), tempfile.TemporaryDirectory() as temporary:
+                execution = self.deadline_execution(Path(temporary))
+                execution.gateway_errors.insert(0, failure)
+                result = execution.execute()
+                self.assertEqual(result["status"], "infrastructure_error")
+                self.assertIsNone(result["score"])
+                self.assertTrue(result["timed_out"])
+                self.assertIn(failure, result["gateway_main_errors"])
+                self.assertFalse(any(e[0] == "grade" for e in execution.events))
+
+    def test_cancellation_followed_by_another_request_remains_infrastructure(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            execution = self.deadline_execution(Path(temporary))
+            execution.gateway_records = execution.gateway_errors + [
+                {"role": "main", "status": "completed", "http_status": 200, "started_unix": 102.0}
+            ]
+            result = execution.execute()
+            self.assertEqual(result["status"], "infrastructure_error")
+            self.assertEqual(result["task_deadline_evidence"]["cancelled_gateway_requests"], [])
+
+    def test_manual_abort_or_wrong_native_timer_is_not_a_task_deadline(self):
+        stderr_cases = [
+            "Request was aborted",
+            self.NATIVE_MARKER.replace("sessionId=chat", "sessionId=other"),
+            self.NATIVE_MARKER.replace("timeoutMs=5000", "timeoutMs=4000"),
+        ]
+        for stderr in stderr_cases:
+            with self.subTest(stderr=stderr), tempfile.TemporaryDirectory() as temporary:
+                execution = self.deadline_execution(Path(temporary))
+                execution.agent_stderr = stderr
+                execution.assistant_stop_reason = "aborted"
+                result = execution.execute()
+                self.assertEqual(result["status"], "infrastructure_error")
+                self.assertFalse(result["timed_out"])
+                self.assertTrue(result["task_deadline_evidence"]["native_meta"]["aborted"])
+                self.assertFalse(any(e[0] == "grade" for e in execution.events))
+
+    def test_confirmed_deadline_never_ignores_transcript_stop_reason_error(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            execution = self.deadline_execution(Path(temporary))
+            execution.assistant_stop_reason = "error"
+            result = execution.execute()
+            self.assertEqual(result["status"], "infrastructure_error")
+            self.assertTrue(result["timed_out"])
+            self.assertTrue(result["transcript_model_errors"])
+            self.assertFalse(any(e[0] == "grade" for e in execution.events))
+
+    def test_aborted_metadata_after_limit_without_deadline_is_infra_even_without_gateway_errors(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            execution = self.deadline_execution(Path(temporary))
+            execution.agent_stderr = ""
+            execution.gateway_errors = []
+            result = execution.execute()
+            self.assertEqual(result["status"], "infrastructure_error")
+            self.assertTrue(result["unconfirmed_agent_abort"])
+            self.assertFalse(result["timed_out"])
+            self.assertFalse(any(e[0] == "grade" for e in execution.events))
 
 
 class TaskExecutionTests(unittest.TestCase):
