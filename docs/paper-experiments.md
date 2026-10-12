@@ -49,7 +49,20 @@ WildClawBench 是上海人工智能实验室与合作高校的 Shuangrui Ding、
 
 版本边界：本次核对的官方代码 revision 为 `8e1fde746584ae1a9c49b70526d49a7a572625cd`。当前资源支持多种 Agent 框架，并持续更新；这个 revision 和公开轨迹尚未被确认与 SkillClaw 的 8 用户、6 轮实验环境及日志完全一致。
 
-**技能资源也公开了。** 上述固定版本的 [WildClawBench skills 目录](https://github.com/InternLM/WildClawBench/tree/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills) 递归包含 27 份 `SKILL.md`，包括 6 个 `03_task1`–`03_task6` 社交任务技能、3 个通用技能和 18 个按六领域分组的技能。27 是这个公开目录的文件数，不能当作 SkillClaw 论文那次运行的初始库数量；历史实验代码如何从中准备初始库见 [§3.5](#35-公开代码如何准备技能库和任务)。
+**技能资源也公开了，但 27 份有不同用途。** 上述固定版本的 [WildClawBench skills 目录](https://github.com/InternLM/WildClawBench/tree/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills) 递归包含 27 份 `SKILL.md`：
+
+| 分组 | 数量 | 与 60 题的关系 |
+| --- | ---: | --- |
+| `03_task1`–`03_task6` | 6 | 六个社交交互任务各自引用一个对应技能 |
+| `agent-browser`、`video-frames`、`self-improving-agent-3.0.5` | 3 | 当前任务文件分别在 16、5、1 题中引用，可跨任务复用 |
+| `skills/1`–`skills/6` 下的领域技能 | 18 | WildClawBench 自身的 `+Skill` 对比实验资源，每个领域选 3 个；当前 60 题的 `## Skills` 段没有直接引用它们 |
+| **公开目录合计** | **27** | **资源文件数，不是 SkillClaw 初始库数量或进化数量** |
+
+18 个领域技能来自 ClawHub，作者在评测时按每个领域下载量选择前三。WildClawBench 的 `+Skill` 实验比较加入领域技能前后的任务成绩，并不执行 SkillClaw 的六轮技能进化。来源：[WildClawBench §4.3](https://arxiv.org/html/2605.10912v1#S4.SS3)、[附录 D](https://arxiv.org/html/2605.10912v1)。
+
+本次逐题核对固定版本的 [60 个任务 Markdown](https://github.com/InternLM/WildClawBench/tree/8e1fde746584ae1a9c49b70526d49a7a572625cd/tasks)：27 题的 `## Skills` 非空，33 题为空；非空段共引用上述 **9 个目录中存在的技能**，另有一题引用 `edge-tts`，该技能不在这 27 份中。这里的“27 题”与“27 份技能”只是数字相同。任务声明也不代表 Agent 实际读取了每个技能；空段不表示任务无法执行。逐题引用清单记录在 [来源清单的 `task_skill_reference_audit`](../reproduction/reference/wildclawbench-source-manifest.json)。
+
+因此，这些资源围绕 Benchmark 的任务或领域准备，但不是 27 份都对应全部 60 题，也不是当前 runner 自动把 27 份全部安装。SkillClaw 历史 runner 按所选任务引用构建初始库，可追加外部库，具体见 [§3.5](#35-公开代码如何准备技能库和任务)。
 
 Benchmark 自身的评测协议给出单题 300–1200 秒预算和 GPT-5.4 评分模型；原始 SkillClaw 则写明全流程使用 Qwen3-Max。前者的预算、评分配置不能直接填入后者的实验参数。来源：[Benchmark §3.2](https://arxiv.org/html/2605.10912v1#S3.SS2)、[§4.1](https://arxiv.org/html/2605.10912v1#S4.SS1)。
 
@@ -138,7 +151,7 @@ Benchmark 自身的评测协议给出单题 300–1200 秒预算和 GPT-5.4 评�
 
 来源：[表 4](https://arxiv.org/html/2604.08377v2#S3.T4)、[表 5](https://arxiv.org/html/2604.08377v2#S3.T5)、[表 6](https://arxiv.org/html/2604.08377v2#S3.T6)、[表 7](https://arxiv.org/html/2604.08377v2#S3.T7)。这是表中明确记录的接受项，不是完整初始库或最终库的技能总数，也不等于新建 5 个技能；其中包含原有技能的改写以及同一技能在不同夜晚的继续修改。搜索 Night 3、安全 Night 4 是同库复测，没有新技能文本，未计入上表。
 
-会议协调、路径排查、检索规划和多模态流水线等还有其他候选，但表中被拒绝。每天只对实际触发、且有改进潜力的技能提出更新，未必所有技能都修改。任务与技能也不一一对应：一条任务可以调用多个技能，同一技能可以服务多条任务。
+会议协调、路径排查、检索规划和多模态流水线等还有其他候选，但表中被拒绝。每天只对实际触发、且有改进潜力的技能提出更新，未必所有技能都修改。任务与技能也不一一对应：一条任务可以调用多个技能，同一技能可以服务多条任务。**论文没有说公开目录中的 27 份都参与或完成了进化；初始库总数、实际提出修改的技能总数，也不能由这 5 个接受项推出。**
 
 论文明确使用 WildClawBench，其完整基准有 60 个任务；SkillClaw 实验只报告四个代表性类别。没有逐用户、逐日的任务清单，不能据此断言每天跑完全部 60 题，或计算为 `60 × 8 × 6` 次执行。来源：[§3.1–3.2](https://arxiv.org/html/2604.08377v2#S3.SS1)。PoisonedEvolution 以 `xlsx` 为单一攻击目标，属于另一份实验设计。
 
