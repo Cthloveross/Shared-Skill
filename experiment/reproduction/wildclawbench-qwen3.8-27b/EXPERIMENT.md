@@ -189,13 +189,14 @@ uv pip install --python .venv/bin/python -r experiment/reproduction/wildclawbenc
 - 2026-10-12 21:52 UTC：代码 `9c35e9e` 已提交并推送，以干净工作区启动运行 `20261012T215250Z`；协议 hash 为 `537c5eed4c2063216718e09d6d492d93e52e57a73cf8560bd0cd0badaf511312`，初始库仍为上述 S0。六项接口检查全部通过，8 题预跑于 21:53 UTC 同时启动。实际启动命令和进程身份在该运行 `controller-process.json`，事件在 `controller.log` 和 `events.jsonl`。通过后自动继续六个白天／夜晚及两个终点分支，无需再次手动启动。
 - 2026-10-12：上述运行的 `06.01`、`04.03`、`03.06` 分别完成并得 0.5、0、0.871；真实判分 timeout 从原 40 秒等值统一为 1800 秒，`03_task6` 的实际 home 路径读取正确归因到共享库，均无 pending／infra。但正式前源码审计确认原生任务截止取消流可能被误分类为 infra。为先修复计量，22:02 UTC 仅终止该预跑并标记 `superseded_during_pilot`；归档八题已有证据，仅清理其剩余五个容器，没有进入 Day 1。这三道分数也不跨代码版本复用。
 - 2026-10-12 22:07 UTC：任务截止分类修复后，83 项测试、161 项子测试通过。独立真实容器检查沿用 `06.04` 原提示、仅在此检查中将限时缩为 2 秒，确实触发原生截止及 HTTP200 流取消；成功保存轨迹／产物并进入官方评分，结果 `completed / score=0 / timed_out=true`，没有误记 infra。全流程约 6.04 秒。证据在 [独立超时检查](runtime/task-timeout-probe/20261012T220700Z/probe-design.json)、[截止证据](runtime/task-timeout-probe/20261012T220700Z/agent-deadline.json)和同目录原生日志、评分输出。此检查不属于正式实验，正常 60 题仍使用原题限时。
+- 2026-10-12 22:08 UTC：修复代码 `6212d1a` 已推送，以干净工作区启动新的独立运行 `20261012T220826Z`，协议 hash 为 `1d13fb688f920bd7883a498c8edccfe9d2dec7cd0e193ba591291574093896f4`。该运行从 S0 和全新 8 题预跑开始，通过后自动执行 Day 1–6、Night 1–6 及 S0/S6 终点对照。调度器身份和启动命令见其 `controller-process.json`；旧三个预跑均保留为被替换的预跑记录，没有正式成绩。
 - 预跑及正式成绩以随后真实运行记录为准。
 
 <!-- LIVE_STATUS -->
 ## 当前运行记录
 
-- 状态：`superseded_during_pilot`。
-- 运行：`runtime/runs/20261012T215250Z/`。
-- 更新：`2026-10-12T22:02:25.868959+00:00`。
-- 已记录任务执行：3；终点有效配对：0/60。
-- [运行报告](runtime/runs/20261012T215250Z/report/REPORT.md)。
+- 状态：`pilot`。
+- 运行：`runtime/runs/20261012T220826Z/`。
+- 更新：`2026-10-12T22:08:35.745493+00:00`。
+- 已记录任务执行：4；终点有效配对：0/60。
+- [运行报告](runtime/runs/20261012T220826Z/report/REPORT.md)。
