@@ -619,15 +619,54 @@ class TaskDeadlineTests(unittest.TestCase):
                 self.assertIn(failure, result["gateway_main_errors"])
                 self.assertFalse(any(e[0] == "grade" for e in execution.events))
 
-    def test_cancellation_followed_by_another_request_remains_infrastructure(self):
+    def test_concurrent_tool_requests_do_not_prevent_deadline_stream_cancellation(self):
         with tempfile.TemporaryDirectory() as temporary:
             execution = self.deadline_execution(Path(temporary))
             execution.gateway_records = execution.gateway_errors + [
-                {"role": "main", "status": "completed", "http_status": 200, "started_unix": 102.0}
+                {"role": "main", "status": "completed", "http_status": 200, "started_unix": 105.5}
             ]
             result = execution.execute()
+            self.assert_graded_deadline(execution, result)
+
+    def test_all_active_streams_cancelled_at_deadline_continue_to_grading(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            execution = self.deadline_execution(Path(temporary))
+            execution.gateway_errors.append(
+                self.cancellation(request_id="second-active-stream", started_unix=103.0, finished_unix=105.4)
+            )
+            result = execution.execute()
+            self.assert_graded_deadline(execution, result)
+            self.assertEqual(len(result["task_deadline_evidence"]["cancelled_gateway_requests"]), 2)
+
+    def test_cancellation_after_agent_exit_window_is_still_infrastructure(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            execution = self.deadline_execution(Path(temporary))
+            execution.gateway_errors.append(
+                self.cancellation(request_id="outside-exit-window", started_unix=103.0, finished_unix=106.001)
+            )
+            result = execution.execute()
             self.assertEqual(result["status"], "infrastructure_error")
-            self.assertEqual(result["task_deadline_evidence"]["cancelled_gateway_requests"], [])
+            self.assertTrue(result["timed_out"])
+            self.assertEqual(result["gateway_main_errors"], [execution.gateway_errors[-1]])
+            self.assertFalse(any(e[0] == "grade" for e in execution.events))
+
+    def test_observed_ocr_deadline_stream_cancellation_is_not_infrastructure(self):
+        # Exact timing from the superseded 20261012T220826Z OCR attempt. Its
+        # concurrent non-streaming evaluator submitted later requests at 4148.
+        evidence = {
+            "confirmed": True,
+            "agent_started_unix": 1791842919.2438781,
+            "agent_finished_unix": 1791844149.3634424,
+            "deadline_not_before_unix": 1791844119.2438781,
+        }
+        actual_cancel = self.cancellation(
+            request_id="73ed3fa2628f438f892804c5ad7525b6",
+            started_unix=1791844091.2113047,
+            finished_unix=1791844121.5060694,
+        )
+        failures, cancelled = runtime._deadline_stream_cancellations([actual_cancel], evidence)
+        self.assertEqual(failures, [])
+        self.assertEqual(cancelled, [actual_cancel])
 
     def test_manual_abort_or_wrong_native_timer_is_not_a_task_deadline(self):
         stderr_cases = [

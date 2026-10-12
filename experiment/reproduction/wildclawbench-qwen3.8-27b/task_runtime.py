@@ -761,17 +761,17 @@ def _task_deadline_evidence(
 
 
 def _deadline_stream_cancellations(
-    failures: list[dict[str, Any]], records: list[dict[str, Any]], evidence: Mapping[str, Any]
+    failures: list[dict[str, Any]], evidence: Mapping[str, Any]
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     if not evidence["confirmed"]:
         return failures, []
-    last_started = max((r.get("started_unix", 0) for r in records), default=0)
+    # Tool subprocesses can keep making concurrent requests after the Agent's
+    # stream is cancelled. Request order does not identify a task cancellation.
     cancelled = [
         r
         for r in failures
         if r.get("http_status") == 200
         and r.get("error") == "Streaming client disconnected before completion"
-        and r.get("started_unix", 0) == last_started
         and evidence["agent_started_unix"] <= r.get("started_unix", 0) <= evidence["agent_finished_unix"]
         and evidence["deadline_not_before_unix"] <= (r.get("finished_unix") or 0) <= evidence["agent_finished_unix"] + 1
     ]
@@ -1056,7 +1056,7 @@ def _execute_child(
             )
             main_records = _gateway_main_records(config, run_id, begin_unix)
             main_errors = _gateway_main_failures(config, run_id, begin_unix, records=main_records)
-            main_errors, cancelled = _deadline_stream_cancellations(main_errors, main_records, deadline)
+            main_errors, cancelled = _deadline_stream_cancellations(main_errors, deadline)
             deadline["cancelled_gateway_requests"] = cancelled
             _save(output / "agent-deadline.json", deadline)
             transcript_model_errors = [
