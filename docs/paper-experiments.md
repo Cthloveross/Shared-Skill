@@ -182,6 +182,32 @@ Benchmark 自身的评测协议给出单题 300–1200 秒预算和 GPT-5.4 评�
 
 所以，**有公开技能资源，也有初始库的构造方式**。数量取决于所选任务引用的不同技能，以及是否追加外部库。论文实际运行所用的配置、任务列表、额外技能目录与初始库快照尚未对齐，不能把当前公开目录的 27 份直接写成论文初始库数量。
 
+#### 从公开代码和任务配置可以计算什么
+
+逐题统计固定 Benchmark revision 的 `## Skills`，只计路径存在的不同技能，得到：
+
+| 任务类别 | 当前任务数 | 直接声明且存在文件的不同技能数 | 技能名称 |
+| --- | ---: | ---: | --- |
+| 生产力工作流 | 10 | 2 | `agent-browser`、`self-improving-agent-3.0.5` |
+| 代码任务 | 12 | 0 | 无直接声明 |
+| 社交交互 | 6 | 6 | `03_task1`–`03_task6` |
+| 搜索与检索 | 11 | 1 | `agent-browser` |
+| 创意生成 | 11 | 1 | `video-frames`；另声明但缺少 `edge-tts` 文件 |
+| 安全与对齐 | 10 | 0 | 无直接声明 |
+
+这里是**各类任务直接声明的技能并集**，不是六个独立技能库，也不是论文当次各类实际使用数量。`agent-browser` 被两个类别复用，不能把各行相加当全库去重数量。代码会将所选任务的技能放进同一个共享库；代码任务、安全任务声明为 0，不代表运行时看不到共享技能。
+
+本次在空临时目录中执行历史源码的 `_ensure_initial_skills_dir` 方法，并核对复制后的技能文本与源文件完全相同。固定当前公开资源、不追加外部库时：
+
+- 若明确选择表 3 对应四类的全部当前任务，共 38 题，初始共享库为 **8 个**：六个 `03_task*`、`agent-browser`、`video-frames`。
+- 若选择全部 60 题，初始共享库为 **9 个**，增加 `self-improving-agent-3.0.5`。
+
+这是**给定条件下由代码算出的初始库**，不是恢复了论文的实际配置；本次只执行资源复制，没有运行 Agent、任务或模型进化。分组及复制验证记录见 [来源清单](../reproduction/reference/wildclawbench-source-manifest.json) 的 `task_skill_reference_audit` 与 `initial_bank_constructor_audit`。
+
+**最终数量需要实际运行产物。** 历史 runner 会保存 `selected_tasks.json`、`initial_skills/` 和每轮 `arms/round-N/after_skills/`，可以据此数技能文件、比较版本与追踪变化。静态代码允许模型改写、创建或跳过，不能预先确定最终几个；共享技能的类别归属还需要任务关联或明确分类规则。来源：[选题清单保存，第 454 行](https://github.com/AMAP-ML/SkillClaw/blob/61983b0788010b3ab0f69899b3e22360758bf55d/skillclaw/experiments/wildclawbench_batch_evolve_experiment.py#L454)、[每轮库快照，第 267 行](https://github.com/AMAP-ML/SkillClaw/blob/61983b0788010b3ab0f69899b3e22360758bf55d/skillclaw/experiments/wildclawbench_iterative_evolve.py#L267)。本次检查已获取的 7 个公开分支、67 个可达提交的文件树，未找到论文当次配置、选题清单或技能快照，不能据此给出论文四类的实际初始／最终数量。
+
+统计时还有一个代码细节：历史报告的 `skills_evolved_this_round` 实际读取整个技能 manifest 的名称列表，manifest 可能已经包含推送的初始技能，因此不能仅凭这个字段就断定所有名称都在当轮修改或新增。应以技能内容差异和实际更新记录核对。来源：[报告字段生成，第 393 行](https://github.com/AMAP-ML/SkillClaw/blob/61983b0788010b3ab0f69899b3e22360758bf55d/skillclaw/experiments/wildclawbench_iterative_evolve.py#L393)、[初始技能推送，第 214 行](https://github.com/AMAP-ML/SkillClaw/blob/61983b0788010b3ab0f69899b3e22360758bf55d/skillclaw/experiments/wildclawbench_iterative_evolve.py#L214)。
+
 #### 任务选择、分配和技能使用
 
 历史代码允许明确给出 `selected_task_files`，或恢复已有 `selected_tasks.json`；否则扫描任务文件，按技能可用性、时限和历史运行信息筛选、排序，默认最多选择 16 题。当配置选择数不少于剩余题数时，会直接全部取用，跳过后续过滤。来源：[选题逻辑，第 575 行](https://github.com/AMAP-ML/SkillClaw/blob/61983b0788010b3ab0f69899b3e22360758bf55d/skillclaw/experiments/wildclawbench_batch_evolve_experiment.py#L575)。

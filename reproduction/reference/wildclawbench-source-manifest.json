@@ -150,7 +150,119 @@
         "group": "WildClawBench category-level +Skill ablation resources",
         "count": 18
       }
-    ]
+    ],
+    "per_category": {
+      "01_Productivity_Flow": {
+        "task_count": 10,
+        "available_skill_names": [
+          "agent-browser",
+          "self-improving-agent-3.0.5"
+        ],
+        "missing_skill_names": [],
+        "available_skill_count": 2
+      },
+      "02_Code_Intelligence": {
+        "task_count": 12,
+        "available_skill_names": [],
+        "missing_skill_names": [],
+        "available_skill_count": 0
+      },
+      "03_Social_Interaction": {
+        "task_count": 6,
+        "available_skill_names": [
+          "03_task1",
+          "03_task2",
+          "03_task3",
+          "03_task4",
+          "03_task5",
+          "03_task6"
+        ],
+        "missing_skill_names": [],
+        "available_skill_count": 6
+      },
+      "04_Search_Retrieval": {
+        "task_count": 11,
+        "available_skill_names": [
+          "agent-browser"
+        ],
+        "missing_skill_names": [],
+        "available_skill_count": 1
+      },
+      "05_Creative_Synthesis": {
+        "task_count": 11,
+        "available_skill_names": [
+          "video-frames"
+        ],
+        "missing_skill_names": [
+          "edge-tts"
+        ],
+        "available_skill_count": 1
+      },
+      "06_Safety_Alignment": {
+        "task_count": 10,
+        "available_skill_names": [],
+        "missing_skill_names": [],
+        "available_skill_count": 0
+      }
+    }
+  },
+  "initial_bank_constructor_audit": {
+    "scope": "Execute only the historical initial-skill copying method against current pinned public resources. No model, agent, task execution, or evolution. No external initial bank. Fresh temporary run directories. Not the original paper run.",
+    "method_source_path": "reproduction/reference/wildclawbench/historical-experiments/skillclaw/experiments/wildclawbench_batch_evolve_experiment.py",
+    "method_source_revision": "61983b0788010b3ab0f69899b3e22360758bf55d",
+    "method_source_file_sha256": "1711c7d89cde2f4cd0961760b7c806355b11d1aa3fb2f5670c96a8ff66d35496",
+    "benchmark_revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+    "selections": {
+      "all_current_60_tasks": {
+        "selected_task_count": 60,
+        "initial_skill_count": 9,
+        "initial_skill_names": [
+          "03_task1",
+          "03_task2",
+          "03_task3",
+          "03_task4",
+          "03_task5",
+          "03_task6",
+          "agent-browser",
+          "self-improving-agent-3.0.5",
+          "video-frames"
+        ],
+        "copied_skill_contents_match_sources": true
+      },
+      "all_current_table3_category_tasks": {
+        "selected_task_count": 38,
+        "initial_skill_count": 8,
+        "initial_skill_names": [
+          "03_task1",
+          "03_task2",
+          "03_task3",
+          "03_task4",
+          "03_task5",
+          "03_task6",
+          "agent-browser",
+          "video-frames"
+        ],
+        "copied_skill_contents_match_sources": true
+      }
+    }
+  },
+  "original_paper_run_artifact_search": {
+    "scope": "Tracked paths across all commits reachable from the seven fetched public origin branches; excludes unreachable commits and independent external archives.",
+    "branch_count": 7,
+    "reachable_commit_count": 67,
+    "distinct_tracked_historical_path_count": 144,
+    "branch_revisions": {
+      "refs/remotes/origin/codex/fix-async-storage-io": "7dc00de3dee9202d17a83d387358d688fec15f32",
+      "refs/remotes/origin/codex/fix-dashboard-status": "47050cea082bdb505145d7e5980c484ec1fd9c43",
+      "refs/remotes/origin/codex/fix-lint-baseline": "f961af05bc828dc829e9bb3f5952bab4d4153158",
+      "refs/remotes/origin/codex/fix-skill-path-safety": "5b7c3b28af878f5b61a9c39cb8806a37aa938743",
+      "refs/remotes/origin/codex/fix-truncate-loop": "20421b38d07deb161420da684cd367225cf38e9f",
+      "refs/remotes/origin/main": "3938f7537645c961d94498a0a79fc0a977019595",
+      "refs/remotes/origin/pr39-fix-embedding-api": "47fb991e852d5c3b7d031b5a856bcd2941bc7197"
+    },
+    "matched_original_paper_runtime_config_found": false,
+    "original_paper_selected_task_list_found": false,
+    "original_paper_initial_or_final_skill_snapshots_found": false
   },
   "source_files": [
     {
