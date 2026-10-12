@@ -43,7 +43,8 @@ curl http://127.0.0.1:30000/healthz
 
 - [部署与操作入口](docs/README.md)：本地共享存储配置、演化服务启动和验证命令。
 - [系统架构](docs/architecture.md)：任务执行、会话演化、存储结构、版本和发布路径。
-- [论文实验设置与 Benchmark 来源](docs/paper-experiments.md)：两篇论文的具体参数、数据来源与本地复现范围。
+- [原始 SkillClaw 实验设置](docs/paper-experiments.md)：正常进化的流程、WildClawBench 来源与本地验证范围。
+- [PoisonedEvolution 实验设计](docs/poisoned-evolution-experiments.md)：投毒参数、SpreadsheetBench 轨迹、结果与两篇论文的设置对照。
 - [上游来源与项目边界](docs/upstream.md)：代码来源、MIT 许可、命名变化和实验范围。
 
 本地已完成一次 GPT 5.6 的良性闭环验收：两条真实工具执行会话生成技能 v2，第三个任务读取并复用该版本。工作簿是本项目生成的测试样例；模型通过 Codex CLI 桥接访问，消息角色被转换为文本。这验证流程能运行，不提供论文任务准确率或 API 等价结论。运行说明与局限见[架构文档的验收部分](docs/architecture.md#良性任务闭环验收)。

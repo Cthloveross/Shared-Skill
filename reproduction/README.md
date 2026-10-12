@@ -1,5 +1,10 @@
 # PoisonedEvolution mechanism reproduction
 
+The paper's experimental design and parameters are documented separately in
+[PoisonedEvolution experiments](../docs/poisoned-evolution-experiments.md).
+The original SkillClaw benign experiment is described in
+[SkillClaw experiments](../docs/paper-experiments.md).
+
 This directory demonstrates the paper's artifact-poisoning mechanism at
 sharedskill's execution stage. sharedskill is a renamed fork of the upstream
 SkillClaw project, whose setting the paper evaluates. The harness passes 30

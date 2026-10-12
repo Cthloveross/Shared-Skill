@@ -58,6 +58,7 @@ sharedskill dashboard serve --host 127.0.0.1 --port 3788
 
 ## 实验与参考数据
 
-[论文实验设置与 Benchmark 来源](paper-experiments.md) 记录原始 SkillClaw 和 PoisonedEvolution 的任务来源、模型、轮次、验证标准、主实验与消融参数，以及本地复现已经完成和仍缺少的部分。
+- [原始 SkillClaw 实验设置](paper-experiments.md)：正常进化流程、8 用户和 6 轮参数、WildClawBench 来源与本地正常闭环验证。
+- [PoisonedEvolution 实验设计](poisoned-evolution-experiments.md)：轨迹采集与投毒流程、模型角色、30/3 批次、600 次主实验、消融参数和两篇论文的设置区别。
 
 [reproduction](../reproduction/README.md) 使用合成轨迹演示证据被写入技能的机制；它与真实良性任务验收分别记录。公开 benchmark 文件的来源由 [source-manifest.json](../reproduction/reference/source-manifest.json) 记录，大体积工作簿和下载档案需单独准备。参考数据下载完成不等于已生成模型执行日志，也不等于复现论文的数据划分。
