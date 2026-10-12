@@ -4,6 +4,12 @@ This acceptance run exercises sharedskill's normal HTTP workflow with actual
 XLSX files and model-generated tool calls. sharedskill is a renamed fork of
 SkillClaw; historical results retain their original project names and metadata.
 
+The initial `xlsx` skill is the runner's own `SEED_SKILL`; the three workbook
+tasks and their validation tools are also defined here. This run uses the public
+SkillClaw client and evolution code, rather than the paper's original skill bank
+or WildClawBench tasks. Public benchmark skills and historical experiment code
+are documented in [the provenance audit](../docs/paper-experiments.md#35-公开代码如何准备技能库和任务).
+
 Two generated workbooks, Sales and Expenses, receive the requested Total
 formulas while preserving the input files, original cells, sheets, and Arial
 formatting. The real acceptance validator reopens the saved outputs and checks

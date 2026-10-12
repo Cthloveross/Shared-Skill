@@ -49,6 +49,8 @@ WildClawBench 是上海人工智能实验室与合作高校的 Shuangrui Ding、
 
 版本边界：本次核对的官方代码 revision 为 `8e1fde746584ae1a9c49b70526d49a7a572625cd`。当前资源支持多种 Agent 框架，并持续更新；这个 revision 和公开轨迹尚未被确认与 SkillClaw 的 8 用户、6 轮实验环境及日志完全一致。
 
+**技能资源也公开了。** 上述固定版本的 [WildClawBench skills 目录](https://github.com/InternLM/WildClawBench/tree/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills) 递归包含 27 份 `SKILL.md`，包括 6 个 `03_task1`–`03_task6` 社交任务技能、3 个通用技能和 18 个按六领域分组的技能。27 是这个公开目录的文件数，不能当作 SkillClaw 论文那次运行的初始库数量；历史实验代码如何从中准备初始库见 [§3.5](#35-公开代码如何准备技能库和任务)。
+
 Benchmark 自身的评测协议给出单题 300–1200 秒预算和 GPT-5.4 评分模型；原始 SkillClaw 则写明全流程使用 Qwen3-Max。前者的预算、评分配置不能直接填入后者的实验参数。来源：[Benchmark §3.2](https://arxiv.org/html/2605.10912v1#S3.SS2)、[§4.1](https://arxiv.org/html/2605.10912v1#S4.SS1)。
 
 ## 3. 原始 SkillClaw：正常进化实验
@@ -140,11 +142,51 @@ Benchmark 自身的评测协议给出单题 300–1200 秒预算和 GPT-5.4 评�
 
 论文明确使用 WildClawBench，其完整基准有 60 个任务；SkillClaw 实验只报告四个代表性类别。没有逐用户、逐日的任务清单，不能据此断言每天跑完全部 60 题，或计算为 `60 × 8 × 6` 次执行。来源：[§3.1–3.2](https://arxiv.org/html/2604.08377v2#S3.SS1)。PoisonedEvolution 以 `xlsx` 为单一攻击目标，属于另一份实验设计。
 
+### 3.5 公开代码如何准备技能库和任务
+
+2026-10-12 补查 Git 历史后确认：上游最初公开提交 [`61983b0788010b3ab0f69899b3e22360758bf55d`](https://github.com/AMAP-ML/SkillClaw/tree/61983b0788010b3ab0f69899b3e22360758bf55d)（2026-04-10）包含 WildClawBench 批次、迭代及 Agent 进化实验脚本；它们在 [`f3a23d4e6bfb07b25c024b904bf7766dae6429e9`](https://github.com/AMAP-ML/SkillClaw/commit/f3a23d4e6bfb07b25c024b904bf7766dae6429e9)（2026-04-14）被删除。因此，当前代码没有这些文件，不能推断作者从未公开实验实现。
+
+#### 初始 skill 有代码依据
+
+历史 runner 从运行者提供的 `benchmark_root` 读取 `tasks/` 与 `skills/`：
+
+1. 读取所选任务 Markdown 的 `## Skills` 段，保留在 `benchmark_root/skills` 中存在的技能。
+2. 建立本次运行的 `initial_skills/`；若配置 `initial_skills_dir`，先复制这个额外目录。
+3. 把所选任务引用的 Benchmark 技能去重复制到初始库；同名文件按代码复制顺序覆盖。
+
+来源：[任务技能解析，第 624 行](https://github.com/AMAP-ML/SkillClaw/blob/61983b0788010b3ab0f69899b3e22360758bf55d/skillclaw/experiments/wildclawbench_batch_evolve_experiment.py#L624)、[初始库构建，第 649 行](https://github.com/AMAP-ML/SkillClaw/blob/61983b0788010b3ab0f69899b3e22360758bf55d/skillclaw/experiments/wildclawbench_batch_evolve_experiment.py#L649)、[迭代 runner 复用初始化，第 79 行](https://github.com/AMAP-ML/SkillClaw/blob/61983b0788010b3ab0f69899b3e22360758bf55d/skillclaw/experiments/wildclawbench_iterative_evolve.py#L79)。代码不会自动下载 Benchmark，资源路径由配置指定。
+
+所以，**有公开技能资源，也有初始库的构造方式**。数量取决于所选任务引用的不同技能，以及是否追加外部库。论文实际运行所用的配置、任务列表、额外技能目录与初始库快照尚未对齐，不能把当前公开目录的 27 份直接写成论文初始库数量。
+
+#### 任务选择、分配和技能使用
+
+历史代码允许明确给出 `selected_task_files`，或恢复已有 `selected_tasks.json`；否则扫描任务文件，按技能可用性、时限和历史运行信息筛选、排序，默认最多选择 16 题。当配置选择数不少于剩余题数时，会直接全部取用，跳过后续过滤。来源：[选题逻辑，第 575 行](https://github.com/AMAP-ML/SkillClaw/blob/61983b0788010b3ab0f69899b3e22360758bf55d/skillclaw/experiments/wildclawbench_batch_evolve_experiment.py#L575)。
+
+选定任务以 `(task, rollout)` 为单位进入队列，分配给并发 device；一个 device 完成一题后再取下一题。默认每题 rollout 为 1，因此不是每个 device 都运行整套题。来源：[分配模式，第 984 行](https://github.com/AMAP-ML/SkillClaw/blob/61983b0788010b3ab0f69899b3e22360758bf55d/skillclaw/experiments/wildclawbench_batch_evolve_experiment.py#L984)、[任务队列，第 1489 行](https://github.com/AMAP-ML/SkillClaw/blob/61983b0788010b3ab0f69899b3e22360758bf55d/skillclaw/experiments/group_benchmark.py#L1489)。device 是这里的并发执行槽，不能仅凭其数量推成真实用户总数或论文准确部署配置。
+
+执行时先准备任务指定技能，再用当前共享库覆盖同名技能；模型收到可用技能目录，按任务相关性选择并读取技能，日志记录实际读取的名称。任务文件列出的技能用于准备资源，不表示用户随意指定，也不证明 Agent 实际使用了其中每一个。来源：[执行器，第 1207 行](https://github.com/AMAP-ML/SkillClaw/blob/61983b0788010b3ab0f69899b3e22360758bf55d/skillclaw/experiments/wildclawbench_executor.py#L1207)、[技能目录提示，第 557 行](https://github.com/AMAP-ML/SkillClaw/blob/61983b0788010b3ab0f69899b3e22360758bf55d/skillclaw/skill_manager.py#L557)。
+
+#### 历史代码默认值与论文设定分别记录
+
+| 项目 | 历史代码默认值 | 论文正常实验 |
+| --- | --- | --- |
+| 选题 | 最多 16 题，或配置给出的任务文件 | 来自 WildClawBench，实际任务清单未对齐 |
+| 并发 device | 16 | 8 个模拟用户 |
+| 迭代进化数 | 3 | 6 天／6 轮 |
+| 执行模型 | `kimi-k2.5` | Qwen3-Max |
+| Evolver | `gpt-5.4` | Qwen3-Max |
+| 初始库 | 所选任务引用的 Benchmark 技能，可追加外部库 | 当次完整清单和版本未对齐 |
+
+来源：[历史配置，第 205 行](https://github.com/AMAP-ML/SkillClaw/blob/61983b0788010b3ab0f69899b3e22360758bf55d/skillclaw/experiments/wildclawbench_batch_evolve_experiment.py#L205)。这些默认值不是论文实际参数。历史迭代 runner 先做 baseline，再执行 N 次“进化 → 评测同一任务集”，因此 N=6 会产生 7 个评测点；不能直接认定它与论文六天表格及夜间接受流程完全相同。来源：[迭代循环，第 86 行](https://github.com/AMAP-ML/SkillClaw/blob/61983b0788010b3ab0f69899b3e22360758bf55d/skillclaw/experiments/wildclawbench_iterative_evolve.py#L86)。
+
+公开技能 bundle、任务 Markdown 与历史实验源码已下载供核查，固定提交、路径和逐文件 SHA256 见 [WildClawBench 来源清单](../reproduction/reference/wildclawbench-source-manifest.json)。大型任务素材和 Docker 镜像未在这次来源核查中下载；这些材料尚未用于运行 Benchmark 或复现论文成绩。
+
 ## 4. 本地正常闭环的验证结果
 
 | 项目 | 本地已验证内容 |
 | --- | --- |
 | 模型 | `gpt-5.6-sol`，通过 Codex CLI 桥接访问 |
+| 初始 skill | 验收脚本的 `SEED_SKILL` 自建一个 `xlsx`；未使用论文初始库或下载的 Anthropic 参考 skill |
 | 输入 | 本项目生成的 Sales、Expenses、Inventory 三个真实 XLSX 工作簿 |
 | 旧版执行 | 前两题各出现 1 次冻结表头验证错误，修复后通过 |
 | 进化输入 | 前两题真实执行和工具反馈记录 |
@@ -156,6 +198,8 @@ Benchmark 自身的评测协议给出单题 300–1200 秒预算和 GPT-5.4 评�
 | 实际进化轮数 | 1 轮 |
 
 证据见 [良性验收说明](../benign_validation/README.md)；本地详细证据位于 `benign_validation/results/gpt56-e2e-20261011-v2/` 下的 `run.json`、`verification.json`、工作簿和执行日志。
+
+初始技能直接定义在 [验收脚本](../benign_validation/run_benign_e2e.py)，任务数据与验收条件定义在 [工作簿工具](../benign_validation/workbook_tools.py)。这里复用的是公开 SkillClaw 的客户端与进化服务代码，初始技能、工具和三个任务是本项目构造的流程验收输入；历史 WildClawBench runner 与公开技能资源不是这次成功运行的依据。
 
 这个实验验证了“执行 → 收集 → 进化 → 发布 → 后续复用”，没有完成论文的 8 用户、6 轮实验。三个工作簿是自建验收样例；没有在固定任务集上对新旧版本进行完整对照，也没有测量 WildClawBench 分数。公式检查仅验证保存的字符串和数据／样式保留，没有重算公式。桥接将消息角色转换为文本，不等价于原生 Chat Completions 消息处理。
 
@@ -169,7 +213,7 @@ Benchmark 自身的评测协议给出单题 300–1200 秒预算和 GPT-5.4 评�
 | --- | --- |
 | 每个用户的任务分配、每日运行次数 | 未给出 |
 | 精确任务 ID 与 train/test 划分文件 | 未给出 |
-| 初始 skill 内容、来源、版本 hash | 未完整给出 |
+| 论文实际初始 skill 库 | 历史代码给出从 Benchmark 构造的方式，官方技能资源可获取；当次选取、额外库和版本 hash 未对齐，见 §3.5 |
 | 模型精确快照、服务端版本 | 未给出可完全固定的版本信息 |
 | 温度、top-p、随机种子、推理 token 上限 | 未明确给出 |
 | 验证任务列表、复测次数、量化改进门槛 | 未给出 |

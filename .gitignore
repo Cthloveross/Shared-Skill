@@ -21,3 +21,4 @@ evolve_processed.json
 # Keep download provenance; obtain third-party datasets separately.
 reproduction/reference/*
 !reproduction/reference/source-manifest.json
+!reproduction/reference/wildclawbench-source-manifest.json

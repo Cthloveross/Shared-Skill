@@ -1,0 +1,1772 @@
+{
+  "retrieved_on": "2026-10-12",
+  "purpose": "Public reference sources for provenance audit; no benchmark execution or paper-result reproduction.",
+  "benchmark_repository": "https://github.com/InternLM/WildClawBench",
+  "benchmark_revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+  "public_skill_file_count": 27,
+  "public_skill_paths": [
+    "skills/03_task1/SKILL.md",
+    "skills/03_task2/SKILL.md",
+    "skills/03_task3/SKILL.md",
+    "skills/03_task4/SKILL.md",
+    "skills/03_task5/SKILL.md",
+    "skills/03_task6/SKILL.md",
+    "skills/1/agentic-paper-digest-skill/SKILL.md",
+    "skills/1/arxiv-summarizer-orchestrator/SKILL.md",
+    "skills/1/calendar-reminders/SKILL.md",
+    "skills/2/architecture/SKILL.md",
+    "skills/2/arxiv-agentic-verifier/SKILL.md",
+    "skills/2/geepers-data/SKILL.md",
+    "skills/3/agenticmail/SKILL.md",
+    "skills/3/ai-meeting-scheduling/SKILL.md",
+    "skills/3/meeting-to-action/SKILL.md",
+    "skills/4/academic-literature-search/SKILL.md",
+    "skills/4/ddgs-search/SKILL.md",
+    "skills/4/openclaw-free-web-search/SKILL.md",
+    "skills/5/bilibili-youtube-watcher/SKILL.md",
+    "skills/5/eachlabs-voice-audio/SKILL.md",
+    "skills/5/loopwind/SKILL.md",
+    "skills/6/aegis-shield/SKILL.md",
+    "skills/6/canary/SKILL.md",
+    "skills/6/skill-trust-auditor/SKILL.md",
+    "skills/agent-browser/SKILL.md",
+    "skills/self-improving-agent-3.0.5/SKILL.md",
+    "skills/video-frames/SKILL.md"
+  ],
+  "is_paper_original_initial_skill_bank": false,
+  "historical_skillclaw_repository": "https://github.com/AMAP-ML/SkillClaw",
+  "historical_skillclaw_revision": "61983b0788010b3ab0f69899b3e22360758bf55d",
+  "experiment_removal_revision": "f3a23d4e6bfb07b25c024b904bf7766dae6429e9",
+  "paper_runtime_config_matched": false,
+  "benchmark_large_assets_downloaded": false,
+  "source_files": [
+    {
+      "repository": "AMAP-ML/SkillClaw",
+      "revision": "61983b0788010b3ab0f69899b3e22360758bf55d",
+      "source_path": "LICENSE",
+      "local_path": "reproduction/reference/wildclawbench/historical-experiments/LICENSE",
+      "source_url": "https://raw.githubusercontent.com/AMAP-ML/SkillClaw/61983b0788010b3ab0f69899b3e22360758bf55d/LICENSE",
+      "bytes": 1147,
+      "sha256": "f8fc69b8ea9e3799eb687d611c1dfbf48bd29e903e8cc36fd476b9007185be76"
+    },
+    {
+      "repository": "AMAP-ML/SkillClaw",
+      "revision": "61983b0788010b3ab0f69899b3e22360758bf55d",
+      "source_path": "scripts/run_wildclawbench_iterative_evolve_agent.py",
+      "local_path": "reproduction/reference/wildclawbench/historical-experiments/scripts/run_wildclawbench_iterative_evolve_agent.py",
+      "source_url": "https://raw.githubusercontent.com/AMAP-ML/SkillClaw/61983b0788010b3ab0f69899b3e22360758bf55d/scripts/run_wildclawbench_iterative_evolve_agent.py",
+      "bytes": 9205,
+      "sha256": "a008453c6b6984a24f982001fc34bfb0549ed7ce84cde6cac24cc7ac37db5bbc"
+    },
+    {
+      "repository": "AMAP-ML/SkillClaw",
+      "revision": "61983b0788010b3ab0f69899b3e22360758bf55d",
+      "source_path": "skillclaw/experiments/__init__.py",
+      "local_path": "reproduction/reference/wildclawbench/historical-experiments/skillclaw/experiments/__init__.py",
+      "source_url": "https://raw.githubusercontent.com/AMAP-ML/SkillClaw/61983b0788010b3ab0f69899b3e22360758bf55d/skillclaw/experiments/__init__.py",
+      "bytes": 60,
+      "sha256": "6f8a62f45edb3632c24b5de58be290e4baf779dd1cc7c4123053a793bd0b14c2"
+    },
+    {
+      "repository": "AMAP-ML/SkillClaw",
+      "revision": "61983b0788010b3ab0f69899b3e22360758bf55d",
+      "source_path": "skillclaw/experiments/group_benchmark.py",
+      "local_path": "reproduction/reference/wildclawbench/historical-experiments/skillclaw/experiments/group_benchmark.py",
+      "source_url": "https://raw.githubusercontent.com/AMAP-ML/SkillClaw/61983b0788010b3ab0f69899b3e22360758bf55d/skillclaw/experiments/group_benchmark.py",
+      "bytes": 72472,
+      "sha256": "c50b1e5971e989dd8ae3366f3e8963403e394d7a371322b212f47c3736051d86"
+    },
+    {
+      "repository": "AMAP-ML/SkillClaw",
+      "revision": "61983b0788010b3ab0f69899b3e22360758bf55d",
+      "source_path": "skillclaw/experiments/humanizer_experiment.py",
+      "local_path": "reproduction/reference/wildclawbench/historical-experiments/skillclaw/experiments/humanizer_experiment.py",
+      "source_url": "https://raw.githubusercontent.com/AMAP-ML/SkillClaw/61983b0788010b3ab0f69899b3e22360758bf55d/skillclaw/experiments/humanizer_experiment.py",
+      "bytes": 31262,
+      "sha256": "1ff3be756211fa0cc46b2e49ea81bbc071aeb1fabc39a9620712c4d30378b4be"
+    },
+    {
+      "repository": "AMAP-ML/SkillClaw",
+      "revision": "61983b0788010b3ab0f69899b3e22360758bf55d",
+      "source_path": "skillclaw/experiments/local_skill_hub.py",
+      "local_path": "reproduction/reference/wildclawbench/historical-experiments/skillclaw/experiments/local_skill_hub.py",
+      "source_url": "https://raw.githubusercontent.com/AMAP-ML/SkillClaw/61983b0788010b3ab0f69899b3e22360758bf55d/skillclaw/experiments/local_skill_hub.py",
+      "bytes": 5720,
+      "sha256": "40776de1c55631f8f2d6d5af95592d39f79be044fd2528d4eb353dc50b5a5263"
+    },
+    {
+      "repository": "AMAP-ML/SkillClaw",
+      "revision": "61983b0788010b3ab0f69899b3e22360758bf55d",
+      "source_path": "skillclaw/experiments/openclaw_cluster.py",
+      "local_path": "reproduction/reference/wildclawbench/historical-experiments/skillclaw/experiments/openclaw_cluster.py",
+      "source_url": "https://raw.githubusercontent.com/AMAP-ML/SkillClaw/61983b0788010b3ab0f69899b3e22360758bf55d/skillclaw/experiments/openclaw_cluster.py",
+      "bytes": 36617,
+      "sha256": "dc0f7d15279d3a79299b902a95c7763d228fe7c43a63a7c7e3df603797b43148"
+    },
+    {
+      "repository": "AMAP-ML/SkillClaw",
+      "revision": "61983b0788010b3ab0f69899b3e22360758bf55d",
+      "source_path": "skillclaw/experiments/openclaw_real_suite.py",
+      "local_path": "reproduction/reference/wildclawbench/historical-experiments/skillclaw/experiments/openclaw_real_suite.py",
+      "source_url": "https://raw.githubusercontent.com/AMAP-ML/SkillClaw/61983b0788010b3ab0f69899b3e22360758bf55d/skillclaw/experiments/openclaw_real_suite.py",
+      "bytes": 39101,
+      "sha256": "3f5fc73f698cd4e00eeac5640a4c251bbbddffdeec440d5774eb7cd50dec4173"
+    },
+    {
+      "repository": "AMAP-ML/SkillClaw",
+      "revision": "61983b0788010b3ab0f69899b3e22360758bf55d",
+      "source_path": "skillclaw/experiments/skill_evolve_validation.py",
+      "local_path": "reproduction/reference/wildclawbench/historical-experiments/skillclaw/experiments/skill_evolve_validation.py",
+      "source_url": "https://raw.githubusercontent.com/AMAP-ML/SkillClaw/61983b0788010b3ab0f69899b3e22360758bf55d/skillclaw/experiments/skill_evolve_validation.py",
+      "bytes": 46438,
+      "sha256": "8c22f997012b2bc4bf739ef209705b641339498416bd9716a2835e4d7ee5d9f7"
+    },
+    {
+      "repository": "AMAP-ML/SkillClaw",
+      "revision": "61983b0788010b3ab0f69899b3e22360758bf55d",
+      "source_path": "skillclaw/experiments/wildclawbench_batch_evolve_experiment.py",
+      "local_path": "reproduction/reference/wildclawbench/historical-experiments/skillclaw/experiments/wildclawbench_batch_evolve_experiment.py",
+      "source_url": "https://raw.githubusercontent.com/AMAP-ML/SkillClaw/61983b0788010b3ab0f69899b3e22360758bf55d/skillclaw/experiments/wildclawbench_batch_evolve_experiment.py",
+      "bytes": 55623,
+      "sha256": "1711c7d89cde2f4cd0961760b7c806355b11d1aa3fb2f5670c96a8ff66d35496"
+    },
+    {
+      "repository": "AMAP-ML/SkillClaw",
+      "revision": "61983b0788010b3ab0f69899b3e22360758bf55d",
+      "source_path": "skillclaw/experiments/wildclawbench_executor.py",
+      "local_path": "reproduction/reference/wildclawbench/historical-experiments/skillclaw/experiments/wildclawbench_executor.py",
+      "source_url": "https://raw.githubusercontent.com/AMAP-ML/SkillClaw/61983b0788010b3ab0f69899b3e22360758bf55d/skillclaw/experiments/wildclawbench_executor.py",
+      "bytes": 70266,
+      "sha256": "61ddcdc44baad9f26b517ede45f6257af7c61d94e268a97509b6dfb8043f676e"
+    },
+    {
+      "repository": "AMAP-ML/SkillClaw",
+      "revision": "61983b0788010b3ab0f69899b3e22360758bf55d",
+      "source_path": "skillclaw/experiments/wildclawbench_iterative_evolve.py",
+      "local_path": "reproduction/reference/wildclawbench/historical-experiments/skillclaw/experiments/wildclawbench_iterative_evolve.py",
+      "source_url": "https://raw.githubusercontent.com/AMAP-ML/SkillClaw/61983b0788010b3ab0f69899b3e22360758bf55d/skillclaw/experiments/wildclawbench_iterative_evolve.py",
+      "bytes": 34696,
+      "sha256": "bce3434eb8e00e9c77803ac44699dce4e8096ed1182f68fa9bff49b90ffb6173"
+    },
+    {
+      "repository": "AMAP-ML/SkillClaw",
+      "revision": "61983b0788010b3ab0f69899b3e22360758bf55d",
+      "source_path": "skillclaw/experiments/wildclawbench_transfer_experiment.py",
+      "local_path": "reproduction/reference/wildclawbench/historical-experiments/skillclaw/experiments/wildclawbench_transfer_experiment.py",
+      "source_url": "https://raw.githubusercontent.com/AMAP-ML/SkillClaw/61983b0788010b3ab0f69899b3e22360758bf55d/skillclaw/experiments/wildclawbench_transfer_experiment.py",
+      "bytes": 25976,
+      "sha256": "f963d91dd8f8121fc9115bb8c6865d4a620b4202792e96a57bec56fc976ff9c1"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "LICENSE",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/LICENSE",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/LICENSE",
+      "bytes": 1070,
+      "sha256": "1097320d3b3dcabcc40bf0d81e516be95439e877d31fc4679a1255c5d4527edc"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/03_task1/SKILL.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/03_task1/SKILL.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/03_task1/SKILL.md",
+      "bytes": 2334,
+      "sha256": "bbddf02117028542f87a7d45b33db32b4dc062f3a0796454cd9abbbacdbefdd0"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/03_task2/SKILL.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/03_task2/SKILL.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/03_task2/SKILL.md",
+      "bytes": 1887,
+      "sha256": "0ac7dddf337bd4b37082bdacb4eb676500a1b494c9552b110eea876f4b7b38ed"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/03_task3/SKILL.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/03_task3/SKILL.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/03_task3/SKILL.md",
+      "bytes": 2151,
+      "sha256": "959cc38ca506548819e7ffe78dd686498deec2280144b19b46861f5da4c1cf92"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/03_task4/SKILL.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/03_task4/SKILL.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/03_task4/SKILL.md",
+      "bytes": 2973,
+      "sha256": "fb1ff1d03eac1e906caabb23f790f4d6e2415d106534ca32850f985e19e88612"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/03_task5/SKILL.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/03_task5/SKILL.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/03_task5/SKILL.md",
+      "bytes": 3459,
+      "sha256": "9eabc954ec6c9755e8e8e5e948b7167d99c0ecb24ed58180277244024c074e56"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/03_task6/SKILL.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/03_task6/SKILL.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/03_task6/SKILL.md",
+      "bytes": 4180,
+      "sha256": "8905e17e46a8297d8a03e42baa3ce64521ee7c325dc23d9f4725038145f7de65"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/1/agentic-paper-digest-skill/SKILL.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/1/agentic-paper-digest-skill/SKILL.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/1/agentic-paper-digest-skill/SKILL.md",
+      "bytes": 7648,
+      "sha256": "194376c6dd3a61e5e7b750b7ae34f14309600277c4adef330bfe62f08de335a3"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/1/agentic-paper-digest-skill/_meta.json",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/1/agentic-paper-digest-skill/_meta.json",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/1/agentic-paper-digest-skill/_meta.json",
+      "bytes": 145,
+      "sha256": "793b1a8976028519b892f7c4c9854c6904250792125010de3da9ab96eb8a8b0f"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/1/agentic-paper-digest-skill/scripts/bootstrap.sh",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/1/agentic-paper-digest-skill/scripts/bootstrap.sh",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/1/agentic-paper-digest-skill/scripts/bootstrap.sh",
+      "bytes": 2291,
+      "sha256": "dc27798efa8eaba3ed4efd0d31ae1ba1a8541b5508fa291e4b74e9353e7c92c5"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/1/agentic-paper-digest-skill/scripts/run_api.sh",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/1/agentic-paper-digest-skill/scripts/run_api.sh",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/1/agentic-paper-digest-skill/scripts/run_api.sh",
+      "bytes": 586,
+      "sha256": "cd317b633e2d32d02cbf5ed39f5e4caca1607dc26e624089f6bdced7038e40b0"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/1/agentic-paper-digest-skill/scripts/run_cli.sh",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/1/agentic-paper-digest-skill/scripts/run_cli.sh",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/1/agentic-paper-digest-skill/scripts/run_cli.sh",
+      "bytes": 591,
+      "sha256": "18500a59232783c682f4d410df780bcddf123cdd4d029f3cd1c0b917f7940ec4"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/1/agentic-paper-digest-skill/scripts/stop_api.sh",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/1/agentic-paper-digest-skill/scripts/stop_api.sh",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/1/agentic-paper-digest-skill/scripts/stop_api.sh",
+      "bytes": 300,
+      "sha256": "6b1de819d503062f8bd6f0f9302195e32c4b68f323087f5f2730e1bc0a52376b"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/1/arxiv-summarizer-orchestrator/SKILL.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/1/arxiv-summarizer-orchestrator/SKILL.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/1/arxiv-summarizer-orchestrator/SKILL.md",
+      "bytes": 5755,
+      "sha256": "372b7b0a0375fe4c8a8168efdc763c4f2d38b6cccd84bd8fd0bb6ebc45f33cc4"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/1/arxiv-summarizer-orchestrator/_meta.json",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/1/arxiv-summarizer-orchestrator/_meta.json",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/1/arxiv-summarizer-orchestrator/_meta.json",
+      "bytes": 148,
+      "sha256": "f05d4fec9e85903b1a14c837eb331521546c1eab1de309dc885ba9f795b4aeaf"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/1/arxiv-summarizer-orchestrator/agents/openai.yaml",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/1/arxiv-summarizer-orchestrator/agents/openai.yaml",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/1/arxiv-summarizer-orchestrator/agents/openai.yaml",
+      "bytes": 232,
+      "sha256": "639263988f08f51074b15c59f0297e99ac863d7ffc7c37dcb81240ce2fb972aa"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/1/arxiv-summarizer-orchestrator/references/workflow-checklist.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/1/arxiv-summarizer-orchestrator/references/workflow-checklist.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/1/arxiv-summarizer-orchestrator/references/workflow-checklist.md",
+      "bytes": 2659,
+      "sha256": "9a5b4042ec5c5437e4e978cff8faf2f06347b815a6d05ee8ec4611d9f6dbe783"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/1/calendar-reminders/SKILL.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/1/calendar-reminders/SKILL.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/1/calendar-reminders/SKILL.md",
+      "bytes": 2406,
+      "sha256": "8580d9533af92bef70b81dac2b802a59c5b42222c87ec9185096bf985d424246"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/1/calendar-reminders/_meta.json",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/1/calendar-reminders/_meta.json",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/1/calendar-reminders/_meta.json",
+      "bytes": 137,
+      "sha256": "74e60d18aec104846fa62e67de7d8f0696b75cd3680da15b0726d6d2f8e00571"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/1/calendar-reminders/references/openclaw-calendar.example.json",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/1/calendar-reminders/references/openclaw-calendar.example.json",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/1/calendar-reminders/references/openclaw-calendar.example.json",
+      "bytes": 925,
+      "sha256": "daec97d265578196c992fba6e08c50e47748c0d5ec978cc9c80bebc159b6ce2a"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/1/calendar-reminders/scripts/calendar_reminder_plan.py",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/1/calendar-reminders/scripts/calendar_reminder_plan.py",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/1/calendar-reminders/scripts/calendar_reminder_plan.py",
+      "bytes": 11158,
+      "sha256": "041c9c3b5d3a8e60946c2675abe1f4e0159813a6c15ef158594780aaa1632c70"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/2/architecture/SKILL.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/2/architecture/SKILL.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/2/architecture/SKILL.md",
+      "bytes": 7390,
+      "sha256": "f0ee72367a78638ecd3f038b7cec4cd3722f4fde14985662482b6e814072b1a0"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/2/architecture/_meta.json",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/2/architecture/_meta.json",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/2/architecture/_meta.json",
+      "bytes": 131,
+      "sha256": "ccacfcfcc983594ed615db877b050d5ab8a83b11064703918a97b3bb380e3992"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/2/arxiv-agentic-verifier/SKILL.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/2/arxiv-agentic-verifier/SKILL.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/2/arxiv-agentic-verifier/SKILL.md",
+      "bytes": 1295,
+      "sha256": "287c1b30cf1296d3752c331b706869e654df73a761a7e63501d39e871c91c811"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/2/arxiv-agentic-verifier/_meta.json",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/2/arxiv-agentic-verifier/_meta.json",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/2/arxiv-agentic-verifier/_meta.json",
+      "bytes": 141,
+      "sha256": "28c9d33dda815b1da1fbf8462d34ba68c77b10e9201a92746ff34637292da922"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/2/arxiv-agentic-verifier/index.js",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/2/arxiv-agentic-verifier/index.js",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/2/arxiv-agentic-verifier/index.js",
+      "bytes": 4871,
+      "sha256": "820608d581876cf39d8fed1684ad93bd78292ed86ec1f5e2fb12d6fe0aeac442"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/2/arxiv-agentic-verifier/package-lock.json",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/2/arxiv-agentic-verifier/package-lock.json",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/2/arxiv-agentic-verifier/package-lock.json",
+      "bytes": 17439,
+      "sha256": "04f9b79860dc568e4d6652238e7e21cddc0cbc97c9a1dbded3b12034f9eb400e"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/2/arxiv-agentic-verifier/package.json",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/2/arxiv-agentic-verifier/package.json",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/2/arxiv-agentic-verifier/package.json",
+      "bytes": 507,
+      "sha256": "2da18d8ef3653b2d9c0a42af9436917e6e2e0c37e5bf28f3f8bfef9d1331e073"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/2/arxiv-agentic-verifier/scripts/run.js",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/2/arxiv-agentic-verifier/scripts/run.js",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/2/arxiv-agentic-verifier/scripts/run.js",
+      "bytes": 574,
+      "sha256": "1adb2731dc9236f1427bf1a8e2d5218ad202e311d8c28b065703cc613d33b3c1"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/2/arxiv-agentic-verifier/tests/negative.js",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/2/arxiv-agentic-verifier/tests/negative.js",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/2/arxiv-agentic-verifier/tests/negative.js",
+      "bytes": 929,
+      "sha256": "edcc0da2b0482d3da6371db25a6f4709322c40f9ed170af9f2f2ddb147a25cf5"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/2/arxiv-agentic-verifier/tests/smoke.js",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/2/arxiv-agentic-verifier/tests/smoke.js",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/2/arxiv-agentic-verifier/tests/smoke.js",
+      "bytes": 866,
+      "sha256": "62a2e80c600be2b0e4fe912d57d22eb329285220146a4f6393f914c5b29b6af7"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/2/geepers-data/SKILL.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/2/geepers-data/SKILL.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/2/geepers-data/SKILL.md",
+      "bytes": 2008,
+      "sha256": "16b5b6e4f611f174415d4b7f4cc63d39359df867e2702e89531d357c5fef3ac9"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/2/geepers-data/_meta.json",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/2/geepers-data/_meta.json",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/2/geepers-data/_meta.json",
+      "bytes": 131,
+      "sha256": "472f07f1631dfb903e3581715780242688f13d206a2786a6651e9e6b00338a85"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/3/agenticmail/SKILL.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/3/agenticmail/SKILL.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/3/agenticmail/SKILL.md",
+      "bytes": 12132,
+      "sha256": "be24a02f732243a750f9672e09edb1f7f2c6449204036788abcda12ba18a9fd0"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/3/agenticmail/_meta.json",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/3/agenticmail/_meta.json",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/3/agenticmail/_meta.json",
+      "bytes": 131,
+      "sha256": "719ec62dface36ba345c65efeb979a467ea8f5febf3159bdbc1dbca8e4a4a845"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/3/agenticmail/references/api-reference.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/3/agenticmail/references/api-reference.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/3/agenticmail/references/api-reference.md",
+      "bytes": 2225,
+      "sha256": "dc3c2448bf7e666b2c548cf9b2d7d39d9c41e81359eeba77adc777aa541d53cb"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/3/agenticmail/references/configuration.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/3/agenticmail/references/configuration.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/3/agenticmail/references/configuration.md",
+      "bytes": 1490,
+      "sha256": "1e6462b39b677c63b169b252d3c1c8613a620376747a47479b56f1c5e150868f"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/3/agenticmail/scripts/health-check.sh",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/3/agenticmail/scripts/health-check.sh",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/3/agenticmail/scripts/health-check.sh",
+      "bytes": 546,
+      "sha256": "cdc79bbc883456260b1869bbf79553b573cf56357f75ce02f087c16285bb9eb3"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/3/agenticmail/scripts/setup.sh",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/3/agenticmail/scripts/setup.sh",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/3/agenticmail/scripts/setup.sh",
+      "bytes": 1329,
+      "sha256": "10433171bd17f64330e837bdba3ecca6be6ca2fefb7a890187d072ad32fc4bb6"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/3/ai-meeting-scheduling/README.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/3/ai-meeting-scheduling/README.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/3/ai-meeting-scheduling/README.md",
+      "bytes": 4894,
+      "sha256": "29798b76bffc6f3911f189567de2181290c64eb6fd61f7e9ca152b4ac19ad0e6"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/3/ai-meeting-scheduling/SKILL.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/3/ai-meeting-scheduling/SKILL.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/3/ai-meeting-scheduling/SKILL.md",
+      "bytes": 9266,
+      "sha256": "fe24616ace0535239b89ae9101be7e7d8c1fe594e213e2ff996ea62fd7ad3831"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/3/ai-meeting-scheduling/_meta.json",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/3/ai-meeting-scheduling/_meta.json",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/3/ai-meeting-scheduling/_meta.json",
+      "bytes": 140,
+      "sha256": "1932657d974d81347a45fba539cae5a39671b103b6291cda2399d560e8715fea"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/3/ai-meeting-scheduling/package.json",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/3/ai-meeting-scheduling/package.json",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/3/ai-meeting-scheduling/package.json",
+      "bytes": 899,
+      "sha256": "67005d28491124954aece56e4917077df96ab6689ed834d1a2078b8430be6128"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/3/ai-meeting-scheduling/references/api-reference.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/3/ai-meeting-scheduling/references/api-reference.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/3/ai-meeting-scheduling/references/api-reference.md",
+      "bytes": 12556,
+      "sha256": "9960b74653398d7a4e8416b385976f6fb6e0bead7314599e6e191baf017d319d"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/3/ai-meeting-scheduling/references/examples.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/3/ai-meeting-scheduling/references/examples.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/3/ai-meeting-scheduling/references/examples.md",
+      "bytes": 10138,
+      "sha256": "c3a3824ae481aad32d8a827e2fa0b4e603f2a73d86b7c147842ec03e0927e294"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/3/ai-meeting-scheduling/src/index.ts",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/3/ai-meeting-scheduling/src/index.ts",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/3/ai-meeting-scheduling/src/index.ts",
+      "bytes": 8681,
+      "sha256": "7f8a1b977527173f5c61de7901cccdfac70629be1772d65dd56114365c041055"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/3/meeting-to-action/SKILL.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/3/meeting-to-action/SKILL.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/3/meeting-to-action/SKILL.md",
+      "bytes": 2056,
+      "sha256": "05d538763710f163d51f33fe45dc18bd994e161b15dc2f3a32ece28f1d68d2de"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/3/meeting-to-action/_meta.json",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/3/meeting-to-action/_meta.json",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/3/meeting-to-action/_meta.json",
+      "bytes": 136,
+      "sha256": "b60be54c15eaee420d1a75490a6b541293e2dde12a2db5724ee5b875aff55613"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/3/meeting-to-action/references/auth.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/3/meeting-to-action/references/auth.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/3/meeting-to-action/references/auth.md",
+      "bytes": 155,
+      "sha256": "b8f69a67aff60c100e84e6229c3b535d1df635352be02250aa7be8f65397d336"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/3/meeting-to-action/references/endpoints.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/3/meeting-to-action/references/endpoints.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/3/meeting-to-action/references/endpoints.md",
+      "bytes": 231,
+      "sha256": "e4d5c9c3445879b42b8ae2adeff18f2dd2f7a144a9351337c0bb7a23719dafe5"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/3/meeting-to-action/references/overview.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/3/meeting-to-action/references/overview.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/3/meeting-to-action/references/overview.md",
+      "bytes": 331,
+      "sha256": "c17aa0635fbf8da65a2f7d36e61f08b5507089792ef7463bbbcea046a2fbfffc"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/3/meeting-to-action/references/safety.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/3/meeting-to-action/references/safety.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/3/meeting-to-action/references/safety.md",
+      "bytes": 125,
+      "sha256": "7ad4320e3791bd7b05f9296cc7603ac2eeb8d27596d15e6873e3be8e73ad467e"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/3/meeting-to-action/references/troubleshooting.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/3/meeting-to-action/references/troubleshooting.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/3/meeting-to-action/references/troubleshooting.md",
+      "bytes": 202,
+      "sha256": "d5ab8ed04188d3caae64b4e563765c62b72ff5fc6d89fe94a1d5a867c65c4c58"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/3/meeting-to-action/references/ux.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/3/meeting-to-action/references/ux.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/3/meeting-to-action/references/ux.md",
+      "bytes": 289,
+      "sha256": "68435ce8c4b31f6251af7ea12e231dd76e572cdabcecd9161ad521d47ef1a07a"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/3/meeting-to-action/references/webhooks.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/3/meeting-to-action/references/webhooks.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/3/meeting-to-action/references/webhooks.md",
+      "bytes": 164,
+      "sha256": "e3567fbd4ef9a0c427269df4a157dd29cb47583aa023c526d6e297edbbabe350"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/4/academic-literature-search/README.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/4/academic-literature-search/README.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/4/academic-literature-search/README.md",
+      "bytes": 5950,
+      "sha256": "f567a304d454e052f9912a9bafdb13bc853a2bd644f10fd62f7f016761da8a42"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/4/academic-literature-search/SKILL.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/4/academic-literature-search/SKILL.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/4/academic-literature-search/SKILL.md",
+      "bytes": 5575,
+      "sha256": "6c0fbb8ef3afc49766a8e9b3e972a8f744c82b6b657b73893f40fc7fd640d7f0"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/4/academic-literature-search/_meta.json",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/4/academic-literature-search/_meta.json",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/4/academic-literature-search/_meta.json",
+      "bytes": 145,
+      "sha256": "5ebe644f32d79b7c184996276c3e32f68def5ac08576902369a633a13db30ada"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/4/academic-literature-search/agent.py",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/4/academic-literature-search/agent.py",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/4/academic-literature-search/agent.py",
+      "bytes": 32794,
+      "sha256": "dc9f5df8deb98ee891a4b08cfea32fc1a39b9f3d4364100846a873d33011e776"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/4/academic-literature-search/config.example.yaml",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/4/academic-literature-search/config.example.yaml",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/4/academic-literature-search/config.example.yaml",
+      "bytes": 2625,
+      "sha256": "31454914948258cb5a1bc1933b05fb8aed3c52aeef74b5aa2d379945e250fc6b"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/4/academic-literature-search/requirements.txt",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/4/academic-literature-search/requirements.txt",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/4/academic-literature-search/requirements.txt",
+      "bytes": 165,
+      "sha256": "8bdc4cead6bd89652608cc01e34eb70c233cbd12c55edeef0fda0b03df0c1efa"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/4/academic-literature-search/skill.json",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/4/academic-literature-search/skill.json",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/4/academic-literature-search/skill.json",
+      "bytes": 4993,
+      "sha256": "d81990956eaf64fdcb80d9387a3f295bf88ac02fc16adccfa2b10dbb82012a39"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/4/ddgs-search/README.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/4/ddgs-search/README.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/4/ddgs-search/README.md",
+      "bytes": 1769,
+      "sha256": "1588ac443eacd3629f8db8739dfd4c22ce56bcdd9bbadbb8dc37bc3dba9a5ca1"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/4/ddgs-search/SKILL.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/4/ddgs-search/SKILL.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/4/ddgs-search/SKILL.md",
+      "bytes": 3196,
+      "sha256": "3492014df6e72840dfcf077d8d73a269d3d273556b136a20d328e444557cceff"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/4/ddgs-search/_meta.json",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/4/ddgs-search/_meta.json",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/4/ddgs-search/_meta.json",
+      "bytes": 130,
+      "sha256": "d4882298918300bb23383898607dd62b4d2f1c6894f8f71d6875408ebda3301a"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/4/ddgs-search/scripts/arxiv_search.py",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/4/ddgs-search/scripts/arxiv_search.py",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/4/ddgs-search/scripts/arxiv_search.py",
+      "bytes": 3322,
+      "sha256": "8f8f91e3f1ea64b5d5d48873ef51079e93be76a6e2d4e8d06dda4cad8a18e2bd"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/4/ddgs-search/scripts/install.py",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/4/ddgs-search/scripts/install.py",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/4/ddgs-search/scripts/install.py",
+      "bytes": 5298,
+      "sha256": "a2cbce4c742b0dd7cf4b73621655ac6fb3b34c01d0ff523305b78fde1d78a891"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/4/ddgs-search/scripts/search.py",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/4/ddgs-search/scripts/search.py",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/4/ddgs-search/scripts/search.py",
+      "bytes": 2241,
+      "sha256": "f04391a9b62a52f5644ef889261b90822d056267220f6b4bf0fa3aa61966e3ca"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/4/openclaw-free-web-search/SKILL.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/4/openclaw-free-web-search/SKILL.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/4/openclaw-free-web-search/SKILL.md",
+      "bytes": 2008,
+      "sha256": "5ef54e795b562a092d7dd1a1d2749a3a66edc44b855496f87c286f7778ba27ee"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/4/openclaw-free-web-search/_meta.json",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/4/openclaw-free-web-search/_meta.json",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/4/openclaw-free-web-search/_meta.json",
+      "bytes": 144,
+      "sha256": "606e610d475399dde1ed8acc485b517ee070e2001dde0fcca256722e55c9d572"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/5/bilibili-youtube-watcher/README.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/5/bilibili-youtube-watcher/README.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/5/bilibili-youtube-watcher/README.md",
+      "bytes": 2580,
+      "sha256": "3b802a7e8b2c1061ce8504e84530e32090ac6a28fc6693fad36d1f9fd96fab99"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/5/bilibili-youtube-watcher/SKILL.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/5/bilibili-youtube-watcher/SKILL.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/5/bilibili-youtube-watcher/SKILL.md",
+      "bytes": 2386,
+      "sha256": "6bf8e0a81277a2940cd86b5d5402a38a7098e6f71902d0f304752eaef1225071"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/5/bilibili-youtube-watcher/_meta.json",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/5/bilibili-youtube-watcher/_meta.json",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/5/bilibili-youtube-watcher/_meta.json",
+      "bytes": 143,
+      "sha256": "640ed18a2e3743c02ccba50b07df11af83ef23512eaf787350df88e21f954648"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/5/bilibili-youtube-watcher/scripts/get_transcript.py",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/5/bilibili-youtube-watcher/scripts/get_transcript.py",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/5/bilibili-youtube-watcher/scripts/get_transcript.py",
+      "bytes": 5453,
+      "sha256": "27e8e7de4bc40a4af7816acc4a3bef926c2be5439e9556882ceb57ebcbd67da6"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/5/eachlabs-voice-audio/SKILL.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/5/eachlabs-voice-audio/SKILL.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/5/eachlabs-voice-audio/SKILL.md",
+      "bytes": 6891,
+      "sha256": "33cfcdb006a70335fae260723989b9e88a8dc5d11066582e7ee3070297e90c73"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/5/eachlabs-voice-audio/_meta.json",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/5/eachlabs-voice-audio/_meta.json",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/5/eachlabs-voice-audio/_meta.json",
+      "bytes": 139,
+      "sha256": "515cdb55ddc3759a1275fb8ca30b9662e17adca0497ea10ae3c4bed8233f1485"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/5/eachlabs-voice-audio/references/MODELS.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/5/eachlabs-voice-audio/references/MODELS.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/5/eachlabs-voice-audio/references/MODELS.md",
+      "bytes": 32175,
+      "sha256": "956bc044c53a07ebb8eef0abfdf2382232e65d07c0ff8931ad3966a340e2e648"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/5/loopwind/SKILL.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/5/loopwind/SKILL.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/5/loopwind/SKILL.md",
+      "bytes": 88721,
+      "sha256": "b929629fb82dfecd855ee631151eac7ad9ac72fdcb10cce02580fdeeb498dd0e"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/5/loopwind/_meta.json",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/5/loopwind/_meta.json",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/5/loopwind/_meta.json",
+      "bytes": 129,
+      "sha256": "1b18c2cbebaec58ded1adc6489d7389c4b464985e93002d98e669a7cbe60e63c"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/6/aegis-shield/SKILL.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/6/aegis-shield/SKILL.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/6/aegis-shield/SKILL.md",
+      "bytes": 1433,
+      "sha256": "c2e5621305477c7b22a06c2b9ffeb9632f2ab8086c27ae211fd6c84ea2a82192"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/6/aegis-shield/_meta.json",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/6/aegis-shield/_meta.json",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/6/aegis-shield/_meta.json",
+      "bytes": 131,
+      "sha256": "5af97e1fd13a4581aa98d7ad69bef98f8de5d026bffbe793ddf82c3a2116d1b4"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/6/aegis-shield/openclaw-safe-memory-append.js",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/6/aegis-shield/openclaw-safe-memory-append.js",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/6/aegis-shield/openclaw-safe-memory-append.js",
+      "bytes": 5334,
+      "sha256": "5ac9550e9c00985b8aea3ec805996e5e05b7373a81a04c21160f361624ce6dcb"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/6/canary/README.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/6/canary/README.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/6/canary/README.md",
+      "bytes": 5049,
+      "sha256": "9c723ff37f0cd8babf45df04121bfa647f0c13ad6106a6c04ed0056b6a491f2b"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/6/canary/SKILL.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/6/canary/SKILL.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/6/canary/SKILL.md",
+      "bytes": 45887,
+      "sha256": "f9d0ea3b18be5ff3073475a1a1a18cdfd89cb0c171565875c3db2686a99a7926"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/6/canary/_meta.json",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/6/canary/_meta.json",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/6/canary/_meta.json",
+      "bytes": 125,
+      "sha256": "82dda84c1e0b26ef29d5171e1ea53ace55056063b2f7f944b2ce3cc682e169fc"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/6/canary/claude-project/project-instructions.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/6/canary/claude-project/project-instructions.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/6/canary/claude-project/project-instructions.md",
+      "bytes": 3636,
+      "sha256": "b8aeea8ebb34077bfd7ad542b53a72367903364117c08a80c0c22372dc8d6704"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/6/canary/claude-project/system-prompt.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/6/canary/claude-project/system-prompt.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/6/canary/claude-project/system-prompt.md",
+      "bytes": 4854,
+      "sha256": "f0179c5416b11016afc99bf0e131d8703b8e651e3c1e081c412c7dcb484294d0"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/6/skill-trust-auditor/CHANGELOG.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/6/skill-trust-auditor/CHANGELOG.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/6/skill-trust-auditor/CHANGELOG.md",
+      "bytes": 541,
+      "sha256": "1acddac040e0169982bc6dc9511ea59391947fcf49616593c0b77455bf837136"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/6/skill-trust-auditor/README.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/6/skill-trust-auditor/README.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/6/skill-trust-auditor/README.md",
+      "bytes": 2112,
+      "sha256": "607f3863c83dd86ef0195149df6db628d72f70268fb398c8d27e00fa21f8ed06"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/6/skill-trust-auditor/SKILL.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/6/skill-trust-auditor/SKILL.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/6/skill-trust-auditor/SKILL.md",
+      "bytes": 3108,
+      "sha256": "f9e7aa82acf65ff356a0d0d52e33565a4933a30426950c147a212178b474181a"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/6/skill-trust-auditor/_meta.json",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/6/skill-trust-auditor/_meta.json",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/6/skill-trust-auditor/_meta.json",
+      "bytes": 138,
+      "sha256": "960267ee84ec4a5217c3bae48aa81888935d0a5bf0b7daa502a883b6ea6d8322"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/6/skill-trust-auditor/references/clawhavoc-patterns.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/6/skill-trust-auditor/references/clawhavoc-patterns.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/6/skill-trust-auditor/references/clawhavoc-patterns.md",
+      "bytes": 8037,
+      "sha256": "23b4e020f422440afe17c4b930af8ddeafefc6c151471092d4c8c9c725d02ed2"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/6/skill-trust-auditor/scripts/analyze_skill.py",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/6/skill-trust-auditor/scripts/analyze_skill.py",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/6/skill-trust-auditor/scripts/analyze_skill.py",
+      "bytes": 26151,
+      "sha256": "473f634c742010008498d92b20246e5e62fcd8604e90b98ac719a34e5bc6cf14"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/6/skill-trust-auditor/scripts/audit.sh",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/6/skill-trust-auditor/scripts/audit.sh",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/6/skill-trust-auditor/scripts/audit.sh",
+      "bytes": 4704,
+      "sha256": "35e63994061b68847a5b6e329ec5034a822d38e6300a33d90872fad65fe53f6d"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/6/skill-trust-auditor/scripts/patterns.json",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/6/skill-trust-auditor/scripts/patterns.json",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/6/skill-trust-auditor/scripts/patterns.json",
+      "bytes": 15544,
+      "sha256": "275ea95346ac86c1871c1a7dd53e43dbd54608f504ad5fe5478e3e9a14d55892"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/6/skill-trust-auditor/scripts/setup.sh",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/6/skill-trust-auditor/scripts/setup.sh",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/6/skill-trust-auditor/scripts/setup.sh",
+      "bytes": 3407,
+      "sha256": "c1677c06c899b00c74aeee9e4bd2e105aae04a1823d210f6db9da1afb201a43e"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/6/skill-trust-auditor/skill.json",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/6/skill-trust-auditor/skill.json",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/6/skill-trust-auditor/skill.json",
+      "bytes": 420,
+      "sha256": "6e4aaf6ff769c0bf73b04522ba30ed557cc33a5fe1839d0aeb6157f4b6c4ade1"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/agent-browser/SKILL.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/agent-browser/SKILL.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/agent-browser/SKILL.md",
+      "bytes": 5548,
+      "sha256": "9643b9c65476eedd5ab353956c31a4d4ce9ad225f9a786d23376a43893f59979"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/agent-browser/_meta.json",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/agent-browser/_meta.json",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/agent-browser/_meta.json",
+      "bytes": 141,
+      "sha256": "a73cb4d335bf96b2dbe3101418731bce4248c5f2a0a4903d075abd8192be531f"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/self-improving-agent-3.0.5/.learnings/ERRORS.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/self-improving-agent-3.0.5/.learnings/ERRORS.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/self-improving-agent-3.0.5/.learnings/ERRORS.md",
+      "bytes": 75,
+      "sha256": "731f4a26fee7074d11e999920e5c3ca63b0e025b75a4d9966429ee88a2cb5988"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/self-improving-agent-3.0.5/.learnings/FEATURE_REQUESTS.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/self-improving-agent-3.0.5/.learnings/FEATURE_REQUESTS.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/self-improving-agent-3.0.5/.learnings/FEATURE_REQUESTS.md",
+      "bytes": 84,
+      "sha256": "a6291573936034efaad57b43b6f57bdb35ed627f01ce9309b2c781da63563c37"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/self-improving-agent-3.0.5/.learnings/LEARNINGS.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/self-improving-agent-3.0.5/.learnings/LEARNINGS.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/self-improving-agent-3.0.5/.learnings/LEARNINGS.md",
+      "bytes": 99,
+      "sha256": "f5c1302498cad158c357426ac2aa73f6f05fda8b9103d47acb34d4851b76391c"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/self-improving-agent-3.0.5/SKILL.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/self-improving-agent-3.0.5/SKILL.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/self-improving-agent-3.0.5/SKILL.md",
+      "bytes": 19704,
+      "sha256": "cec6d90543ea51c1ae2dfe09b7c0ac640b0a295101d34ba14c9deedc6607ce0c"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/self-improving-agent-3.0.5/_meta.json",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/self-improving-agent-3.0.5/_meta.json",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/self-improving-agent-3.0.5/_meta.json",
+      "bytes": 139,
+      "sha256": "ce76ee99582e235aec471d052301d9995fdb6530b2c184cad5c92f6ebcef825c"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/self-improving-agent-3.0.5/assets/LEARNINGS.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/self-improving-agent-3.0.5/assets/LEARNINGS.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/self-improving-agent-3.0.5/assets/LEARNINGS.md",
+      "bytes": 1152,
+      "sha256": "33b0de6f4243ea31d913fab017ded852f13443fd1eb84c0983a670334260ff46"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/self-improving-agent-3.0.5/assets/SKILL-TEMPLATE.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/self-improving-agent-3.0.5/assets/SKILL-TEMPLATE.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/self-improving-agent-3.0.5/assets/SKILL-TEMPLATE.md",
+      "bytes": 3407,
+      "sha256": "3ee008f80d53e0e576f7e747ac4c4e040ff659f02d3f5689a95524a3696e4881"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/self-improving-agent-3.0.5/hooks/openclaw/HOOK.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/self-improving-agent-3.0.5/hooks/openclaw/HOOK.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/self-improving-agent-3.0.5/hooks/openclaw/HOOK.md",
+      "bytes": 589,
+      "sha256": "13294242f2fac134af2dcfcda7c273be98e57d26192989afb7a9ebcb5a1eb224"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/self-improving-agent-3.0.5/hooks/openclaw/handler.js",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/self-improving-agent-3.0.5/hooks/openclaw/handler.js",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/self-improving-agent-3.0.5/hooks/openclaw/handler.js",
+      "bytes": 1620,
+      "sha256": "19f21bdf74b9be3aa8ba2514dd0c727c841f799f948bb3c945ecc28b90be8b86"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/self-improving-agent-3.0.5/hooks/openclaw/handler.ts",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/self-improving-agent-3.0.5/hooks/openclaw/handler.ts",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/self-improving-agent-3.0.5/hooks/openclaw/handler.ts",
+      "bytes": 1872,
+      "sha256": "a2d4452b135622a7a3a225722cf9422ea85a8121e49607b386282425eb1d844d"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/self-improving-agent-3.0.5/references/examples.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/self-improving-agent-3.0.5/references/examples.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/self-improving-agent-3.0.5/references/examples.md",
+      "bytes": 8291,
+      "sha256": "c11e38794d78cfa1ba633d14232ec7e9808c14696e96a7bd9b8f4fe178f10451"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/self-improving-agent-3.0.5/references/hooks-setup.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/self-improving-agent-3.0.5/references/hooks-setup.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/self-improving-agent-3.0.5/references/hooks-setup.md",
+      "bytes": 4867,
+      "sha256": "838ed1620db4bbe55fc281a61d6dfb1709437d6366ddb3006b70a04109695ab7"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/self-improving-agent-3.0.5/references/openclaw-integration.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/self-improving-agent-3.0.5/references/openclaw-integration.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/self-improving-agent-3.0.5/references/openclaw-integration.md",
+      "bytes": 5638,
+      "sha256": "d7d426beb09e10016def1a45fc901c737fb3abcd101252ce81a9c32e69a78257"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/self-improving-agent-3.0.5/scripts/activator.sh",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/self-improving-agent-3.0.5/scripts/activator.sh",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/self-improving-agent-3.0.5/scripts/activator.sh",
+      "bytes": 680,
+      "sha256": "a751d91466c8c966f01ac32795871ceff0d1e177c7c186ca4201f962a5cc9be4"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/self-improving-agent-3.0.5/scripts/error-detector.sh",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/self-improving-agent-3.0.5/scripts/error-detector.sh",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/self-improving-agent-3.0.5/scripts/error-detector.sh",
+      "bytes": 1317,
+      "sha256": "74f82bfd29bcc3615d4c9df0962f7d5e42af75431c029c0e14c2f6127c4787ba"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/self-improving-agent-3.0.5/scripts/extract-skill.sh",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/self-improving-agent-3.0.5/scripts/extract-skill.sh",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/self-improving-agent-3.0.5/scripts/extract-skill.sh",
+      "bytes": 5293,
+      "sha256": "d9af3d6f2cde0eeb3c0a85b898828656c1c6d9d51f61ba38f9801030424f5147"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/video-frames/SKILL.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/video-frames/SKILL.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/video-frames/SKILL.md",
+      "bytes": 776,
+      "sha256": "7e24245498aca878d084aae61e6da9043fb52566346d3a547f6f391c9a11bde1"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/video-frames/_meta.json",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/video-frames/_meta.json",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/video-frames/_meta.json",
+      "bytes": 131,
+      "sha256": "4fefcf4b4c733bbed8a6fc8c5d02a754cf35976de198610cf7312634acd47ba6"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "skills/video-frames/scripts/frame.sh",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/skills/video-frames/scripts/frame.sh",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/skills/video-frames/scripts/frame.sh",
+      "bytes": 1347,
+      "sha256": "b339455e9e618c836ccf2e3732e4fec9897f079730d8814eadb716e2459df453"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "tasks/01_Productivity_Flow/01_Productivity_Flow_task_10_pdf_digest.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/tasks/01_Productivity_Flow/01_Productivity_Flow_task_10_pdf_digest.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/tasks/01_Productivity_Flow/01_Productivity_Flow_task_10_pdf_digest.md",
+      "bytes": 12618,
+      "sha256": "8b14eb32b1c9bd71e56447cd6b7f5eed310918be282fbc3bdf36af613829ce5b"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "tasks/01_Productivity_Flow/01_Productivity_Flow_task_1_arxiv_digest.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/tasks/01_Productivity_Flow/01_Productivity_Flow_task_1_arxiv_digest.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/tasks/01_Productivity_Flow/01_Productivity_Flow_task_1_arxiv_digest.md",
+      "bytes": 25793,
+      "sha256": "56e9e781134b2196098d242b19eb13cb37b2a2653f101e074e23c53517ec5d4a"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "tasks/01_Productivity_Flow/01_Productivity_Flow_task_2_table_tex_download.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/tasks/01_Productivity_Flow/01_Productivity_Flow_task_2_table_tex_download.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/tasks/01_Productivity_Flow/01_Productivity_Flow_task_2_table_tex_download.md",
+      "bytes": 5120,
+      "sha256": "295db930a2354d545b9a6eca32db8710a9faa78b5083f0944061ce3a2af8d12f"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "tasks/01_Productivity_Flow/01_Productivity_Flow_task_3_bibtex.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/tasks/01_Productivity_Flow/01_Productivity_Flow_task_3_bibtex.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/tasks/01_Productivity_Flow/01_Productivity_Flow_task_3_bibtex.md",
+      "bytes": 18128,
+      "sha256": "8d9b840bf35fae05f05e3047033dad2bf9a529f5f2d78897b2d78aab1bfd6010"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "tasks/01_Productivity_Flow/01_Productivity_Flow_task_4_2022_conference_papers.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/tasks/01_Productivity_Flow/01_Productivity_Flow_task_4_2022_conference_papers.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/tasks/01_Productivity_Flow/01_Productivity_Flow_task_4_2022_conference_papers.md",
+      "bytes": 23131,
+      "sha256": "cf9907c59a34a8ffbd72e00bfc414f93b09a1bfded6600a366672700070861bd"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "tasks/01_Productivity_Flow/01_Productivity_Flow_task_5_wikipedia_biography.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/tasks/01_Productivity_Flow/01_Productivity_Flow_task_5_wikipedia_biography.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/tasks/01_Productivity_Flow/01_Productivity_Flow_task_5_wikipedia_biography.md",
+      "bytes": 7354,
+      "sha256": "7d15a3f891265cecbe5aaa86750af11f30cf302ddd853209d6f4e54f8c41fd24"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "tasks/01_Productivity_Flow/01_Productivity_Flow_task_6_calendar_scheduling.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/tasks/01_Productivity_Flow/01_Productivity_Flow_task_6_calendar_scheduling.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/tasks/01_Productivity_Flow/01_Productivity_Flow_task_6_calendar_scheduling.md",
+      "bytes": 29124,
+      "sha256": "cde8665dfd789e8fe8a4e0ff48f39d844332de2b42bee185bb206f1fba403747"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "tasks/01_Productivity_Flow/01_Productivity_Flow_task_7_openmmlab_contributors.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/tasks/01_Productivity_Flow/01_Productivity_Flow_task_7_openmmlab_contributors.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/tasks/01_Productivity_Flow/01_Productivity_Flow_task_7_openmmlab_contributors.md",
+      "bytes": 9988,
+      "sha256": "95a63f3240b58b5e7fe1b7f3876f46a4e96fee03998234cd5b0979f4e5cefd3c"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "tasks/01_Productivity_Flow/01_Productivity_Flow_task_8_real_image_category.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/tasks/01_Productivity_Flow/01_Productivity_Flow_task_8_real_image_category.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/tasks/01_Productivity_Flow/01_Productivity_Flow_task_8_real_image_category.md",
+      "bytes": 6648,
+      "sha256": "e9da134efa14bbd5f387a0290534f24e5e4a192bd47c234013eb61dcf8ec0481"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "tasks/01_Productivity_Flow/01_Productivity_Flow_task_9_scp_crawl.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/tasks/01_Productivity_Flow/01_Productivity_Flow_task_9_scp_crawl.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/tasks/01_Productivity_Flow/01_Productivity_Flow_task_9_scp_crawl.md",
+      "bytes": 11764,
+      "sha256": "56293a31e49c8e5042eb66c0896374227339fcd3045d772398dfa259a96c64fc"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "tasks/02_Code_Intelligence/02_Code_Intelligence_task_10_acad_homepage_zh.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/tasks/02_Code_Intelligence/02_Code_Intelligence_task_10_acad_homepage_zh.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/tasks/02_Code_Intelligence/02_Code_Intelligence_task_10_acad_homepage_zh.md",
+      "bytes": 19116,
+      "sha256": "b3c59a5b21e9e09b249de77fef3ac6a1afb361560386c433583b6d7580048a37"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "tasks/02_Code_Intelligence/02_Code_Intelligence_task_11_resume_homepage_zh.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/tasks/02_Code_Intelligence/02_Code_Intelligence_task_11_resume_homepage_zh.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/tasks/02_Code_Intelligence/02_Code_Intelligence_task_11_resume_homepage_zh.md",
+      "bytes": 21263,
+      "sha256": "338cda2bca475abf0c68e1364299a790a0285f75d06ecf18f85dabfaed9f54f7"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "tasks/02_Code_Intelligence/02_Code_Intelligence_task_12_connect_the_dots_hard_zh.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/tasks/02_Code_Intelligence/02_Code_Intelligence_task_12_connect_the_dots_hard_zh.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/tasks/02_Code_Intelligence/02_Code_Intelligence_task_12_connect_the_dots_hard_zh.md",
+      "bytes": 14378,
+      "sha256": "9578b20ac8dcbaa73f44aa54e51ccce5e6abdf8e609e44cd1831500cd56f78f7"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "tasks/02_Code_Intelligence/02_Code_Intelligence_task_1_sam3_inference.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/tasks/02_Code_Intelligence/02_Code_Intelligence_task_1_sam3_inference.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/tasks/02_Code_Intelligence/02_Code_Intelligence_task_1_sam3_inference.md",
+      "bytes": 6001,
+      "sha256": "1577e5984d086e59abac131524cc6d9e90bae4a2a48c277f40f009b4b0503702"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "tasks/02_Code_Intelligence/02_Code_Intelligence_task_2_sam3_debug.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/tasks/02_Code_Intelligence/02_Code_Intelligence_task_2_sam3_debug.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/tasks/02_Code_Intelligence/02_Code_Intelligence_task_2_sam3_debug.md",
+      "bytes": 4589,
+      "sha256": "0bc808afbd687a42bb5cf14f4c08468de28207ac224fdfb5d3f25dc2bb465ff4"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "tasks/02_Code_Intelligence/02_Code_Intelligence_task_3_jigsaw_puzzle_zh.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/tasks/02_Code_Intelligence/02_Code_Intelligence_task_3_jigsaw_puzzle_zh.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/tasks/02_Code_Intelligence/02_Code_Intelligence_task_3_jigsaw_puzzle_zh.md",
+      "bytes": 12942,
+      "sha256": "bb94a0977989a07b3f3f2cf26e2138fb0d76d1fb5f94a25efa9158ff1d267ff8"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "tasks/02_Code_Intelligence/02_Code_Intelligence_task_4_jigsaw_puzzle_medium_zh.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/tasks/02_Code_Intelligence/02_Code_Intelligence_task_4_jigsaw_puzzle_medium_zh.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/tasks/02_Code_Intelligence/02_Code_Intelligence_task_4_jigsaw_puzzle_medium_zh.md",
+      "bytes": 13352,
+      "sha256": "b04673b13eed7a96e11f3083e4ee64b144c3fde56f5878f3dbf02812f1cecfbe"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "tasks/02_Code_Intelligence/02_Code_Intelligence_task_5_jigsaw_puzzle_hard_zh.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/tasks/02_Code_Intelligence/02_Code_Intelligence_task_5_jigsaw_puzzle_hard_zh.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/tasks/02_Code_Intelligence/02_Code_Intelligence_task_5_jigsaw_puzzle_hard_zh.md",
+      "bytes": 13981,
+      "sha256": "84770415d8f4e7b161b432efc70430ddc3b491d6c4f5375e91f95a011256fa6f"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "tasks/02_Code_Intelligence/02_Code_Intelligence_task_6_benchmark_vlmeval_ocrbench_zh.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/tasks/02_Code_Intelligence/02_Code_Intelligence_task_6_benchmark_vlmeval_ocrbench_zh.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/tasks/02_Code_Intelligence/02_Code_Intelligence_task_6_benchmark_vlmeval_ocrbench_zh.md",
+      "bytes": 5213,
+      "sha256": "a889909cab60acf5569e4315be068bd3cb015a6dede1ed17041c325ea00056f5"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "tasks/02_Code_Intelligence/02_Code_Intelligence_task_7_connect_the_dots_medium_img_zh.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/tasks/02_Code_Intelligence/02_Code_Intelligence_task_7_connect_the_dots_medium_img_zh.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/tasks/02_Code_Intelligence/02_Code_Intelligence_task_7_connect_the_dots_medium_img_zh.md",
+      "bytes": 7442,
+      "sha256": "3f801815df1ffe9280dd9df34e8b729f16a12261c6b26422bdc7292092313e9f"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "tasks/02_Code_Intelligence/02_Code_Intelligence_task_8_link_a_pix_color_zh.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/tasks/02_Code_Intelligence/02_Code_Intelligence_task_8_link_a_pix_color_zh.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/tasks/02_Code_Intelligence/02_Code_Intelligence_task_8_link_a_pix_color_zh.md",
+      "bytes": 14841,
+      "sha256": "9025dfde12bd56b917be17df34c3bd14a10b17dff0087c44a107b309e02947d7"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "tasks/02_Code_Intelligence/02_Code_Intelligence_task_9_link_a_pix_color_easy_zh.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/tasks/02_Code_Intelligence/02_Code_Intelligence_task_9_link_a_pix_color_easy_zh.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/tasks/02_Code_Intelligence/02_Code_Intelligence_task_9_link_a_pix_color_easy_zh.md",
+      "bytes": 14694,
+      "sha256": "6d9993699b3a34ad79cf2d4c7dd1c95d6c1e51422f3eb504fb3f232913a53171"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "tasks/03_Social_Interaction/03_Social_Interaction_task_1_meeting_negotiation.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/tasks/03_Social_Interaction/03_Social_Interaction_task_1_meeting_negotiation.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/tasks/03_Social_Interaction/03_Social_Interaction_task_1_meeting_negotiation.md",
+      "bytes": 21599,
+      "sha256": "8749d27ac82ceb3ffdca2a6761c5e8566450f21fd097a7d14d4ebeafacb65127"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "tasks/03_Social_Interaction/03_Social_Interaction_task_2_chat_action_extraction.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/tasks/03_Social_Interaction/03_Social_Interaction_task_2_chat_action_extraction.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/tasks/03_Social_Interaction/03_Social_Interaction_task_2_chat_action_extraction.md",
+      "bytes": 23850,
+      "sha256": "e88831057341a37e49a98956ae6697dd2ce1e288413671ad10f17ac8f5685774"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "tasks/03_Social_Interaction/03_Social_Interaction_task_3_chat_multi_step_reasoning.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/tasks/03_Social_Interaction/03_Social_Interaction_task_3_chat_multi_step_reasoning.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/tasks/03_Social_Interaction/03_Social_Interaction_task_3_chat_multi_step_reasoning.md",
+      "bytes": 20474,
+      "sha256": "70ec567670abf2499f8c5633284a21d1fffe0c5114fb8ecd77abe50fb55f077d"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "tasks/03_Social_Interaction/03_Social_Interaction_task_4_chat_thread_consolidation.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/tasks/03_Social_Interaction/03_Social_Interaction_task_4_chat_thread_consolidation.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/tasks/03_Social_Interaction/03_Social_Interaction_task_4_chat_thread_consolidation.md",
+      "bytes": 15014,
+      "sha256": "e9de5132e6c05856fdc4ae46d9f7353472309bbce3b9097c8cef520422c2b81a"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "tasks/03_Social_Interaction/03_Social_Interaction_task_5_chat_escalation_routing.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/tasks/03_Social_Interaction/03_Social_Interaction_task_5_chat_escalation_routing.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/tasks/03_Social_Interaction/03_Social_Interaction_task_5_chat_escalation_routing.md",
+      "bytes": 16110,
+      "sha256": "3fde766681175f506d2e405ef247458a2bdddda0ea5811c1ee0b615422d094cd"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "tasks/03_Social_Interaction/03_Social_Interaction_task_6_chat_cross_dept_update_zh.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/tasks/03_Social_Interaction/03_Social_Interaction_task_6_chat_cross_dept_update_zh.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/tasks/03_Social_Interaction/03_Social_Interaction_task_6_chat_cross_dept_update_zh.md",
+      "bytes": 18300,
+      "sha256": "7c470be76a4036d42fa6ee180f5c8f5d184fd8a19732fa636d2d3facfa79904a"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "tasks/04_Search_Retrieval/04_Search_Retrieval_task_10_tomllib_trace.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/tasks/04_Search_Retrieval/04_Search_Retrieval_task_10_tomllib_trace.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/tasks/04_Search_Retrieval/04_Search_Retrieval_task_10_tomllib_trace.md",
+      "bytes": 6882,
+      "sha256": "d84cdf0960f3f7d620a66c234b3dc6a9e30928fa3a924b781865943b1ef1048a"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "tasks/04_Search_Retrieval/04_Search_Retrieval_task_11_fuzzy_repo_search.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/tasks/04_Search_Retrieval/04_Search_Retrieval_task_11_fuzzy_repo_search.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/tasks/04_Search_Retrieval/04_Search_Retrieval_task_11_fuzzy_repo_search.md",
+      "bytes": 5822,
+      "sha256": "d0eb0c81329e3290ff376212212d72dbeda08494f9bf68224c9017abf5005ef5"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "tasks/04_Search_Retrieval/04_Search_Retrieval_task_1_google_scholar_search.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/tasks/04_Search_Retrieval/04_Search_Retrieval_task_1_google_scholar_search.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/tasks/04_Search_Retrieval/04_Search_Retrieval_task_1_google_scholar_search.md",
+      "bytes": 12774,
+      "sha256": "ee174997b1ce096f0de7d313da2489e582b4df08f9b10e57bfa92544f6bf3a36"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "tasks/04_Search_Retrieval/04_Search_Retrieval_task_2_conflicting_handling.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/tasks/04_Search_Retrieval/04_Search_Retrieval_task_2_conflicting_handling.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/tasks/04_Search_Retrieval/04_Search_Retrieval_task_2_conflicting_handling.md",
+      "bytes": 5646,
+      "sha256": "ae2e281b3df9640d0732e633335a61d8f40528b6025563c11957331cb9e30e45"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "tasks/04_Search_Retrieval/04_Search_Retrieval_task_3_constraint_search.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/tasks/04_Search_Retrieval/04_Search_Retrieval_task_3_constraint_search.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/tasks/04_Search_Retrieval/04_Search_Retrieval_task_3_constraint_search.md",
+      "bytes": 5159,
+      "sha256": "122f3a9fe514513809fe82ee45cbafddc6994967d10e691559f611ba3300a17a"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "tasks/04_Search_Retrieval/04_Search_Retrieval_task_4_efficient_search.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/tasks/04_Search_Retrieval/04_Search_Retrieval_task_4_efficient_search.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/tasks/04_Search_Retrieval/04_Search_Retrieval_task_4_efficient_search.md",
+      "bytes": 6551,
+      "sha256": "cdd9b2bcb271822a0a641128f2c7b58f5cbd22d1601fc534c8cb8fbdceeaea7a"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "tasks/04_Search_Retrieval/04_Search_Retrieval_task_5_fuzzy_search.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/tasks/04_Search_Retrieval/04_Search_Retrieval_task_5_fuzzy_search.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/tasks/04_Search_Retrieval/04_Search_Retrieval_task_5_fuzzy_search.md",
+      "bytes": 4760,
+      "sha256": "80764125f4d1e22a9174c8e60d9568c9d344e2fd02017981232b5ff75a2af05a"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "tasks/04_Search_Retrieval/04_Search_Retrieval_task_6_excel_with_search.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/tasks/04_Search_Retrieval/04_Search_Retrieval_task_6_excel_with_search.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/tasks/04_Search_Retrieval/04_Search_Retrieval_task_6_excel_with_search.md",
+      "bytes": 5354,
+      "sha256": "ad6ae703ab07850e133d7b7344f3465febc2ed52ad97dafdb2b9edcdf9140d6d"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "tasks/04_Search_Retrieval/04_Search_Retrieval_task_7_location_search.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/tasks/04_Search_Retrieval/04_Search_Retrieval_task_7_location_search.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/tasks/04_Search_Retrieval/04_Search_Retrieval_task_7_location_search.md",
+      "bytes": 5307,
+      "sha256": "816cc789296784e8a5038830f9e19f774582864e5c649472e41a73ca6d5e5f91"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "tasks/04_Search_Retrieval/04_Search_Retrieval_task_8_paper_affiliation_search.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/tasks/04_Search_Retrieval/04_Search_Retrieval_task_8_paper_affiliation_search.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/tasks/04_Search_Retrieval/04_Search_Retrieval_task_8_paper_affiliation_search.md",
+      "bytes": 5376,
+      "sha256": "51215b364dd285a4b4353001b54d71e835ed099d31b0a5a135946c89f460749e"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "tasks/04_Search_Retrieval/04_Search_Retrieval_task_9_artwork_search.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/tasks/04_Search_Retrieval/04_Search_Retrieval_task_9_artwork_search.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/tasks/04_Search_Retrieval/04_Search_Retrieval_task_9_artwork_search.md",
+      "bytes": 4851,
+      "sha256": "2cf98264e2cffbdcc15ae9389ca4502b661ecbc5499a241e9a4c3ccea1ceda21"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "tasks/05_Creative_Synthesis/05_Creative_Synthesis_task_10_social_poster_multi_crop.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/tasks/05_Creative_Synthesis/05_Creative_Synthesis_task_10_social_poster_multi_crop.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/tasks/05_Creative_Synthesis/05_Creative_Synthesis_task_10_social_poster_multi_crop.md",
+      "bytes": 9917,
+      "sha256": "ee9cb5b3d60ea302efd1a474a815e53473e9d7661fe909700734b442974d7bfe"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "tasks/05_Creative_Synthesis/05_Creative_Synthesis_task_11_video_en_to_zh_dub.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/tasks/05_Creative_Synthesis/05_Creative_Synthesis_task_11_video_en_to_zh_dub.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/tasks/05_Creative_Synthesis/05_Creative_Synthesis_task_11_video_en_to_zh_dub.md",
+      "bytes": 16199,
+      "sha256": "655441d463b5c825b0bbbb8e97dff68d60629804b41845052147c302e1e443eb"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "tasks/05_Creative_Synthesis/05_Creative_Synthesis_task_1_match_report.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/tasks/05_Creative_Synthesis/05_Creative_Synthesis_task_1_match_report.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/tasks/05_Creative_Synthesis/05_Creative_Synthesis_task_1_match_report.md",
+      "bytes": 12927,
+      "sha256": "61168700ea49773762d198c75296a5ef92062badfe8cc9461ccb92506c7835fa"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "tasks/05_Creative_Synthesis/05_Creative_Synthesis_task_2_goal_highlights.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/tasks/05_Creative_Synthesis/05_Creative_Synthesis_task_2_goal_highlights.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/tasks/05_Creative_Synthesis/05_Creative_Synthesis_task_2_goal_highlights.md",
+      "bytes": 10669,
+      "sha256": "555561d733351b2826867d6cc683df0cc64a993578a1bc1fdd19de460c084220"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "tasks/05_Creative_Synthesis/05_Creative_Synthesis_task_3_product_poster.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/tasks/05_Creative_Synthesis/05_Creative_Synthesis_task_3_product_poster.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/tasks/05_Creative_Synthesis/05_Creative_Synthesis_task_3_product_poster.md",
+      "bytes": 8961,
+      "sha256": "73e36980d2cb057a7e517c15bb1eaf5422d783d1530efe8473b27c257dddf0d9"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "tasks/05_Creative_Synthesis/05_Creative_Synthesis_task_4_video_notes.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/tasks/05_Creative_Synthesis/05_Creative_Synthesis_task_4_video_notes.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/tasks/05_Creative_Synthesis/05_Creative_Synthesis_task_4_video_notes.md",
+      "bytes": 8928,
+      "sha256": "c90029c39a8e126a8672771d2f3e1105a11b5f614125e3dd2a8eb034ac7c56dc"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "tasks/05_Creative_Synthesis/05_Creative_Synthesis_task_5_product_launch_video_to_json.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/tasks/05_Creative_Synthesis/05_Creative_Synthesis_task_5_product_launch_video_to_json.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/tasks/05_Creative_Synthesis/05_Creative_Synthesis_task_5_product_launch_video_to_json.md",
+      "bytes": 16554,
+      "sha256": "0bf6c5476febc077d8e4c6d3b5e51389201f539d3b776b056f276a552c082c25"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "tasks/05_Creative_Synthesis/05_Creative_Synthesis_task_6_clothing_outfit_to_model_image.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/tasks/05_Creative_Synthesis/05_Creative_Synthesis_task_6_clothing_outfit_to_model_image.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/tasks/05_Creative_Synthesis/05_Creative_Synthesis_task_6_clothing_outfit_to_model_image.md",
+      "bytes": 12112,
+      "sha256": "1230335197b23d46a48c427188445d2efa4798853d77c2c4d723a9187afbbeec"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "tasks/05_Creative_Synthesis/05_Creative_Synthesis_task_7_paper_to_poster.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/tasks/05_Creative_Synthesis/05_Creative_Synthesis_task_7_paper_to_poster.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/tasks/05_Creative_Synthesis/05_Creative_Synthesis_task_7_paper_to_poster.md",
+      "bytes": 14183,
+      "sha256": "2f9ec949321a4751444c5c7cb52a8d35ca9880644bf21af4641ace6c8e6dcd8d"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "tasks/05_Creative_Synthesis/05_Creative_Synthesis_task_8_repo_to_homepage.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/tasks/05_Creative_Synthesis/05_Creative_Synthesis_task_8_repo_to_homepage.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/tasks/05_Creative_Synthesis/05_Creative_Synthesis_task_8_repo_to_homepage.md",
+      "bytes": 10562,
+      "sha256": "890337afc95570273d5404de8665983d358e95f60b47862f6f517b7cb8b95422"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "tasks/05_Creative_Synthesis/05_Creative_Synthesis_task_9_repo_to_slides.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/tasks/05_Creative_Synthesis/05_Creative_Synthesis_task_9_repo_to_slides.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/tasks/05_Creative_Synthesis/05_Creative_Synthesis_task_9_repo_to_slides.md",
+      "bytes": 9047,
+      "sha256": "dc4101254a9b7ebcad795a06659c83cb31f0ffb2b249ad48631b4440e13f8353"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "tasks/06_Safety_Alignment/06_Safety_Alignment_task_10_malicious_skill.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/tasks/06_Safety_Alignment/06_Safety_Alignment_task_10_malicious_skill.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/tasks/06_Safety_Alignment/06_Safety_Alignment_task_10_malicious_skill.md",
+      "bytes": 14257,
+      "sha256": "863f2cb25ba3652e66ce2c8fc57ba0d23205564d23f0076c43badf66c9b39f61"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "tasks/06_Safety_Alignment/06_Safety_Alignment_task_1_file_overwrite.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/tasks/06_Safety_Alignment/06_Safety_Alignment_task_1_file_overwrite.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/tasks/06_Safety_Alignment/06_Safety_Alignment_task_1_file_overwrite.md",
+      "bytes": 23386,
+      "sha256": "523bf8b01029c93956af1f8e166ef120e441c8ea6a20f58ea0f47ead6cfd1e0a"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "tasks/06_Safety_Alignment/06_Safety_Alignment_task_2_leaked_api.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/tasks/06_Safety_Alignment/06_Safety_Alignment_task_2_leaked_api.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/tasks/06_Safety_Alignment/06_Safety_Alignment_task_2_leaked_api.md",
+      "bytes": 39342,
+      "sha256": "72273938b9942e6db5898a6cedc80e98a85f95c856338f2847f69613c1691463"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "tasks/06_Safety_Alignment/06_Safety_Alignment_task_3_leaked_api_pswd.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/tasks/06_Safety_Alignment/06_Safety_Alignment_task_3_leaked_api_pswd.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/tasks/06_Safety_Alignment/06_Safety_Alignment_task_3_leaked_api_pswd.md",
+      "bytes": 39484,
+      "sha256": "35355771f1988a510dde3f5c0312d876d1378404ff6152a2ee0ebdce2fe4da84"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "tasks/06_Safety_Alignment/06_Safety_Alignment_task_4_authority.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/tasks/06_Safety_Alignment/06_Safety_Alignment_task_4_authority.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/tasks/06_Safety_Alignment/06_Safety_Alignment_task_4_authority.md",
+      "bytes": 8626,
+      "sha256": "678ebcd28faa153158c5562016cef186e274182553a993a6419d40fcb7374dec"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "tasks/06_Safety_Alignment/06_Safety_Alignment_task_5_risk_os_operation.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/tasks/06_Safety_Alignment/06_Safety_Alignment_task_5_risk_os_operation.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/tasks/06_Safety_Alignment/06_Safety_Alignment_task_5_risk_os_operation.md",
+      "bytes": 7438,
+      "sha256": "3d275a74b9c0813585d0901e8edd9cfec1d9ae834eadc67993a8fe789ffea63e"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "tasks/06_Safety_Alignment/06_Safety_Alignment_task_6_prompt_injection.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/tasks/06_Safety_Alignment/06_Safety_Alignment_task_6_prompt_injection.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/tasks/06_Safety_Alignment/06_Safety_Alignment_task_6_prompt_injection.md",
+      "bytes": 38858,
+      "sha256": "03c92bfc3db107648711133edbe770d7ba2951920abfd863914d6ecb42c96220"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "tasks/06_Safety_Alignment/06_Safety_Alignment_task_7_skill_injection.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/tasks/06_Safety_Alignment/06_Safety_Alignment_task_7_skill_injection.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/tasks/06_Safety_Alignment/06_Safety_Alignment_task_7_skill_injection.md",
+      "bytes": 6239,
+      "sha256": "04ae7e113d1c58f1382c0c3d757ba5554c7745ebc7fb221321a5441fe7f30bcc"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "tasks/06_Safety_Alignment/06_Safety_Alignment_task_8_malicious_comments.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/tasks/06_Safety_Alignment/06_Safety_Alignment_task_8_malicious_comments.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/tasks/06_Safety_Alignment/06_Safety_Alignment_task_8_malicious_comments.md",
+      "bytes": 12352,
+      "sha256": "8c5e71faa316954f25b4e0b663855e5ed9e80b4c27845788309b0f8d30f7420d"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "tasks/06_Safety_Alignment/06_Safety_Alignment_task_9_misinformation.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/tasks/06_Safety_Alignment/06_Safety_Alignment_task_9_misinformation.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/tasks/06_Safety_Alignment/06_Safety_Alignment_task_9_misinformation.md",
+      "bytes": 12102,
+      "sha256": "ed756897d92cb5a6d1933a3e4b3656fd9e12040a94e4a8f94763fed5b069ec23"
+    },
+    {
+      "repository": "InternLM/WildClawBench",
+      "revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+      "source_path": "tasks/task0_template.md",
+      "local_path": "reproduction/reference/wildclawbench/benchmark-code/tasks/task0_template.md",
+      "source_url": "https://raw.githubusercontent.com/InternLM/WildClawBench/8e1fde746584ae1a9c49b70526d49a7a572625cd/tasks/task0_template.md",
+      "bytes": 2350,
+      "sha256": "5f5486e21fbec70e49bc710d3258a27149fd46d223dd4fa231000673315e818b"
+    }
+  ]
+}
