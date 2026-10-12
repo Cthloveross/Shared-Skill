@@ -19,6 +19,8 @@ PoisonedEvolution 的攻击设计、SpreadsheetBench 数据、30/3 批次与 600
 
 这是一段持续使用共享技能库的正常任务实验。与攻击论文的逐项设置对照见 [两种实验的区别](poisoned-evolution-experiments.md#8-与原始-skillclaw-的设置区别)。来源：[SkillClaw §3.2](https://arxiv.org/html/2604.08377v2#S3.SS2)。
 
+WildClawBench 的 60 是任务数；SkillClaw 维护并进化多个 skill，具体被接受的名称见 [§3.4](#34-具体进化了哪些-skill)。论文只报告四个类别，未列出每天执行的 task IDs 和次数，无法确认完整 60 题的实际执行安排。
+
 ## 2. WildClawBench 来源
 
 WildClawBench 是上海人工智能实验室与合作高校的 Shuangrui Ding、Xuanlang Dai、Long Xing 等作者发布的独立基准。它由研究者人工编写现实工作场景任务，覆盖完整 Agent 工具执行。来源是 [Benchmark 论文](https://arxiv.org/abs/2605.10912) 与 [InternLM 官方仓库](https://github.com/InternLM/WildClawBench)。
@@ -119,6 +121,24 @@ Benchmark 自身的评测协议给出单题 300–1200 秒预算和 GPT-5.4 评�
 | 平均 | 30.4% | 72.5% |
 
 来源：[§3.4、表 8](https://arxiv.org/html/2604.08377v2#S3.T8)。这个实验单独验证常见流程缺陷，不能替代完整的 6 轮主实验。
+
+### 3.4 具体进化了哪些 skill
+
+原始 SkillClaw 维护一个共享技能库，按不同技能的执行证据提出候选。表 4–7 明确列出 **5 个不同技能名称的更新被接受部署**：
+
+| Skill 名称 | 功能 | 有文本更新被接受的夜晚 |
+| --- | --- | --- |
+| `03_task6` | 跨部门 Slack 信息汇总、风险识别与管理层简报 | Night 1 |
+| `validate-file-existence` | 读取或解析输入前检查文件存在 | Night 1 |
+| `validate-tmp-workspace-inputs` | 检查工作目录、输入文件与执行环境 | Night 1 |
+| `git-push-with-auth-fallback` | Git 推送失败时提供 patch／bundle 等替代交付 | Night 1、2、3 |
+| `git-clone-to-directory` | 正确将仓库克隆到指定目录 | Night 3 |
+
+来源：[表 4](https://arxiv.org/html/2604.08377v2#S3.T4)、[表 5](https://arxiv.org/html/2604.08377v2#S3.T5)、[表 6](https://arxiv.org/html/2604.08377v2#S3.T6)、[表 7](https://arxiv.org/html/2604.08377v2#S3.T7)。这是表中明确记录的接受项，不是完整初始库或最终库的技能总数，也不等于新建 5 个技能；其中包含原有技能的改写以及同一技能在不同夜晚的继续修改。搜索 Night 3、安全 Night 4 是同库复测，没有新技能文本，未计入上表。
+
+会议协调、路径排查、检索规划和多模态流水线等还有其他候选，但表中被拒绝。每天只对实际触发、且有改进潜力的技能提出更新，未必所有技能都修改。任务与技能也不一一对应：一条任务可以调用多个技能，同一技能可以服务多条任务。
+
+论文明确使用 WildClawBench，其完整基准有 60 个任务；SkillClaw 实验只报告四个代表性类别。没有逐用户、逐日的任务清单，不能据此断言每天跑完全部 60 题，或计算为 `60 × 8 × 6` 次执行。来源：[§3.1–3.2](https://arxiv.org/html/2604.08377v2#S3.SS1)。PoisonedEvolution 以 `xlsx` 为单一攻击目标，属于另一份实验设计。
 
 ## 4. 本地正常闭环的验证结果
 
