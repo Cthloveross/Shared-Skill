@@ -12,6 +12,51 @@ from pathlib import Path
 from protocol import ROOT, tree_hash, write_json
 
 
+def backend_usage(directory: Path) -> dict | None:
+    """Count Qwen usage from backend responses, including reasoning exactly once."""
+    measured = []
+    requests = 0
+    for path in directory.glob("*/record.json"):
+        record = json.loads(path.read_text())
+        if record.get("role") != "main":
+            continue
+        requests += 1
+        response = path.parent / "response.bin"
+        stream = path.parent / "response.sse"
+        usage = None
+        try:
+            if response.exists():
+                usage = json.loads(response.read_bytes()).get("usage")
+            elif stream.exists():
+                for line in stream.read_text().splitlines():
+                    if line.startswith("data: ") and line != "data: [DONE]":
+                        payload = json.loads(line[6:])
+                        if payload.get("usage"):
+                            usage = payload["usage"]
+        except (ValueError, UnicodeError):
+            # A cancelled stream can end mid-JSON and have no final usage chunk.
+            pass
+        if isinstance(usage, dict) and all(
+            isinstance(usage.get(k), int) for k in ("prompt_tokens", "completion_tokens", "total_tokens")
+        ):
+            measured.append(usage)
+    if not requests:
+        return None
+    return {
+        **{
+            key: sum(u[source] for u in measured) if measured else None
+            for key, source in (
+                ("input_tokens", "prompt_tokens"),
+                ("output_tokens", "completion_tokens"),
+                ("total_tokens", "total_tokens"),
+            )
+        },
+        "request_count": requests,
+        "measured_request_count": len(measured),
+        "missing_usage_requests": requests - len(measured),
+    }
+
+
 def wall_span(records: list[dict]) -> float | None:
     if not records:
         return None
@@ -34,8 +79,17 @@ def summarize(records: list[dict]) -> dict:
         "wall_span_seconds": wall_span(records),
         "usage_records": len(usage),
         "usage": {
-            key: sum(u.get(key, 0) for u in usage) if usage else None
-            for key in ("input_tokens", "output_tokens", "total_tokens", "request_count")
+            key: sum(u[key] for u in usage if u.get(key) is not None)
+            if any(u.get(key) is not None for u in usage)
+            else None
+            for key in (
+                "input_tokens",
+                "output_tokens",
+                "total_tokens",
+                "request_count",
+                "measured_request_count",
+                "missing_usage_requests",
+            )
         },
     }
 
@@ -43,10 +97,15 @@ def summarize(records: list[dict]) -> dict:
 def generate(run_dir: Path, tasks: list[dict]) -> dict:
     output = run_dir / "report"
     output.mkdir(parents=True, exist_ok=True)
+    frozen_path = run_dir / "frozen-protocol.json"
+    config = json.loads(frozen_path.read_text())["config"] if frozen_path.exists() else {}
+    evidence = Path(config.get("gateway_log_dir") or Path(config.get("runtime_dir", ROOT / "runtime")) / "api-evidence")
     records = []
-    for path in sorted((run_dir / "executions").rglob("result.json")):
+    for path in sorted((run_dir / "executions").glob("*/*/*/*/*/result.json")):
         result = json.loads(path.read_text())
         if result.get("experiment_record"):
+            result["usage"] = backend_usage(evidence / result["run_id"]) if result.get("run_id") else None
+            result["usage_source"] = "gateway_main" if result["usage"] is not None else "unavailable"
             records.append(result)
     fields = [
         "phase",
@@ -70,11 +129,14 @@ def generate(run_dir: Path, tasks: list[dict]) -> dict:
         "output_tokens",
         "total_tokens",
         "request_count",
+        "measured_request_count",
+        "missing_usage_requests",
+        "usage_source",
     ]
     with (output / "tasks.csv").open("w") as stream:
         writer = csv.DictWriter(stream, fields, extrasaction="ignore")
         writer.writeheader()
-        writer.writerows({**record, **record.get("usage", {})} for record in records)
+        writer.writerows({**record, **(record.get("usage") or {})} for record in records)
     groups = defaultdict(list)
     for record in records:
         if record["phase"] in {"day", "endpoint", "pilot"}:
@@ -117,7 +179,9 @@ def generate(run_dir: Path, tasks: list[dict]) -> dict:
         writer = csv.DictWriter(stream, ["task_id", "short_id", "category", "local_variant", "S0", "S6", "delta"])
         writer.writeheader()
         writer.writerows(paired)
-    decisions = [json.loads(path.read_text()) for path in sorted((run_dir / "nights").rglob("decision.json"))]
+    decisions = [
+        json.loads(path.read_text()) for path in sorted((run_dir / "nights").glob("*/validation/*/decision.json"))
+    ]
     valid_pairs = [p for p in paired if p["delta"] is not None]
     unchanged = [p for p in valid_pairs if not p["local_variant"]]
     state = json.loads((run_dir / "state.json").read_text()) if (run_dir / "state.json").exists() else {}
@@ -127,7 +191,7 @@ def generate(run_dir: Path, tasks: list[dict]) -> dict:
     nights = []
     for path in sorted((run_dir / "nights").glob("*/publication.json")):
         publication = json.loads(path.read_text())
-        proposal_path = path.parent / "proposals/proposal-summary.json"
+        proposal_path = path.parent / "proposals/evolution/proposal-summary.json"
         proposal = json.loads(proposal_path.read_text()) if proposal_path.exists() else {}
         related_records = [r for r in records if r["phase"] == "validation" and r["round"] == publication["round"]]
         # A candidate ID can recur on another night; include its parent hash in the per-night decision provenance.
@@ -182,6 +246,7 @@ def generate(run_dir: Path, tasks: list[dict]) -> dict:
     initial_bank, final_bank = run_dir / "banks/S0", run_dir / "banks/S6"
     bank_changed = tree_hash(initial_bank) != tree_hash(final_bank) if final_bank.is_dir() else None
     summary = {
+        "reported_at": dt.datetime.now(dt.timezone.utc).isoformat(),
         "state": state,
         "stages": stages,
         "candidate_accepts": sum(d.get("accepted", False) for d in decisions),
@@ -222,7 +287,7 @@ def generate(run_dir: Path, tasks: list[dict]) -> dict:
             "",
             f"预跑实际墙钟 {pilot_calibration['wall_seconds'] / 60:.1f} 分钟；"
             f"按这 8 题外推固定 480 次为 {pilot_calibration['extrapolated_fixed_wall_hours']:.1f} 小时。",
-            "此估计包含预跑样本与单卡排队的影响，不含夜间摘要、提案和 A/B；候选数量尚未确定，不能作为总实验完成时间。",
+            "这 8 题是特选的困难样本，外推只供排期。待 Day 1 全 60 题和首个夜晚完成后更新；不作为总实验完成时间。",
         ]
     lines += [
         "",
@@ -241,7 +306,7 @@ def generate(run_dir: Path, tasks: list[dict]) -> dict:
         lines.append("终点对照尚未完成，不能给出最终技能进步幅度。")
     lines += [
         "",
-        "| 工作类型 | 执行次数 | 累计任务小时 | 阶段墙钟小时 | Agent token 总量 |",
+        "| 工作类型 | 执行次数 | 累计任务小时 | 阶段墙钟小时 | 已计量主模型 token |",
         "|---|---:|---:|---:|---:|",
     ]
     for phase, totals in phase_totals.items():
@@ -250,7 +315,9 @@ def generate(run_dir: Path, tasks: list[dict]) -> dict:
         lines.append(f"| {phase} | {totals['attempted']} | {totals['task_seconds'] / 3600:.2f} | {span} | {tokens} |")
     lines += [
         "",
-        "Agent token 来自实际 OpenClaw 轨迹；题目内部 OCR 子调用、评分和摘要另保存在 API 请求证据中。",
+        "Token 使用本地后端 usage：包含任务 Agent、同任务 OCR/PDF 子调用和评分；reasoning 只计一次。",
+        "中断请求可能没有最终 usage，计量缺口见 missing_usage_requests；已计量 token 不能当成全部消耗。",
+        "此表不含夜间摘要／提案／比较或音频、图片辅助模型；原始 OpenClaw usage 保留在执行记录，未经改写。",
         "夜间摘要／提案耗时和接受技能见 summary.json 的 nights；版本 hash 与父版本另见 skill-lineage.csv。",
         "OCR 变体的任务完成分与模型 OCR 准确率分别记录，不能混为同一个分数。",
         "",
@@ -303,7 +370,7 @@ def update_experiment_status(run_dir: Path, summary: dict):
         "",
         f"- 状态：`{state.get('status', 'not_started')}`。",
         f"- 运行：`runtime/runs/{run_dir.name}/`。",
-        f"- 更新：`{state.get('updated_at', '')}`。",
+        f"- 报告更新：`{summary['reported_at']}`；阶段更新：`{state.get('updated_at', '')}`。",
         f"- 已记录任务执行：{summary['records']}；终点有效配对：{summary['paired_graded']}/60。",
         f"- [运行报告](runtime/runs/{run_dir.name}/report/REPORT.md)。",
     ]

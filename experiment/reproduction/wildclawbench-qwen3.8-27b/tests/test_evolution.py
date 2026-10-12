@@ -5,7 +5,7 @@ import subprocess
 import tempfile
 import unittest
 
-MODULE = pathlib.Path(__file__).with_name("evolution.py")
+MODULE = pathlib.Path(__file__).resolve().parent.parent / "evolution.py"
 spec = importlib.util.spec_from_file_location("experiment_evolution", MODULE)
 e = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(e)
