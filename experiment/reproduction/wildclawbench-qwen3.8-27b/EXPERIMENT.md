@@ -206,13 +206,14 @@ uv pip install --python .venv/bin/python -r experiment/reproduction/wildclawbenc
 - 2026-10-12 22:35 UTC：以已推送代码 `bd2c839` 和干净工作区启动独立运行 `20261012T223532Z`，协议 hash 为 `2a35a2911eceec396de61a4a4eb81726cfbfde9e0e4f0e3b48810c3cf47ff900`，S0 hash 保持不变。六项本地接口检查全部通过，8 题于 22:35:43 UTC 开始。控制进程独立于终端，PID 及身份、完整启动命令保存在 [controller-process.json](runtime/runs/20261012T223532Z/controller-process.json)，代码及环境版本保存在 [startup-inventory.json](runtime/runs/20261012T223532Z/startup-inventory.json)。预跑通过后同一调度器自动继续 Day 1–6、Night 1–6 和终点对照；此前四次运行均未进入正式阶段。
 - 2026-10-12 22:56 UTC：运行 `20261012T223532Z` 的全部 8 题预跑完成有效评分，真实 OCR、服装和社会任务截止均保存产物并进入评分。收尾审计发现 OCR 评分应以冻结原 TSV 而非可写导出表为真值；本轮两表 SHA 实际相同，但自动约束不够完整。调度器于 22:56:05 UTC 自动启动 Day 1 八题，22:56:25 UTC 已核验 UID／PID／startticks／命令后停止；无正式任务完成。状态改为 `superseded_after_day1_started`，保留全部证据、归档活动容器，本轮任何预跑或启动任务成绩都不进入新冻结实验。另发现样本 670 的真实 Qwen 返回 `content=null / finish_reason=length`，输出额度已耗尽；Agent 保存空预测。新版按真实无答案样本计零，区分输出额度失败与伪造／不一致，不回写本次旧分数。
 - 2026-10-12 23:00 UTC：OCR 评分的冻结原表锚定、导出表完整性检查及真实 null-length 空答案计分已修复；最终 93 项测试、171 项子测试和 Ruff 通过。加入 question／image／groundtruth／索引篡改、实际请求不匹配、原始宿主输入变化必须停止、空答案真实失败及伪造响应的回归。模型采样、16384 输出额度和 1200 秒题目限时保持一致。上一轮媒体真实性详见 [pilot-media.json](runtime/runs/20261012T223532Z/audits/pilot-media.json)，审计没有修改旧成绩。
+- 2026-10-12 23:02 UTC：已推送代码 `9a28d1d`，以干净工作区启动独立运行 `20261012T230206Z`，协议 hash `91f8f1d9d70e2c74e645519f8667e5b598cf63a2c1a363b44ebc42de6b42529c`，初始9技能 S0 hash不变。六个本地接口检查全部通过；主控制进程 PID3283683 独立于终端，启动身份见 [controller-process.json](runtime/runs/20261012T230206Z/controller-process.json)，版本见 [startup-inventory.json](runtime/runs/20261012T230206Z/startup-inventory.json)。重新从完整预跑开始，通过后自动运行六个白天／夜晚和 S0/S6 终点对照。旧运行的 16 题证据（8 预跑、8 已启动但无完成成绩的 Day1）已归档，仅精确清理其8个活动容器。旧 OCR 真实1000条调用核验与独立准确率842/1000见 [pilot-ocr.json](runtime/runs/20261012T223532Z/audits/pilot-ocr.json)，原始任务分0.2保持不动，旧分数不跨版本复用。
 - 预跑及正式成绩以随后真实运行记录为准。
 
 <!-- LIVE_STATUS -->
 ## 当前运行记录
 
-- 状态：`superseded_after_day1_started`。
-- 运行：`runtime/runs/20261012T223532Z/`。
-- 更新：`2026-10-12T22:56:42.076166+00:00`。
-- 已记录任务执行：8；终点有效配对：0/60。
-- [运行报告](runtime/runs/20261012T223532Z/report/REPORT.md)。
+- 状态：`pilot`。
+- 运行：`runtime/runs/20261012T230206Z/`。
+- 更新：`2026-10-12T23:02:15.423917+00:00`。
+- 已记录任务执行：0；终点有效配对：0/60。
+- [运行报告](runtime/runs/20261012T230206Z/report/REPORT.md)。
