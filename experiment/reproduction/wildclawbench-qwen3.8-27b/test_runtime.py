@@ -7,6 +7,7 @@ prepared, pinned upstream checkout and skip when sources have not been prepared.
 from __future__ import annotations
 
 import ast
+import csv
 import hashlib
 import io
 import json
@@ -156,6 +157,191 @@ class GraderTests(unittest.TestCase):
         self.assertIsNotNone(issue({"choices": [{"finish_reason": "length", "message": {"content": "partial"}}]}))
         self.assertIsNotNone(issue({"choices": [{"finish_reason": "stop", "message": {"content": ""}}]}))
         self.assertIsNone(issue({"choices": [{"finish_reason": "stop", "message": {"content": "valid judgment"}}]}))
+
+
+class OCRGraderTests(unittest.TestCase):
+    """Authenticate synthetic artifacts against immutable inputs; never call a model."""
+
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+        self.input_workspace = self.root / "input"
+        (self.input_workspace / "exec").mkdir(parents=True)
+        self.output = self.root / "output"
+        self.results = self.output / "workspace" / "results"
+        self.results.mkdir(parents=True)
+        self.config = {"gateway_log_dir": str(self.root / "gateway"), "model_id": "qwen3.8-27b"}
+        self.rows, self.predictions, self.calls = [], [], []
+        categories = (
+            ["Regular Text Recognition"] * 300
+            + ["Scene Text-centric VQA"] * 200
+            + ["Doc-oriented VQA"] * 200
+            + ["Key Information Extraction"] * 200
+            + ["Handwritten Mathematical Expression Recognition"] * 100
+        )
+        for index, category in enumerate(categories):
+            text = f"answer{index}"
+            row = {
+                "index": str(index),
+                "question": f"original question {index}",
+                "image": f"synthetic-base64-{index}",
+                "answer": repr([text]),
+                "category": category,
+            }
+            self.rows.append(row)
+            request = {
+                "model": self.config["model_id"],
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": row["question"]},
+                            {"type": "image_url", "image_url": {"url": "data:image/png;base64," + row["image"]}},
+                        ],
+                    }
+                ],
+            }
+            response = {"id": f"response-{index}", "choices": [{"message": {"content": text}}]}
+            self.predictions.append({"index": index, "prediction": text, "response_id": response["id"]})
+            self.calls.append({"index": index, "request": request, "response": response})
+            folder = self.root / "gateway" / "test-run" / str(index)
+            folder.mkdir(parents=True)
+            (folder / "record.json").write_text(json.dumps({"role": "main", "status": "completed", "http_status": 200}))
+            (folder / "request.json").write_text(json.dumps(request))
+            (folder / "response.bin").write_text(json.dumps(response))
+        self.write_tsv(self.input_workspace / "exec" / "OCRBench.tsv", self.rows)
+        self.write_tsv(self.output / "workspace" / "OCRBench.tsv", self.rows)
+        self.write_predictions()
+        (self.results / "result.json").write_text(
+            json.dumps(
+                {
+                    "model": self.config["model_id"],
+                    "benchmark": "OCRBench",
+                    "Final Score": 1000,
+                    "Text Recognition": 300,
+                    "Scene Text-centric VQA": 200,
+                    "Document-oriented VQA": 200,
+                    "Key Information Extraction": 200,
+                    "Handwritten Mathematical Expression Recognition": 100,
+                }
+            )
+        )
+
+    def write_tsv(self, path, rows):
+        with path.open("w", newline="") as stream:
+            writer = csv.DictWriter(stream, fieldnames=list(self.rows[0]), delimiter="\t")
+            writer.writeheader()
+            writer.writerows(rows)
+
+    def write_predictions(self):
+        for name, records in [("predictions.jsonl", self.predictions), ("api_calls.jsonl", self.calls)]:
+            (self.results / name).write_text("".join(json.dumps(record) + "\n" for record in records))
+
+    def grade(self):
+        return runtime._ocr_grade(self.output, self.config, "test-run", 0.2, self.input_workspace)
+
+    def assert_task_failure(self, scores):
+        self.assertEqual(scores["overall_score"], 0.2)
+        self.assertEqual(scores["evaluation_completion_score"], 0)
+        self.assertIn("completion_failure", scores)
+        self.assertNotIn("_grading_infrastructure_error", scores)
+
+    def test_complete_authenticated_evaluation_uses_original_input_and_frozen_validation(self):
+        self.config["task"] = {"task_id": "synthetic-ocr", "input_sha256": "frozen-input"}
+        with patch("provenance.validate_task_inputs") as validate:
+            scores = self.grade()
+        validate.assert_called_once_with(self.config, self.config["task"])
+        self.assertEqual(scores["overall_score"], 1.0)
+        self.assertEqual(scores["verified_samples"], 1000)
+        self.assertEqual(scores["ocr_accuracy"], 1.0)
+        self.assertEqual(
+            scores["input_tsv_sha256"],
+            hashlib.sha256((self.input_workspace / "exec" / "OCRBench.tsv").read_bytes()).hexdigest(),
+        )
+
+    def test_changed_export_question_image_answers_or_swapped_indices_are_task_failures(self):
+        original = (self.input_workspace / "exec" / "OCRBench.tsv").read_bytes()
+        for field in ["question", "image", "answer", "swapped indices"]:
+            with self.subTest(field=field):
+                rows = [dict(row) for row in self.rows]
+                if field == "swapped indices":
+                    rows[0]["index"], rows[1]["index"] = rows[1]["index"], rows[0]["index"]
+                else:
+                    rows[0][field] = "forged"
+                self.write_tsv(self.output / "workspace" / "OCRBench.tsv", rows)
+                scores = self.grade()
+                self.assert_task_failure(scores)
+                self.assertIn("differs from immutable task input", scores["completion_failure"])
+                self.assertEqual((self.input_workspace / "exec" / "OCRBench.tsv").read_bytes(), original)
+
+    def test_changed_frozen_host_input_propagates_to_infrastructure_failure(self):
+        self.config["task"] = {"task_id": "synthetic-ocr", "input_sha256": "frozen-input"}
+        with patch("provenance.validate_task_inputs", side_effect=ValueError("Frozen input changed")):
+            with self.assertRaisesRegex(ValueError, "Frozen input changed"):
+                self.grade()
+
+    def test_actual_payload_must_use_original_question_and_image(self):
+        path = self.root / "gateway" / "test-run" / "0" / "request.json"
+        original = path.read_text()
+        for field in ["question", "image"]:
+            with self.subTest(field=field):
+                request = json.loads(original)
+                parts = request["messages"][0]["content"]
+                if field == "question":
+                    parts[0]["text"] = "forged question"
+                else:
+                    parts[1]["image_url"]["url"] = "data:image/png;base64,forged"
+                path.write_text(json.dumps(request))
+                scores = self.grade()
+                self.assert_task_failure(scores)
+                self.assertIn("lacks the correct question/image", scores["completion_failure"])
+
+    def test_actual_model_response_cannot_replace_original_groundtruth(self):
+        self.predictions[0]["prediction"] = "forged answer"
+        self.calls[0]["response"]["choices"][0]["message"]["content"] = "forged answer"
+        (self.root / "gateway" / "test-run" / "0" / "response.bin").write_text(json.dumps(self.calls[0]["response"]))
+        self.write_predictions()
+        scores = self.grade()
+        self.assert_task_failure(scores)
+        self.assertIn("differs from official-rule recomputation", scores["completion_failure"])
+
+    def test_actual_null_length_answer_is_recorded_empty_and_scores_zero_for_sample(self):
+        response = self.calls[0]["response"]
+        response["choices"][0].update(message={"content": None}, finish_reason="length")
+        response["usage"] = {"completion_tokens": 16384, "completion_tokens_details": {"reasoning_tokens": 16384}}
+        self.predictions[0]["prediction"] = ""
+        (self.root / "gateway" / "test-run" / "0" / "response.bin").write_text(json.dumps(response))
+        self.write_predictions()
+        report = json.loads((self.results / "result.json").read_text())
+        report.update({"Final Score": 999, "Text Recognition": 299})
+        (self.results / "result.json").write_text(json.dumps(report))
+        scores = self.grade()
+        self.assertEqual(scores["overall_score"], 1.0)
+        self.assertEqual(scores["verified_samples"], 1000)
+        self.assertEqual(scores["ocr_accuracy"], 0.999)
+        self.assertEqual(scores["ocr_model_results"]["Final Score"], 999)
+        self.assertEqual(len(scores["model_answer_failures"]), 1)
+        self.assertEqual(scores["model_answer_failures"][0]["index"], "0")
+        self.assertEqual(scores["model_answer_failures"][0]["usage"], response["usage"])
+
+    def test_null_unexpected_stop_forged_prediction_saved_null_or_rewritten_content_still_fail(self):
+        for case in ["unexpected stop", "nonempty prediction", "changed saved null", "rewritten normal content"]:
+            with self.subTest(case=case):
+                actual = {"id": "response-0", "choices": [{"message": {"content": None}, "finish_reason": "length"}]}
+                self.predictions[0]["prediction"] = ""
+                if case == "unexpected stop":
+                    actual["choices"][0]["finish_reason"] = "stop"
+                elif case == "nonempty prediction":
+                    self.predictions[0]["prediction"] = "forged"
+                elif case == "rewritten normal content":
+                    actual["choices"][0]["message"]["content"] = "answer0"
+                (self.root / "gateway" / "test-run" / "0" / "response.bin").write_text(json.dumps(actual))
+                self.calls[0]["response"] = json.loads(json.dumps(actual))
+                if case == "changed saved null":
+                    self.calls[0]["response"]["choices"][0]["message"]["content"] = ""
+                self.write_predictions()
+                self.assert_task_failure(self.grade())
 
 
 class GraderHTTPTimeoutTests(unittest.TestCase):

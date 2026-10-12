@@ -209,6 +209,7 @@ _OCR_PROTOCOL = """【已批准的本地 Qwen 变体；覆盖原模型和原 810
 保存 /tmp_workspace/results/predictions.jsonl：每行含 index（TSV原index）、prediction（实际模型响应文本）、response_id。
 保存 /tmp_workspace/results/api_calls.jsonl：每行含 index、request（实际API payload）、response（完整OpenAI JSON响应）。
 每个样本使用非流式chat/completions，payload必须包含该样本原question和TSV原始base64图像，model为qwen3.8-27b。
+若真实响应content为null且finish_reason为length，预测记为空串、保留原响应并按无答案计0分。
 勿替换图像、勿用groundtruth生成prediction；每个response_id必须对应本次执行gateway实际成功响应。
 允许并发提高效率，但1000样本必须各自保留真实调用与prediction；服务失败或限时未完成应如实报告。
 按OCRBench官方规则重算：普通类别把answer和prediction转小写、strip、换行替换为空格，用answer substring匹配；
@@ -240,19 +241,35 @@ def grade(**kwargs):
 """
 
 
-def _ocr_grade(output: Path, config: Mapping[str, Any], run_id: str, environment_score: float) -> dict[str, Any]:
+def _ocr_grade(
+    output: Path, config: Mapping[str, Any], run_id: str, environment_score: float, input_workspace: Path
+) -> dict[str, Any]:
     """Recompute OCRBench and authenticate all predictions against gateway logs."""
+    frozen_task = config.get("task", {})
+    if frozen_task.get("input_sha256"):
+        from provenance import validate_task_inputs
+
+        validate_task_inputs(config, frozen_task)
     workspace = output / "workspace"
     result = {
         "overall_score": environment_score,
         "environment_score": environment_score,
         "evaluation_completion_score": 0.0,
         "verified_samples": 0,
+        "model_answer_failures": [],
         "protocol": "local-Qwen OCRBench task completion, separate from OCR accuracy",
     }
     try:
+        source_tsv = input_workspace / "exec" / "OCRBench.tsv"
+        with source_tsv.open("rb") as stream:
+            source_sha256 = hashlib.file_digest(stream, "sha256").hexdigest()
+        result["input_tsv_sha256"] = source_sha256
+        with (workspace / "OCRBench.tsv").open("rb") as stream:
+            exported_sha256 = hashlib.file_digest(stream, "sha256").hexdigest()
+        if exported_sha256 != source_sha256:
+            raise ValueError("Exported OCRBench.tsv differs from immutable task input")
         csv.field_size_limit(2**31 - 1)
-        with (workspace / "OCRBench.tsv").open(newline="") as stream:
+        with source_tsv.open(newline="") as stream:
             rows = list(csv.DictReader(stream, delimiter="\t"))
         if len(rows) != 1000:
             raise ValueError("Pinned OCRBench v1 input does not have 1000 samples")
@@ -300,12 +317,25 @@ def _ocr_grade(output: Path, config: Mapping[str, Any], run_id: str, environment
             request, response = actual[response_id]
             if request.get("model") != model:
                 raise ValueError(f"Sample {index}: wrong actual model")
-            text = response["choices"][0]["message"].get("content", "")
+            choice = response["choices"][0]
+            actual_content = choice["message"].get("content", "")
+            text = actual_content
+            if actual_content is None and choice.get("finish_reason") == "length":
+                text = ""
+                result["model_answer_failures"].append(
+                    {
+                        "index": index,
+                        "response_id": response_id,
+                        "finish_reason": "length",
+                        "issue": "Output token limit exhausted without an answer",
+                        "usage": response.get("usage"),
+                    }
+                )
             if not isinstance(text, str) or prediction["prediction"] != text:
                 raise ValueError(f"Sample {index}: prediction differs from actual model response")
             if (
                 call["response"].get("id") != response_id
-                or call["response"]["choices"][0]["message"].get("content") != text
+                or call["response"]["choices"][0]["message"].get("content", "") != actual_content
             ):
                 raise ValueError(f"Sample {index}: recorded response is inconsistent")
             messages = request.get("messages", [])
@@ -1108,7 +1138,9 @@ def _execute_child(
         scoring_start = time.monotonic()
         scores, events = _grade(name, spec, output, config, replay_only=rescore and not live_rescore)
         if "ocrbench" in spec["task_id"].lower() and not scores.get("error"):
-            scores = _ocr_grade(output, config, run_id, float(scores.get("environment_score", 0)))
+            scores = _ocr_grade(
+                output, config, run_id, float(scores.get("environment_score", 0)), Path(spec["workspace_path"])
+            )
         result["scoring_wall_seconds"] = time.monotonic() - scoring_start
         # A retry that succeeds resolves an earlier failure of the same request.
         final_events = {e["fingerprint"]: e for e in events}
