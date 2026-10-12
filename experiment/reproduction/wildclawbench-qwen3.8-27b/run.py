@@ -78,6 +78,9 @@ def freeze(config: dict, tasks: list[dict], run_dir: Path):
     source_paths += list((ROOT / "services").glob("*.py"))
     for package in ("sharedskill", "evolve_server"):
         source_paths += list((ROOT.parents[2] / package).rglob("*.py"))
+    # The native evolver reads this prompt at night; freezing only Python would
+    # allow its instructions to change without invalidating a resumed trial.
+    source_paths.append(ROOT.parents[2] / "evolve_server/engines/EVOLVE_AGENTS.md")
     for path in sorted(source_paths):
         sources[path.relative_to(ROOT.parents[2]).as_posix()] = hashlib.sha256(path.read_bytes()).hexdigest()
     document = {"config": public_config(config), "tasks": tasks, "source_hashes": sources}

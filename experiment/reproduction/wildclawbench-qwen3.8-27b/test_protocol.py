@@ -60,6 +60,28 @@ class DecisionTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 create_initial_bank(config, bank)
 
+    def test_resuming_rejects_a_changed_native_evolver_prompt(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            repository = Path(temporary) / "repository"
+            root = repository / "experiment/reproduction/trial"
+            root.mkdir(parents=True)
+            (root / "run.py").write_text("# controller")
+            prompt = repository / "evolve_server/engines/EVOLVE_AGENTS.md"
+            prompt.parent.mkdir(parents=True)
+            prompt.write_text("Original native instructions")
+            directory = Path(temporary) / "record"
+            directory.mkdir()
+            # This test exercises protocol identity, without hardware probes.
+            write_json(directory / "startup-inventory.json", {})
+            with patch.object(run, "ROOT", root):
+                initial = run.freeze({"seed": 42}, [], directory)
+                self.assertEqual(initial, run.freeze({"seed": 42}, [], directory))
+                frozen = json.loads((directory / "frozen-protocol.json").read_text())
+                self.assertIn("evolve_server/engines/EVOLVE_AGENTS.md", frozen["source_hashes"])
+                prompt.write_text("Changed native instructions")
+                with self.assertRaises(ValueError):
+                    run.freeze({"seed": 42}, [], directory)
+
 
 class ControllerTests(unittest.TestCase):
     def setUp(self):

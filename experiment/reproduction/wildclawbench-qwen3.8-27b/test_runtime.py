@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import ast
 import hashlib
+import io
 import json
 import os
 import subprocess
@@ -15,6 +16,7 @@ import sys
 import tempfile
 import types
 import unittest
+import urllib.parse
 from contextlib import ExitStack
 from pathlib import Path
 from unittest.mock import patch
@@ -154,6 +156,209 @@ class GraderTests(unittest.TestCase):
         self.assertIsNotNone(issue({"choices": [{"finish_reason": "length", "message": {"content": "partial"}}]}))
         self.assertIsNotNone(issue({"choices": [{"finish_reason": "stop", "message": {"content": ""}}]}))
         self.assertIsNone(issue({"choices": [{"finish_reason": "stop", "message": {"content": "valid judgment"}}]}))
+
+
+class GraderHTTPTimeoutTests(unittest.TestCase):
+    BASE_URL = "http://local-gateway:18182/runs/this-run/v1"
+
+    def monitor(self, output: Path):
+        """Load the actual wrapper functions with stub transports, without imports or monkeypatches."""
+        namespace = {
+            "_urlparse": urllib.parse,
+            "_hashlib": hashlib,
+            "_json": json,
+            "_io": io,
+            "_api_log": output / "judge-api.jsonl",
+            "_mock_log": output / "mock-replay.json",
+            "_replay": {},
+            "_sharedskill_model_api_base_url": self.BASE_URL,
+            "_sharedskill_grading_timeout_seconds": 1800,
+        }
+        names = {
+            "_audit",
+            "_is_local_model_api",
+            "_timeout_evidence",
+            "_audit_timeout",
+            "_completion_issue",
+            "_httpx_send",
+            "_requests_send",
+            "_urlopen",
+            "_CachedResponse",
+        }
+        nodes = [
+            node
+            for node in ast.walk(ast.parse(runtime._GRADE_MONITOR))
+            if isinstance(node, (ast.FunctionDef, ast.ClassDef)) and node.name in names
+        ]
+        exec(compile(ast.Module(body=nodes, type_ignores=[]), "stub-grader-transports", "exec"), namespace)
+        calls = []
+        payload = {"choices": [{"finish_reason": "stop", "message": {"content": "valid judgment"}}]}
+
+        def httpx_send(client, request, *args, **kwargs):
+            calls.append(("httpx", dict(request.extensions), args, dict(kwargs)))
+            return types.SimpleNamespace(status_code=200, json=lambda: payload)
+
+        def requests_send(client, request, *args, **kwargs):
+            calls.append(("requests", request, args, dict(kwargs)))
+            return types.SimpleNamespace(status_code=200, text="{}", json=lambda: payload)
+
+        def urlopen(request, *args, **kwargs):
+            calls.append(("urllib", request, args, dict(kwargs)))
+            response = io.BytesIO(b"{}")
+            response.status = 200
+            return response
+
+        namespace.update(
+            _original_httpx_send=httpx_send,
+            _original_requests_send=requests_send,
+            _original_urlopen=urlopen,
+        )
+        return namespace, calls
+
+    def events(self, output):
+        file = output / "judge-api.jsonl"
+        return [json.loads(line) for line in file.read_text().splitlines()] if file.exists() else []
+
+    def test_httpx_model_timeout_overrides_four_extensions_and_retains_other_metadata(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary)
+            monitor, calls = self.monitor(output)
+            original = {"connect": 5, "read": 60, "write": 10, "pool": 5}
+            request = types.SimpleNamespace(
+                url=self.BASE_URL + "/chat/completions",
+                content=b"request",
+                extensions={"timeout": original, "trace": "unchanged"},
+            )
+            monitor["_httpx_send"](None, request, follow_redirects=True)
+            expected = dict.fromkeys(("connect", "read", "write", "pool"), 1800)
+            self.assertEqual(calls[0][1], {"timeout": expected, "trace": "unchanged"})
+            self.assertEqual(calls[0][3], {"follow_redirects": True})
+            override = next(e for e in self.events(output) if e["kind"] == "timeout_override")
+            self.assertEqual(override["original_timeout"], original)
+            self.assertEqual(override["effective_timeout"], expected)
+            self.assertEqual(override["client"], "httpx")
+
+    def test_requests_model_timeout_and_free_resource_or_mock_timeouts(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary)
+            monitor, calls = self.monitor(output)
+            model = types.SimpleNamespace(url=self.BASE_URL + "/chat/completions", body="request", method="POST")
+            monitor["_requests_send"](None, model, timeout=(5, 60), stream=False)
+            self.assertEqual(calls[-1][3], {"timeout": 1800, "stream": False})
+            for url in ("https://arxiv.org/pdf/2111.06377", "http://127.0.0.1:9000/tweets"):
+                with self.subTest(url=url):
+                    request = types.SimpleNamespace(url=url, body=None, method="GET")
+                    monitor["_requests_send"](None, request, timeout=9)
+                    self.assertEqual(calls[-1][3], {"timeout": 9})
+            overrides = [e for e in self.events(output) if e["kind"] == "timeout_override"]
+            self.assertEqual(len(overrides), 1)
+            self.assertEqual(overrides[0]["original_timeout"], [5, 60])
+            self.assertEqual(overrides[0]["effective_timeout"], 1800)
+
+    def test_urllib_positional_keyword_and_default_timeout_preserve_other_arguments(self):
+        cases = [
+            ((None, 60), {}, (None, 1800), {}),
+            ((b"payload", 60), {"timeout": 15, "context": "kept"}, (b"payload", 1800), {"context": "kept"}),
+            ((None,), {"timeout": 60}, (None,), {"timeout": 1800}),
+            ((), {}, (), {"timeout": 1800}),
+        ]
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary)
+            monitor, calls = self.monitor(output)
+            request = types.SimpleNamespace(full_url=self.BASE_URL + "/chat/completions", get_method=lambda: "POST")
+            for args, kwargs, expected_args, expected_kwargs in cases:
+                with self.subTest(args=args, kwargs=kwargs):
+                    monitor["_urlopen"](request, *args, **kwargs)
+                    self.assertEqual(calls[-1][2:], (expected_args, expected_kwargs))
+            for url in ("https://arxiv.org/pdf/2111.06377", "http://127.0.0.1:9000/tweets"):
+                with self.subTest(url=url):
+                    free_request = types.SimpleNamespace(full_url=url, get_method=lambda: "GET")
+                    monitor["_urlopen"](free_request, None, 7)
+                    self.assertEqual(calls[-1][2:], ((None, 7), {}))
+            overrides = [e for e in self.events(output) if e["kind"] == "timeout_override"]
+            self.assertEqual([e["original_timeout"] for e in overrides], [60, 60, 60, "<library-default>"])
+            self.assertTrue(all(e["effective_timeout"] == 1800 for e in overrides))
+
+    def test_local_endpoint_matching_excludes_sibling_runs_and_unrelated_resources_for_all_clients(self):
+        outside = (
+            "https://local-gateway:18182/runs/this-run/v1/chat/completions",
+            "http://local-gateway:18183/runs/this-run/v1/chat/completions",
+            "http://other-gateway:18182/runs/this-run/v1/chat/completions",
+            "http://local-gateway:18182/runs/other-run/v1/chat/completions",
+            self.BASE_URL + "-resource/chat/completions",
+            "https://public.example/download?url=" + self.BASE_URL + "/chat/completions",
+            "http://127.0.0.1:9000/tweets",
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary)
+            monitor, calls = self.monitor(output)
+            for url in outside:
+                with self.subTest(url=url):
+                    self.assertFalse(monitor["_is_local_model_api"](url))
+                    httpx_request = types.SimpleNamespace(url=url, content=b"", extensions={"timeout": {"read": 7}})
+                    monitor["_httpx_send"](None, httpx_request)
+                    self.assertEqual(calls[-1][1]["timeout"], {"read": 7})
+                    requests_request = types.SimpleNamespace(url=url, body=None, method="GET")
+                    monitor["_requests_send"](None, requests_request, timeout=7)
+                    self.assertEqual(calls[-1][3]["timeout"], 7)
+                    urllib_request = types.SimpleNamespace(full_url=url, get_method=lambda: "GET")
+                    monitor["_urlopen"](urllib_request, timeout=7)
+                    self.assertEqual(calls[-1][3]["timeout"], 7)
+            self.assertFalse(any(e["kind"] == "timeout_override" for e in self.events(output)))
+            for url in (self.BASE_URL, self.BASE_URL + "/chat/completions", self.BASE_URL + "/models?limit=1"):
+                self.assertTrue(monitor["_is_local_model_api"](url))
+
+    def test_timeout_evidence_cannot_resolve_an_existing_model_api_failure(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary)
+            monitor, _ = self.monitor(output)
+            url = self.BASE_URL + "/chat/completions"
+            monitor["_audit"]("model_api", url, status=503, body=b"request")
+            monitor["_audit_timeout"]("httpx", url, {"read": 60}, {"read": 1800})
+            events = self.events(output)
+            self.assertNotEqual(events[0]["fingerprint"], events[1]["fingerprint"])
+            execution = MockExecution(output / "execution")
+            execution.grade_events = events
+            result = execution.execute()
+            self.assertEqual(result["status"], "pending_score")
+            self.assertEqual(result["scoring_api_failures"], [events[0]])
+
+    def test_runner_injects_current_local_url_and_timeout_before_monitor(self):
+        for config, expected_timeout in (
+            ({}, 1800),
+            ({"grading_timeout_seconds": 913, "grade_timeout_seconds": 901}, 913),
+        ):
+            with self.subTest(config=config), tempfile.TemporaryDirectory() as temporary:
+                output = Path(temporary)
+                calls = []
+
+                def docker(args, config, **kwargs):
+                    calls.append((args, kwargs))
+                    return completed('{"overall_score": 0.0}\n')
+
+                with (
+                    patch.object(runtime, "_docker", side_effect=docker),
+                    patch.object(runtime, "_copy_in"),
+                    patch.object(runtime, "_copy_out", return_value=False),
+                    patch.object(environment, "container_api_url", return_value=self.BASE_URL),
+                ):
+                    runtime._grade(
+                        "mock-only",
+                        {"automated_checks": "def grade(**kwargs): return {'overall_score':0}"},
+                        output,
+                        config,
+                    )
+                tree = ast.parse((output / "grade-runner.py").read_text())
+                injected = {
+                    node.targets[0].id: ast.literal_eval(node.value)
+                    for node in tree.body[:3]
+                    if isinstance(node, ast.Assign)
+                }
+                self.assertEqual(injected["_sharedskill_model_api_base_url"], self.BASE_URL)
+                self.assertEqual(injected["_sharedskill_grading_timeout_seconds"], expected_timeout)
+                grade_call = next((args, kwargs) for args, kwargs in calls if "python3" in args)
+                self.assertEqual(grade_call[1]["timeout"], expected_timeout)
+                self.assertIn("OPENROUTER_BASE_URL=" + self.BASE_URL, grade_call[0])
 
 
 class MockExecution:

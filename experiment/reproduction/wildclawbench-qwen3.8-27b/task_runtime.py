@@ -381,10 +381,29 @@ import hashlib as _hashlib, json as _json, pathlib as _pathlib, urllib.parse as 
 _api_log = _pathlib.Path('/tmp/sharedskill-judge-api.jsonl')
 _mock_log = _pathlib.Path('/tmp/sharedskill-mock-replay.json')
 _replay = _json.loads(_mock_log.read_text()) if _mock_log.exists() else {}
-def _audit(kind, url, status=None, error=None, body=b''):
+def _audit(kind, url, status=None, error=None, body=b'', **details):
     item={'kind':kind,'url':url,'status':status,'error':error,
           'fingerprint':_hashlib.sha256(str(url).encode()+body).hexdigest()}
+    item.update(details)
     with _api_log.open('a') as f: f.write(_json.dumps(item)+'\n')
+def _is_local_model_api(url):
+    base=_urlparse.urlsplit(globals().get('_sharedskill_model_api_base_url',''))
+    target=_urlparse.urlsplit(str(url))
+    prefix=base.path.rstrip('/')
+    return bool(base.scheme and base.netloc and prefix and
+                target.scheme.lower()==base.scheme.lower() and
+                target.netloc.lower()==base.netloc.lower() and
+                (target.path==prefix or target.path.startswith(prefix+'/')))
+def _timeout_evidence(value):
+    if isinstance(value,dict):return {str(k):_timeout_evidence(v) for k,v in value.items()}
+    if isinstance(value,(tuple,list)):return [_timeout_evidence(v) for v in value]
+    if value is None or isinstance(value,(str,int,float,bool)):return value
+    return repr(value)
+def _audit_timeout(client,url,before,after):
+    # A separate fingerprint keeps these observations from resolving API failures.
+    fingerprint='timeout_override:'+client+':'+_hashlib.sha256(str(url).encode()).hexdigest()
+    _audit('timeout_override',url,client=client,original_timeout=_timeout_evidence(before),
+           effective_timeout=_timeout_evidence(after),fingerprint=fingerprint)
 def _completion_issue(payload,require_choices=False):
     if not isinstance(payload,dict) or not isinstance(payload.get('choices'),list) or not payload['choices']:
         return 'Scoring completion API returned missing choices' if require_choices else None
@@ -403,6 +422,11 @@ try:
         if any(x in url for x in ['openrouter.ai','api.openai.com']):
             _audit('model_api',url,error='Forbidden remote model endpoint',body=body)
             raise RuntimeError('Forbidden remote model endpoint')
+        if _is_local_model_api(url):
+            before=request.extensions.get('timeout','<library-default>')
+            after={key:_sharedskill_grading_timeout_seconds for key in ('connect','read','write','pool')}
+            _audit_timeout('httpx',url,before,after)
+            request.extensions['timeout']=after
         try:
             response=_original_httpx_send(self,request,*args,**kwargs)
             if '/v1/' in url:
@@ -426,7 +450,8 @@ try:
         url=request.url;host=_urlparse.urlsplit(url).hostname
         body=request.body or b''
         if isinstance(body,str):body=body.encode()
-        is_mock=host in ['localhost','127.0.0.1'] and request.method=='GET'
+        is_model=_is_local_model_api(url)
+        is_mock=host in ['localhost','127.0.0.1'] and request.method=='GET' and not is_model
         if is_mock and url in _replay:
             response=_requests.Response();response.status_code=_replay[url]['status']
             response._content=_replay[url]['body'].encode();response.url=url
@@ -437,6 +462,10 @@ try:
         if any(x in url for x in ['openrouter.ai','api.openai.com']):
             _audit('model_api',url,error='Forbidden remote model endpoint',body=body)
             raise RuntimeError('Forbidden remote model endpoint')
+        if is_model:
+            before=kwargs.get('timeout','<library-default>')
+            kwargs['timeout']=_sharedskill_grading_timeout_seconds
+            _audit_timeout('requests',url,before,kwargs['timeout'])
         try:
             response=_original_requests_send(self,request,*args,**kwargs)
             if is_mock:
@@ -468,7 +497,8 @@ try:
         url=request.full_url if hasattr(request,'full_url') else str(request)
         host=_urlparse.urlsplit(url).hostname
         method=request.get_method() if hasattr(request,'get_method') else 'GET'
-        is_mock=host in ['localhost','127.0.0.1'] and method=='GET'
+        is_model=_is_local_model_api(url)
+        is_mock=host in ['localhost','127.0.0.1'] and method=='GET' and not is_model
         if is_mock and url in _replay:
             item=_replay[url];return _CachedResponse(item['body'].encode(),item['status'],url)
         if is_mock and globals().get('_sharedskill_replay_only',False):
@@ -477,6 +507,13 @@ try:
         if any(x in url for x in ['openrouter.ai','api.openai.com']):
             _audit('model_api',url,error='Forbidden remote model endpoint')
             raise RuntimeError('Forbidden remote model endpoint')
+        if is_model:
+            before=args[1] if len(args)>1 else kwargs.get('timeout','<library-default>')
+            if len(args)>1:
+                args=list(args);args[1]=_sharedskill_grading_timeout_seconds;args=tuple(args)
+                kwargs.pop('timeout',None)
+            else:kwargs['timeout']=_sharedskill_grading_timeout_seconds
+            _audit_timeout('urllib',url,before,_sharedskill_grading_timeout_seconds)
         try:
             response=_original_urlopen(request,*args,**kwargs)
             if is_mock:
@@ -499,11 +536,20 @@ def _grade(
     name: str, spec: Mapping[str, Any], output: Path, config: Mapping[str, Any], *, replay_only: bool = False
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     source = environment.paths(config)["upstream"]
+    api_url = environment.container_api_url(
+        config, run_id="wcb-" + hashlib.sha256(str(output.resolve()).encode()).hexdigest()[:20]
+    )
+    grading_timeout = int(config.get("grading_timeout_seconds", config.get("grade_timeout_seconds", 1800)))
     _copy_in(source / "src" / "utils" / "transcript_loader.py", name, "/tmp/_transcript_loader.py", config)
     runner = output / "grade-runner.py"
     runner.write_text(
         "_sharedskill_replay_only="
         + repr(replay_only)
+        + "\n"
+        + "_sharedskill_model_api_base_url="
+        + repr(api_url)
+        + "\n_sharedskill_grading_timeout_seconds="
+        + repr(grading_timeout)
         + "\n"
         + _GRADE_MONITOR
         + "\nfrom _transcript_loader import load_transcript\n"
@@ -518,9 +564,6 @@ def _grade(
     if replay.exists():
         _copy_in(replay, name, "/tmp/sharedskill-mock-replay.json", config)
     try:
-        api_url = environment.container_api_url(
-            config, run_id="wcb-" + hashlib.sha256(str(output.resolve()).encode()).hexdigest()[:20]
-        )
         result = _docker(
             [
                 "exec",
@@ -533,7 +576,7 @@ def _grade(
                 "/tmp/_grade_runner.py",
             ],
             config,
-            timeout=int(config.get("grading_timeout_seconds", config.get("grade_timeout_seconds", 1800))),
+            timeout=grading_timeout,
             check=False,
         )
         (output / "grade.stdout").write_text(result.stdout)

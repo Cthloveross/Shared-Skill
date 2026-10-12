@@ -64,6 +64,8 @@ DinD 内部使用外层 Docker bridge gateway 访问同一台机器的这些接�
 
 原生 TTS 使用每题独立 prefs 文件、固定 provider／model／voice，关闭文本中的 provider 覆盖，单次 timeout=120 秒；完整任务 timeout 仍沿用各题原值。
 
+评分器的本地模型 HTTP 等待时间统一为 `grading_timeout_seconds=1800` 秒，并受同为 1800 秒的整个评分进程上限约束。原评分代码中较短的 SDK 等待时间无法适应单卡八用户排队；只对当前任务的本地评分 URL 覆盖 HTTP timeout，保存原值和覆盖值。mock 请求、免费资源下载和 Agent 任务限时保留原值。这是本地评分后端适配的一部分，不改变评分权重或标准。
+
 官方 OpenClaw 镜像 archive 为 13,479,787,008 bytes，固定 workspace 约 1.01 GiB，另外下载官方准备脚本要求的视频和 SAM3 权重。专用 DinD 容器及内层镜像、可写层位于 `runtime/docker/` 的 `/home` 磁盘，不改共享 daemon、全局 Docker context 或其它项目容器。
 
 实际载入的 OpenClaw 是 `2026.3.11 (29dc654)`；官方 archive 的 SHA256 为 `22bd175c0e9a62a9e5c68cb7cb723c731403142b5946bff4421e8e1b495dab2e`。准备完成后，60 题输入共 2,979 个文件、15,734,352,296 bytes。2,917 个数据集文件均通过 HF 原对象的 SHA256／Git blob SHA1 校验；另外 62 个是官方准备流程补充的视频、SAM3 和解包文件，冻结本次下载的 SHA256，不能称为 HF 原对象校验或公开固定远程 revision。完整输入清单在 `runtime/prepared/input-files.json`；任务开始前检查文件、目录、权限和变更指纹，变更则停止，不跨输入版本复用成绩。
@@ -178,13 +180,17 @@ uv pip install --python .venv/bin/python -r experiment/reproduction/wildclawbenc
 - 2026-10-12：确定主模型统一 16384 输出额度，解决 thinking 耗尽原 GPT 小额度的问题；真实任务保留原输出后，仅重新评分，得到有效 Qwen JSON 和 `judge_method=llm`。明确评分解析失败为待评分，任务产物缺失仍为有效任务失败。正式启动前，64 项测试、136 项子测试及 Ruff 全部通过。
 - 2026-10-12：首个预跑运行 `20261012T213129Z` 的真实社会任务成功用 `~/skills/03_task6/SKILL.md` 读取技能，暴露记录器漏识别 home 缩写的归因问题。终止本实验自己的预跑进程，保留旧容器轨迹，修复后以新运行编号和新代码 hash 重启；旧记录标记 `superseded_during_pilot`，没有产生正式 Day 1 成绩，不复用为新版本结果。
 - 2026-10-12：真实旧轨迹已正确归因到 `03_task6`；两个独立容器 Python 进程验证 seed42 初始序列一致，20% 注错仍启用。重启前最新检查为 68 项测试、138 项子测试、Ruff 全部通过。
+- 2026-10-12 21:38 UTC：代码 `f48d8a0` 冻结后启动独立运行 `20261012T213825Z`；协议 hash 为 `dfdc4a9791ccea6618533514ce28fd55b8af1f5b7cb2e04dd042c584c909d3b8`，S0 hash 为 `083b44f303788aad687a6fdc4e85bfc3f47d049844f20782ba4d9c3b95aa5b01`。启动时 Git 工作区干净，完整 commit、硬件／依赖版本和进程身份见该运行的启动记录。调度器独立于终端运行，日志为 `runtime/runs/20261012T213825Z/controller.log`；只有本运行通过预跑后才进入 Day 1。
+- 2026-10-12：本运行六项接口检查全部通过。真实预跑 `05.06` 已产出 768×1152 PNG；`05.11` 已产出 24 kHz、31.06 秒 WAV，单次 TTS 墙钟 93.18 秒。`05.11` 的实际预跑分数为 0.8657、总墙钟约 488 秒；`04.03` 的实际预跑分数为 0，官方评分判定其答案不符合题目约束，属于有效任务失败。原始工具响应、评分请求和文件 hash 保留在运行目录和 `runtime/api-evidence/`。这些不是正式成绩，也不进入夜间学习证据。
+- 2026-10-12 21:48 UTC：运行 `20261012T213825Z` 的 `06.01` 出现评分 SDK 超时：本地 Qwen 约 91.55 秒后实际返回有效 JSON，但原评分器已放弃等待。评分 guard 正确保留 `pending_score`，未采纳 `regex_fallback` 的备用分数。仅终止并归档本运行，统一本地评分 HTTP 等待时间后重新冻结；此运行也标记 `superseded_during_pilot`，未进入正式 Day 1，上述已完成预跑结果不复用到新运行。
+- 2026-10-12：评分 timeout 适配仅匹配当前任务网关的 scheme、netloc 和 `/v1` 路径边界；httpx、requests、urllib 三种评分请求均保留修改前后值。加入原生 `EVOLVE_AGENTS.md` 的协议 hash，防止恢复时改变进化指令。重新启动前，75 项测试、155 项子测试和 Ruff 全部通过。旧运行的八题实际 chat 已归档，仅清理其剩余六个容器，主模型、音频、图片及路由服务继续运行。
 - 预跑及正式成绩以随后真实运行记录为准。
 
 <!-- LIVE_STATUS -->
 ## 当前运行记录
 
 - 状态：`superseded_during_pilot`。
-- 运行：`runtime/runs/20261012T213129Z/`。
-- 更新：`2026-10-12T21:33:15.198388+00:00`。
-- 已记录任务执行：0；终点有效配对：0/60。
-- [运行报告](runtime/runs/20261012T213129Z/report/REPORT.md)。
+- 运行：`runtime/runs/20261012T213825Z/`。
+- 更新：`2026-10-12T21:48:34.783590+00:00`。
+- 已记录任务执行：3；终点有效配对：0/60。
+- [运行报告](runtime/runs/20261012T213825Z/report/REPORT.md)。
