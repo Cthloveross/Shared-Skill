@@ -199,13 +199,14 @@ uv pip install --python .venv/bin/python -r experiment/reproduction/wildclawbenc
 - 2026-10-12 22:08 UTC：修复代码 `6212d1a` 已推送，以干净工作区启动新的独立运行 `20261012T220826Z`，协议 hash 为 `1d13fb688f920bd7883a498c8edccfe9d2dec7cd0e193ba591291574093896f4`。该运行从 S0 和全新 8 题预跑开始，通过后自动执行 Day 1–6、Night 1–6 及 S0/S6 终点对照。调度器身份和启动命令见其 `controller-process.json`；旧三个预跑均保留为被替换的预跑记录，没有正式成绩。
 - 2026-10-12：上述运行已有七题完成，其中 BibTeX 和服装图像题达到原限时后正常保存及评分。最后的 OCR 任务确实发起了数百次本地模型评测请求；截止时的 Agent SSE 取消比工具的新并发评测请求更早，因此“仅最后一个模型请求可被认定为截止取消”的实现假设不成立，误记 infra。22:31 UTC 在 Day 1 前仅终止本运行并归档，改以明确的任务截止时间窗口判断本运行的 HTTP200 客户端取消；真实服务错误、提前取消和退出窗口外取消继续保留为 infra。此运行同样标记 `superseded_during_pilot`，七题分数不跨版本复用。
 - 2026-10-12 22:34 UTC：并发截止分类已修复，最新 86 项测试、161 项子测试及 Ruff 全部通过。旧 OCR 的实际 HTTP200 取消记录与原始请求日志逐项一致，离线回放将其认定为截止取消，并确认进入产物保存／评分路径；回放中的 Docker 与评分为测试替身，不生成真实分数，也没有改写旧结果。支持多个活动流在截止窗口同时取消，提前断连、退出窗口外断连、HTTP500、ReadError 和模型显式 error 继续记为基础设施异常。后续重新从 S0 全新预跑，旧结果不复用。
+- 2026-10-12 22:35 UTC：以已推送代码 `bd2c839` 和干净工作区启动独立运行 `20261012T223532Z`，协议 hash 为 `2a35a2911eceec396de61a4a4eb81726cfbfde9e0e4f0e3b48810c3cf47ff900`，S0 hash 保持不变。六项本地接口检查全部通过，8 题于 22:35:43 UTC 开始。控制进程独立于终端，PID 及身份、完整启动命令保存在 [controller-process.json](runtime/runs/20261012T223532Z/controller-process.json)，代码及环境版本保存在 [startup-inventory.json](runtime/runs/20261012T223532Z/startup-inventory.json)。预跑通过后同一调度器自动继续 Day 1–6、Night 1–6 和终点对照；此前四次运行均未进入正式阶段。
 - 预跑及正式成绩以随后真实运行记录为准。
 
 <!-- LIVE_STATUS -->
 ## 当前运行记录
 
-- 状态：`superseded_during_pilot`。
-- 运行：`runtime/runs/20261012T220826Z/`。
-- 更新：`2026-10-12T22:31:20.133463+00:00`。
-- 已记录任务执行：7；终点有效配对：0/60。
-- [运行报告](runtime/runs/20261012T220826Z/report/REPORT.md)。
+- 状态：`pilot`。
+- 运行：`runtime/runs/20261012T223532Z/`。
+- 更新：`2026-10-12T22:35:41.518835+00:00`。
+- 已记录任务执行：0；终点有效配对：0/60。
+- [运行报告](runtime/runs/20261012T223532Z/report/REPORT.md)。
