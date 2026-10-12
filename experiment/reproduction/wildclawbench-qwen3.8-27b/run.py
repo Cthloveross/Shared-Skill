@@ -645,7 +645,7 @@ def main():
             else {"status": "not_started"}
         )
         counts = {}
-        for path in (run_dir / "executions").rglob("result.json"):
+        for path in (run_dir / "executions").glob("*/*/*/*/*/result.json"):
             result = json.loads(path.read_text())
             if not result.get("experiment_record"):
                 continue

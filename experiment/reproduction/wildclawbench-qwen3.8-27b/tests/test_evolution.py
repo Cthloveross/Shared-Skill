@@ -5,7 +5,7 @@ import subprocess
 import tempfile
 import unittest
 
-MODULE = pathlib.Path(__file__).with_name("evolution.py")
+MODULE = pathlib.Path(__file__).resolve().parent.parent / "evolution.py"
 spec = importlib.util.spec_from_file_location("experiment_evolution", MODULE)
 e = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(e)
@@ -117,6 +117,16 @@ class EvolutionTests(unittest.TestCase):
         (exported / "SKILL.md").write_text("tampered")
         with self.assertRaises(e.EvolutionError):
             e.propose_candidates(self.root / "round", self.bank, sessions, self.config)
+
+    def test_protocol_hash_unchanged_and_symlink_rejected(self):
+        fixture = self.root / "hash-fixture"
+        (fixture / "assets").mkdir(parents=True)
+        (fixture / "SKILL.md").write_bytes(b"---\nname: fixture\n---\n")
+        (fixture / "assets/input.bin").write_bytes(bytes(range(8)))
+        self.assertEqual(e._tree_hash(fixture), "845b59d6b244f89464ca849bd213f267ad35580d75e221e38c5c2c388fd5b09e")
+        (fixture / "escape").symlink_to(self.root / "outside")
+        with self.assertRaises(e.EvolutionError):
+            e._tree_hash(fixture)
 
     def test_no_skill_group_creates_independent_candidate(self):
         result = e.propose_candidates(self.root / "round", self.bank, [self.session(skill=None)], self.config)

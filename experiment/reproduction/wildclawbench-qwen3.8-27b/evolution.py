@@ -13,7 +13,6 @@ import copy
 import hashlib
 import importlib
 import json
-import os
 import posixpath
 import re
 import subprocess
@@ -22,6 +21,8 @@ import uuid
 from pathlib import Path, PurePosixPath
 from typing import Any
 from urllib.parse import urlparse
+
+from protocol import canonical_hash, tree_hash, write_json
 
 from evolve_server.core.config import EvolveServerConfig
 from evolve_server.core.llm_client import AsyncLLMClient
@@ -36,30 +37,12 @@ class EvolutionError(RuntimeError):
     """A proposal run could not complete or violated its independent edit scope."""
 
 
-def _hash(value: Any) -> str:
-    return hashlib.sha256(json.dumps(value, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
-
-
 def _tree_hash(directory: Path) -> str:
-    # This is the experiment protocol's immutable path-and-bytes hash, rather
-    # than the different native SharedSkill manifest hash.
-    digest = hashlib.sha256()
-    for path in sorted(directory.rglob("*")):
-        if path.is_symlink():
-            raise EvolutionError(f"Symlink in proposal or source bank: {path}")
-        if path.is_file():
-            relative = path.relative_to(directory).as_posix().encode()
-            data = path.read_bytes()
-            digest.update(len(relative).to_bytes(8, "big") + relative)
-            digest.update(len(data).to_bytes(8, "big") + data)
-    return digest.hexdigest()
-
-
-def _write_json(path: Path, value: Any) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_name(path.name + f".{os.getpid()}.tmp")
-    temporary.write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n")
-    os.replace(temporary, path)
+    """Use protocol identity while preserving proposal failures' exception type."""
+    try:
+        return tree_hash(directory)
+    except ValueError as error:
+        raise EvolutionError(str(error)) from error
 
 
 def _safe_id(value: str) -> str:
@@ -321,7 +304,6 @@ class _CachedNativeEvolver(AgentEvolveServer):
 class _RecordingRunner:
     def __init__(self, delegate: Any, config: dict, group_dir: Path, home: Path) -> None:
         self.delegate, self.config, self.group_dir, self.home = delegate, config, group_dir, home
-        self.returncode: int | None = None
 
     def run(
         self, workspace_path: Path, message: str, session_id: str | None = None
@@ -334,10 +316,9 @@ class _RecordingRunner:
                 if copied.is_file():
                     copied.chmod(path.stat().st_mode & 0o777)
         result = self.delegate(workspace_path, self.home, message, self.config, session_id or uuid.uuid4().hex)
-        self.returncode = result.returncode
         self.group_dir.joinpath("agent.stdout.txt").write_text(str(result.stdout or ""))
         self.group_dir.joinpath("agent.stderr.txt").write_text(str(result.stderr or ""))
-        _write_json(
+        write_json(
             self.group_dir / "agent-process.json",
             {
                 "returncode": result.returncode,
@@ -451,7 +432,7 @@ async def _propose(round_dir: Path, bank_dir: Path, sessions: list[dict], config
     ):
         settings[key] = config.get(key)
     settings["evolution_summary_concurrency"] = int(config.get("evolution_summary_concurrency", 2))
-    fingerprint = _hash(
+    fingerprint = canonical_hash(
         {
             "bank_hash": bank_hash,
             "sessions": normalized,
@@ -481,11 +462,11 @@ async def _propose(round_dir: Path, bank_dir: Path, sessions: list[dict], config
         "candidates": [],
         "groups": [],
     }
-    _write_json(summary_path, record)
+    write_json(summary_path, record)
     try:
         raw_archive = attempt / "raw-sessions"
         for original, normalized_session in zip(sessions, normalized):
-            _write_json(raw_archive / f"{normalized_session['session_id']}.json", original)
+            write_json(raw_archive / f"{normalized_session['session_id']}.json", original)
         summary_started = time.monotonic()
         if normalized:
             client = AsyncLLMClient(
@@ -503,7 +484,7 @@ async def _propose(round_dir: Path, bank_dir: Path, sessions: list[dict], config
         for session in normalized:
             _restrict_bank_references(session, set(bank))
             session["_skills_referenced"] = sorted(session["_skills_referenced"])
-            _write_json(attempt / "native-summaries" / f"{session['session_id']}.json", session)
+            write_json(attempt / "native-summaries" / f"{session['session_id']}.json", session)
         groups = aggregate_sessions_by_skill(normalized)
         runner = _runner_delegate(config) if groups else None
         for group, group_sessions in sorted(groups.items()):
@@ -549,7 +530,7 @@ async def _propose(round_dir: Path, bank_dir: Path, sessions: list[dict], config
             engine._runner = recorder
             group_started = time.monotonic()
             native_result = await engine.run_once()
-            _write_json(group_dir / "native-result.json", native_result)
+            write_json(group_dir / "native-result.json", native_result)
             workspace = Path(native_config.workspace_root)
             final = {
                 path.name: read_skill_bundle(path)
@@ -589,9 +570,9 @@ async def _propose(round_dir: Path, bank_dir: Path, sessions: list[dict], config
                 rationale_path = workspace / "proposal-rationale.json"
                 rationale = json.loads(rationale_path.read_text()) if rationale_path.is_file() else None
                 candidate = {
-                    "candidate_id": _hash({"group": scope, "name": name, "bank": bank_hash, "bundle": candidate_hash})[
-                        :24
-                    ],
+                    "candidate_id": canonical_hash(
+                        {"group": scope, "name": name, "bank": bank_hash, "bundle": candidate_hash}
+                    )[:24],
                     "name": name,
                     "skill_name": name,
                     "action": "refine" if name in bank else "create",
@@ -619,19 +600,19 @@ async def _propose(round_dir: Path, bank_dir: Path, sessions: list[dict], config
                     "validation_status": "not_validated",
                     "engine": "native-agent-private-store",
                 }
-                _write_json(group_dir / "candidate.json", candidate)
+                write_json(group_dir / "candidate.json", candidate)
                 record["candidates"].append(candidate)
                 group_record.update(status="proposed", candidate_id=candidate["candidate_id"])
             record["groups"].append(group_record)
-            _write_json(summary_path, record)
+            write_json(summary_path, record)
         if _tree_hash(bank_dir) != bank_hash:
             raise EvolutionError("The deployed bank changed during proposal generation")
         record.update(status="completed", elapsed_seconds=time.monotonic() - started)
-        _write_json(summary_path, record)
+        write_json(summary_path, record)
         return record["candidates"]
     except Exception as exc:
         record.update(status="failed", error=f"{type(exc).__name__}: {exc}", elapsed_seconds=time.monotonic() - started)
-        _write_json(summary_path, record)
+        write_json(summary_path, record)
         raise
 
 
