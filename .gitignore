@@ -12,6 +12,7 @@ build/
 dist/
 uv.lock
 .env
+/key.env
 *.env.local
 records/
 evolve_history.jsonl

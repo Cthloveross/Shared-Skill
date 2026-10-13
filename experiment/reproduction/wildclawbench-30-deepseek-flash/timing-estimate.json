@@ -1,0 +1,4169 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-10-13T19:35:45.825541+00:00",
+  "source_run": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z",
+  "source_run_status": "superseded_protocol_mismatch",
+  "source_results_are_timing_proxies_not_corrected_protocol_results": true,
+  "task_manifest_file": "tasks.json",
+  "task_manifest_sha256": "6a2480e5314e80ea2bf2d2266235961b1a9f1bf51e44b5791a641cc2be2e0880",
+  "selection_seed": 42,
+  "selection_uses_scores": false,
+  "task_count": 30,
+  "new_users": {
+    "user-01": 4,
+    "user-02": 4,
+    "user-03": 4,
+    "user-04": 4,
+    "user-05": 4,
+    "user-06": 4,
+    "user-07": 3,
+    "user-08": 3
+  },
+  "resource_assumption": {
+    "main_agent_model": "local Qwen3.8-27B",
+    "GPU": 1,
+    "user_workers": 8,
+    "task_order_per_user": "sequential",
+    "proposal_group_order": "sequential",
+    "candidate_validation_order": "sequential candidates; oldstage then candidatestage; parallel only within fixed users",
+    "summary_concurrency": 2,
+    "paid_API_roles": "benchmark ordinary/vision graders and finalcomparators only; audio grading remains localOmni",
+    "auxiliary_models": "Omni audio and SDXL share GPU1 serial scheduling"
+  },
+  "task_timeouts": {
+    "360": 1,
+    "600": 16,
+    "900": 4,
+    "1200": 9
+  },
+  "per_user_sum_original_task_timeouts_seconds": {
+    "user-01": 4200,
+    "user-02": 3300,
+    "user-03": 2700,
+    "user-04": 2460,
+    "user-05": 3300,
+    "user-06": 3000,
+    "user-07": 2400,
+    "user-08": 3000
+  },
+  "max_user_agent_budget_seconds": 4200,
+  "day_proxies": [
+    {
+      "day": 1,
+      "selected_tasks": 30,
+      "old60_actual_stage_span_seconds": 12688.356155,
+      "old_assignment_selected30": {
+        "users": [
+          {
+            "user_id": "user-01",
+            "task_count": 4,
+            "short_ids": [
+              "01.01",
+              "02.07",
+              "03.03",
+              "06.07"
+            ],
+            "total_including_recorded_retries_seconds": 2515.2925249561667,
+            "last_attempt_seconds": 2515.2925249561667,
+            "agent_seconds": 2341.9485571198165,
+            "local_scoring_seconds": 155.89466772973537,
+            "other_last_attempt_seconds": 17.449300106614828,
+            "last_attempt_without_scoring_seconds": 2359.3978572264314
+          },
+          {
+            "user_id": "user-02",
+            "task_count": 5,
+            "short_ids": [
+              "01.02",
+              "01.10",
+              "03.04",
+              "04.06",
+              "05.11"
+            ],
+            "total_including_recorded_retries_seconds": 2445.758732378483,
+            "last_attempt_seconds": 2445.758732378483,
+            "agent_seconds": 2276.7569338046014,
+            "local_scoring_seconds": 122.34072050079703,
+            "other_last_attempt_seconds": 46.661078073084354,
+            "last_attempt_without_scoring_seconds": 2323.418011877686
+          },
+          {
+            "user_id": "user-03",
+            "task_count": 4,
+            "short_ids": [
+              "02.09",
+              "03.05",
+              "05.04",
+              "06.01"
+            ],
+            "total_including_recorded_retries_seconds": 1833.479234598577,
+            "last_attempt_seconds": 1833.479234598577,
+            "agent_seconds": 1608.442310679704,
+            "local_scoring_seconds": 203.28345493227243,
+            "other_last_attempt_seconds": 21.753468986600637,
+            "last_attempt_without_scoring_seconds": 1630.1957796663046
+          },
+          {
+            "user_id": "user-04",
+            "task_count": 4,
+            "short_ids": [
+              "02.02",
+              "03.06",
+              "06.02",
+              "06.10"
+            ],
+            "total_including_recorded_retries_seconds": 3061.047848716378,
+            "last_attempt_seconds": 1852.6904060840607,
+            "agent_seconds": 1740.334710907191,
+            "local_scoring_seconds": 83.4153882265091,
+            "other_last_attempt_seconds": 28.940306950360537,
+            "last_attempt_without_scoring_seconds": 1769.2750178575516
+          },
+          {
+            "user_id": "user-05",
+            "task_count": 5,
+            "short_ids": [
+              "01.05",
+              "02.03",
+              "02.11",
+              "04.01",
+              "04.09"
+            ],
+            "total_including_recorded_retries_seconds": 3647.7657972984016,
+            "last_attempt_seconds": 3647.7657972984016,
+            "agent_seconds": 3542.798096753657,
+            "local_scoring_seconds": 72.89338032901287,
+            "other_last_attempt_seconds": 32.07432021573186,
+            "last_attempt_without_scoring_seconds": 3574.8724169693887
+          },
+          {
+            "user_id": "user-06",
+            "task_count": 2,
+            "short_ids": [
+              "04.10",
+              "05.07"
+            ],
+            "total_including_recorded_retries_seconds": 792.495596524328,
+            "last_attempt_seconds": 792.495596524328,
+            "agent_seconds": 775.3341175578535,
+            "local_scoring_seconds": 10.528578970581293,
+            "other_last_attempt_seconds": 6.63289999589324,
+            "last_attempt_without_scoring_seconds": 781.9670175537467
+          },
+          {
+            "user_id": "user-07",
+            "task_count": 4,
+            "short_ids": [
+              "01.07",
+              "03.01",
+              "05.08",
+              "06.05"
+            ],
+            "total_including_recorded_retries_seconds": 1580.7258595377207,
+            "last_attempt_seconds": 1580.7258595377207,
+            "agent_seconds": 1547.9579205848277,
+            "local_scoring_seconds": 2.2538772895932198,
+            "other_last_attempt_seconds": 30.5140616632998,
+            "last_attempt_without_scoring_seconds": 1578.4719822481275
+          },
+          {
+            "user_id": "user-08",
+            "task_count": 2,
+            "short_ids": [
+              "04.04",
+              "05.09"
+            ],
+            "total_including_recorded_retries_seconds": 737.8539559431374,
+            "last_attempt_seconds": 737.8539559431374,
+            "agent_seconds": 722.268574167043,
+            "local_scoring_seconds": 7.137063946574926,
+            "other_last_attempt_seconds": 8.44831782951951,
+            "last_attempt_without_scoring_seconds": 730.7168919965625
+          }
+        ],
+        "sum_last_attempt_seconds": 15406.062107320875,
+        "sum_agent_seconds": 14555.841221574694,
+        "sum_scoring_seconds": 657.7471319250762,
+        "critical_last_attempt_seconds": 3647.7657972984016,
+        "critical_including_retries_seconds": 3647.7657972984016,
+        "critical_without_scoring_seconds": 3574.8724169693887,
+        "critical_user_last_attempt": "user-05"
+      },
+      "new_assignment_replay_selected30": {
+        "users": [
+          {
+            "user_id": "user-01",
+            "task_count": 4,
+            "short_ids": [
+              "01.01",
+              "02.09",
+              "04.04",
+              "05.11"
+            ],
+            "total_including_recorded_retries_seconds": 2644.8120076954365,
+            "last_attempt_seconds": 2644.8120076954365,
+            "agent_seconds": 2526.6062155924737,
+            "local_scoring_seconds": 80.21572831273079,
+            "other_last_attempt_seconds": 37.99006379023194,
+            "last_attempt_without_scoring_seconds": 2564.5962793827057
+          },
+          {
+            "user_id": "user-02",
+            "task_count": 4,
+            "short_ids": [
+              "01.02",
+              "02.11",
+              "04.06",
+              "06.01"
+            ],
+            "total_including_recorded_retries_seconds": 1240.454250793904,
+            "last_attempt_seconds": 1240.454250793904,
+            "agent_seconds": 1100.2341423481703,
+            "local_scoring_seconds": 112.51788011193275,
+            "other_last_attempt_seconds": 27.70222833380103,
+            "last_attempt_without_scoring_seconds": 1127.9363706819713
+          },
+          {
+            "user_id": "user-03",
+            "task_count": 4,
+            "short_ids": [
+              "01.05",
+              "03.01",
+              "04.09",
+              "06.02"
+            ],
+            "total_including_recorded_retries_seconds": 1776.925170108676,
+            "last_attempt_seconds": 1776.925170108676,
+            "agent_seconds": 1729.200750965625,
+            "local_scoring_seconds": 33.11105590686202,
+            "other_last_attempt_seconds": 14.613363236188889,
+            "last_attempt_without_scoring_seconds": 1743.814114201814
+          },
+          {
+            "user_id": "user-04",
+            "task_count": 4,
+            "short_ids": [
+              "01.07",
+              "03.03",
+              "04.10",
+              "06.05"
+            ],
+            "total_including_recorded_retries_seconds": 910.8747301399708,
+            "last_attempt_seconds": 910.8747301399708,
+            "agent_seconds": 756.633415363729,
+            "local_scoring_seconds": 142.20491678640246,
+            "other_last_attempt_seconds": 12.036397989839315,
+            "last_attempt_without_scoring_seconds": 768.6698133535683
+          },
+          {
+            "user_id": "user-05",
+            "task_count": 4,
+            "short_ids": [
+              "01.10",
+              "03.04",
+              "05.04",
+              "06.07"
+            ],
+            "total_including_recorded_retries_seconds": 1613.2550859749317,
+            "last_attempt_seconds": 1613.2550859749317,
+            "agent_seconds": 1480.8937326036394,
+            "local_scoring_seconds": 108.17657260969281,
+            "other_last_attempt_seconds": 24.18478076159954,
+            "last_attempt_without_scoring_seconds": 1505.078513365239
+          },
+          {
+            "user_id": "user-06",
+            "task_count": 4,
+            "short_ids": [
+              "02.02",
+              "03.05",
+              "05.07",
+              "06.10"
+            ],
+            "total_including_recorded_retries_seconds": 3815.730015899986,
+            "last_attempt_seconds": 2607.3725732676685,
+            "agent_seconds": 2456.784335229546,
+            "local_scoring_seconds": 118.11650063470006,
+            "other_last_attempt_seconds": 32.471737403422594,
+            "last_attempt_without_scoring_seconds": 2489.2560726329684
+          },
+          {
+            "user_id": "user-07",
+            "task_count": 3,
+            "short_ids": [
+              "02.03",
+              "03.06",
+              "05.08"
+            ],
+            "total_including_recorded_retries_seconds": 2222.2009574994445,
+            "last_attempt_seconds": 2222.2009574994445,
+            "agent_seconds": 2153.8648030608892,
+            "local_scoring_seconds": 38.6030330657959,
+            "other_last_attempt_seconds": 29.733121372759342,
+            "last_attempt_without_scoring_seconds": 2183.5979244336486
+          },
+          {
+            "user_id": "user-08",
+            "task_count": 3,
+            "short_ids": [
+              "02.07",
+              "04.01",
+              "05.09"
+            ],
+            "total_including_recorded_retries_seconds": 2390.167331840843,
+            "last_attempt_seconds": 2390.167331840843,
+            "agent_seconds": 2351.6238264106214,
+            "local_scoring_seconds": 24.801444496959448,
+            "other_last_attempt_seconds": 13.74206093326211,
+            "last_attempt_without_scoring_seconds": 2365.3658873438835
+          }
+        ],
+        "sum_last_attempt_seconds": 15406.062107320875,
+        "sum_agent_seconds": 14555.841221574694,
+        "sum_scoring_seconds": 657.7471319250762,
+        "critical_last_attempt_seconds": 2644.8120076954365,
+        "critical_including_retries_seconds": 3815.730015899986,
+        "critical_without_scoring_seconds": 2564.5962793827057,
+        "critical_user_last_attempt": "user-01"
+      },
+      "raw_records": [
+        {
+          "short_id": "01.01",
+          "old_user_id": "user-01",
+          "new_user_id": "user-01",
+          "timeout_seconds": 1200,
+          "wall_seconds": 1207.1125081963837,
+          "last_attempt_wall_seconds": 1207.1125081963837,
+          "agent_wall_seconds": 1202.481219228357,
+          "scoring_wall_seconds": 0.46929555758833885,
+          "timed_out": true,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/01/main/shared/01.01/result.json"
+        },
+        {
+          "short_id": "01.02",
+          "old_user_id": "user-02",
+          "new_user_id": "user-02",
+          "timeout_seconds": 900,
+          "wall_seconds": 61.18658543378115,
+          "last_attempt_wall_seconds": 61.18658543378115,
+          "agent_wall_seconds": 57.31160008534789,
+          "scoring_wall_seconds": 0.4761982522904873,
+          "timed_out": false,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/01/main/shared/01.02/result.json"
+        },
+        {
+          "short_id": "01.05",
+          "old_user_id": "user-05",
+          "new_user_id": "user-03",
+          "timeout_seconds": 900,
+          "wall_seconds": 473.17981726303697,
+          "last_attempt_wall_seconds": 473.17981726303697,
+          "agent_wall_seconds": 469.4263081997633,
+          "scoring_wall_seconds": 0.5149574466049671,
+          "timed_out": false,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/01/main/shared/01.05/result.json"
+        },
+        {
+          "short_id": "01.07",
+          "old_user_id": "user-07",
+          "new_user_id": "user-04",
+          "timeout_seconds": 900,
+          "wall_seconds": 327.3013053126633,
+          "last_attempt_wall_seconds": 327.3013053126633,
+          "agent_wall_seconds": 323.8117153197527,
+          "scoring_wall_seconds": 0.49236778542399406,
+          "timed_out": false,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/01/main/shared/01.07/result.json"
+        },
+        {
+          "short_id": "01.10",
+          "old_user_id": "user-02",
+          "new_user_id": "user-05",
+          "timeout_seconds": 900,
+          "wall_seconds": 911.4011843837798,
+          "last_attempt_wall_seconds": 911.4011843837798,
+          "agent_wall_seconds": 902.4356255754828,
+          "scoring_wall_seconds": 0.4650712125003338,
+          "timed_out": true,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/01/main/shared/01.10/result.json"
+        },
+        {
+          "short_id": "02.02",
+          "old_user_id": "user-04",
+          "new_user_id": "user-06",
+          "timeout_seconds": 1200,
+          "wall_seconds": 781.6962882094085,
+          "last_attempt_wall_seconds": 781.6962882094085,
+          "agent_wall_seconds": 762.0044057369232,
+          "scoring_wall_seconds": 0.4609825387597084,
+          "timed_out": false,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/01/main/shared/02.02/result.json"
+        },
+        {
+          "short_id": "02.03",
+          "old_user_id": "user-05",
+          "new_user_id": "user-07",
+          "timeout_seconds": 1200,
+          "wall_seconds": 1206.5212766379118,
+          "last_attempt_wall_seconds": 1206.5212766379118,
+          "agent_wall_seconds": 1202.4496501646936,
+          "scoring_wall_seconds": 0.5496742874383926,
+          "timed_out": true,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/01/main/shared/02.03/result.json"
+        },
+        {
+          "short_id": "02.07",
+          "old_user_id": "user-01",
+          "new_user_id": "user-08",
+          "timeout_seconds": 1200,
+          "wall_seconds": 918.6131087690592,
+          "last_attempt_wall_seconds": 918.6131087690592,
+          "agent_wall_seconds": 889.7074567526579,
+          "scoring_wall_seconds": 23.468972481787205,
+          "timed_out": false,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/01/main/shared/02.07/result.json"
+        },
+        {
+          "short_id": "02.09",
+          "old_user_id": "user-03",
+          "new_user_id": "user-01",
+          "timeout_seconds": 1200,
+          "wall_seconds": 542.4824510030448,
+          "last_attempt_wall_seconds": 542.4824510030448,
+          "agent_wall_seconds": 502.72372825816274,
+          "scoring_wall_seconds": 34.66536455601454,
+          "timed_out": false,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/01/main/shared/02.09/result.json"
+        },
+        {
+          "short_id": "02.11",
+          "old_user_id": "user-05",
+          "new_user_id": "user-02",
+          "timeout_seconds": 1200,
+          "wall_seconds": 471.0633056387305,
+          "last_attempt_wall_seconds": 471.0633056387305,
+          "agent_wall_seconds": 381.2849885337055,
+          "scoring_wall_seconds": 70.78954372555017,
+          "timed_out": false,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/01/main/shared/02.11/result.json"
+        },
+        {
+          "short_id": "03.01",
+          "old_user_id": "user-07",
+          "new_user_id": "user-03",
+          "timeout_seconds": 600,
+          "wall_seconds": 609.5118091329932,
+          "last_attempt_wall_seconds": 609.5118091329932,
+          "agent_wall_seconds": 602.6015309691429,
+          "scoring_wall_seconds": 0.47544265910983086,
+          "timed_out": true,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/01/main/shared/03.01/result.json"
+        },
+        {
+          "short_id": "03.03",
+          "old_user_id": "user-01",
+          "new_user_id": "user-04",
+          "timeout_seconds": 360,
+          "wall_seconds": 378.939285941422,
+          "last_attempt_wall_seconds": 378.939285941422,
+          "agent_wall_seconds": 241.36619471386075,
+          "scoring_wall_seconds": 131.50085171312094,
+          "timed_out": false,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/01/main/shared/03.03/result.json"
+        },
+        {
+          "short_id": "03.04",
+          "old_user_id": "user-02",
+          "new_user_id": "user-05",
+          "timeout_seconds": 600,
+          "wall_seconds": 280.52265021950006,
+          "last_attempt_wall_seconds": 280.52265021950006,
+          "agent_wall_seconds": 198.30479744821787,
+          "scoring_wall_seconds": 76.75380575284362,
+          "timed_out": false,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/01/main/shared/03.04/result.json"
+        },
+        {
+          "short_id": "03.05",
+          "old_user_id": "user-03",
+          "new_user_id": "user-06",
+          "timeout_seconds": 600,
+          "wall_seconds": 598.8125428035855,
+          "last_attempt_wall_seconds": 598.8125428035855,
+          "agent_wall_seconds": 489.3972408622503,
+          "scoring_wall_seconds": 102.7272226177156,
+          "timed_out": false,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/01/main/shared/03.05/result.json"
+        },
+        {
+          "short_id": "03.06",
+          "old_user_id": "user-04",
+          "new_user_id": "user-07",
+          "timeout_seconds": 600,
+          "wall_seconds": 392.87753058969975,
+          "last_attempt_wall_seconds": 392.87753058969975,
+          "agent_wall_seconds": 348.9677013680339,
+          "scoring_wall_seconds": 37.26473220810294,
+          "timed_out": false,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/01/main/shared/03.06/result.json"
+        },
+        {
+          "short_id": "04.01",
+          "old_user_id": "user-05",
+          "new_user_id": "user-08",
+          "timeout_seconds": 1200,
+          "wall_seconds": 862.9927515350282,
+          "last_attempt_wall_seconds": 862.9927515350282,
+          "agent_wall_seconds": 859.4199882261455,
+          "scoring_wall_seconds": 0.49424902722239494,
+          "timed_out": false,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/01/main/shared/04.01/result.json"
+        },
+        {
+          "short_id": "04.04",
+          "old_user_id": "user-08",
+          "new_user_id": "user-01",
+          "timeout_seconds": 600,
+          "wall_seconds": 129.29248440638185,
+          "last_attempt_wall_seconds": 129.29248440638185,
+          "agent_wall_seconds": 119.77219273522496,
+          "scoring_wall_seconds": 6.298840958625078,
+          "timed_out": false,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/01/main/shared/04.04/result.json"
+        },
+        {
+          "short_id": "04.06",
+          "old_user_id": "user-02",
+          "new_user_id": "user-02",
+          "timeout_seconds": 600,
+          "wall_seconds": 426.72374825179577,
+          "last_attempt_wall_seconds": 426.72374825179577,
+          "agent_wall_seconds": 417.07583532482386,
+          "scoring_wall_seconds": 5.8634180426597595,
+          "timed_out": false,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/01/main/shared/04.06/result.json"
+        },
+        {
+          "short_id": "04.09",
+          "old_user_id": "user-05",
+          "new_user_id": "user-03",
+          "timeout_seconds": 600,
+          "wall_seconds": 634.0086462236941,
+          "last_attempt_wall_seconds": 634.0086462236941,
+          "agent_wall_seconds": 630.217161629349,
+          "scoring_wall_seconds": 0.5449558421969414,
+          "timed_out": true,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/01/main/shared/04.09/result.json"
+        },
+        {
+          "short_id": "04.10",
+          "old_user_id": "user-06",
+          "new_user_id": "user-04",
+          "timeout_seconds": 600,
+          "wall_seconds": 183.52354406565428,
+          "last_attempt_wall_seconds": 183.52354406565428,
+          "agent_wall_seconds": 172.35828256234527,
+          "scoring_wall_seconds": 9.714257013052702,
+          "timed_out": false,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/01/main/shared/04.10/result.json"
+        },
+        {
+          "short_id": "05.04",
+          "old_user_id": "user-03",
+          "new_user_id": "user-05",
+          "timeout_seconds": 1200,
+          "wall_seconds": 410.70362932235,
+          "last_attempt_wall_seconds": 410.70362932235,
+          "agent_wall_seconds": 371.7596231549978,
+          "scoring_wall_seconds": 30.502147667109966,
+          "timed_out": false,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/01/main/shared/05.04/result.json"
+        },
+        {
+          "short_id": "05.07",
+          "old_user_id": "user-06",
+          "new_user_id": "user-06",
+          "timeout_seconds": 600,
+          "wall_seconds": 608.9720524586737,
+          "last_attempt_wall_seconds": 608.9720524586737,
+          "agent_wall_seconds": 602.9758349955082,
+          "scoring_wall_seconds": 0.8143219575285912,
+          "timed_out": true,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/01/main/shared/05.07/result.json"
+        },
+        {
+          "short_id": "05.08",
+          "old_user_id": "user-07",
+          "new_user_id": "user-07",
+          "timeout_seconds": 600,
+          "wall_seconds": 622.8021502718329,
+          "last_attempt_wall_seconds": 622.8021502718329,
+          "agent_wall_seconds": 602.4474515281618,
+          "scoring_wall_seconds": 0.7886265702545643,
+          "timed_out": true,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/01/main/shared/05.08/result.json"
+        },
+        {
+          "short_id": "05.09",
+          "old_user_id": "user-08",
+          "new_user_id": "user-08",
+          "timeout_seconds": 600,
+          "wall_seconds": 608.5614715367556,
+          "last_attempt_wall_seconds": 608.5614715367556,
+          "agent_wall_seconds": 602.496381431818,
+          "scoring_wall_seconds": 0.8382229879498482,
+          "timed_out": true,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/01/main/shared/05.09/result.json"
+        },
+        {
+          "short_id": "05.11",
+          "old_user_id": "user-02",
+          "new_user_id": "user-01",
+          "timeout_seconds": 1200,
+          "wall_seconds": 765.9245640896261,
+          "last_attempt_wall_seconds": 765.9245640896261,
+          "agent_wall_seconds": 701.629075370729,
+          "scoring_wall_seconds": 38.782227240502834,
+          "timed_out": false,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/01/main/shared/05.11/result.json"
+        },
+        {
+          "short_id": "06.01",
+          "old_user_id": "user-03",
+          "new_user_id": "user-02",
+          "timeout_seconds": 600,
+          "wall_seconds": 281.4806114695966,
+          "last_attempt_wall_seconds": 281.4806114695966,
+          "agent_wall_seconds": 244.56171840429306,
+          "scoring_wall_seconds": 35.38872009143233,
+          "timed_out": false,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/01/main/shared/06.01/result.json"
+        },
+        {
+          "short_id": "06.02",
+          "old_user_id": "user-04",
+          "new_user_id": "user-03",
+          "timeout_seconds": 600,
+          "wall_seconds": 60.22489748895168,
+          "last_attempt_wall_seconds": 60.22489748895168,
+          "agent_wall_seconds": 26.955750167369843,
+          "scoring_wall_seconds": 31.57569995895028,
+          "timed_out": false,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/01/main/shared/06.02/result.json"
+        },
+        {
+          "short_id": "06.05",
+          "old_user_id": "user-07",
+          "new_user_id": "user-04",
+          "timeout_seconds": 600,
+          "wall_seconds": 21.1105948202312,
+          "last_attempt_wall_seconds": 21.1105948202312,
+          "agent_wall_seconds": 19.09722276777029,
+          "scoring_wall_seconds": 0.49744027480483055,
+          "timed_out": false,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/01/main/shared/06.05/result.json"
+        },
+        {
+          "short_id": "06.07",
+          "old_user_id": "user-01",
+          "new_user_id": "user-05",
+          "timeout_seconds": 600,
+          "wall_seconds": 10.627622049301863,
+          "last_attempt_wall_seconds": 10.627622049301863,
+          "agent_wall_seconds": 8.393686424940825,
+          "scoring_wall_seconds": 0.4555479772388935,
+          "timed_out": false,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/01/main/shared/06.07/result.json"
+        },
+        {
+          "short_id": "06.10",
+          "old_user_id": "user-04",
+          "new_user_id": "user-06",
+          "timeout_seconds": 600,
+          "wall_seconds": 1826.2491324283183,
+          "last_attempt_wall_seconds": 617.8916897960007,
+          "agent_wall_seconds": 602.4068536348641,
+          "scoring_wall_seconds": 14.113973520696163,
+          "timed_out": true,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/01/main/shared/06.10/result.json"
+        }
+      ]
+    },
+    {
+      "day": 2,
+      "selected_tasks": 30,
+      "old60_actual_stage_span_seconds": 6395.828378,
+      "old_assignment_selected30": {
+        "users": [
+          {
+            "user_id": "user-01",
+            "task_count": 4,
+            "short_ids": [
+              "01.01",
+              "02.07",
+              "03.03",
+              "06.07"
+            ],
+            "total_including_recorded_retries_seconds": 2706.848297353834,
+            "last_attempt_seconds": 2706.848297353834,
+            "agent_seconds": 2529.172512654215,
+            "local_scoring_seconds": 162.10922125726938,
+            "other_last_attempt_seconds": 15.566563442349434,
+            "last_attempt_without_scoring_seconds": 2544.7390760965645
+          },
+          {
+            "user_id": "user-02",
+            "task_count": 5,
+            "short_ids": [
+              "01.02",
+              "01.10",
+              "03.04",
+              "04.06",
+              "05.11"
+            ],
+            "total_including_recorded_retries_seconds": 2581.9339816346765,
+            "last_attempt_seconds": 2581.9339816346765,
+            "agent_seconds": 2391.7795505709946,
+            "local_scoring_seconds": 154.92503314092755,
+            "other_last_attempt_seconds": 35.22939792275429,
+            "last_attempt_without_scoring_seconds": 2427.008948493749
+          },
+          {
+            "user_id": "user-03",
+            "task_count": 4,
+            "short_ids": [
+              "02.09",
+              "03.05",
+              "05.04",
+              "06.01"
+            ],
+            "total_including_recorded_retries_seconds": 2061.31112947315,
+            "last_attempt_seconds": 2061.31112947315,
+            "agent_seconds": 1789.2375728972256,
+            "local_scoring_seconds": 252.03103282302618,
+            "other_last_attempt_seconds": 20.042523752897978,
+            "last_attempt_without_scoring_seconds": 1809.2800966501236
+          },
+          {
+            "user_id": "user-04",
+            "task_count": 4,
+            "short_ids": [
+              "02.02",
+              "03.06",
+              "06.02",
+              "06.10"
+            ],
+            "total_including_recorded_retries_seconds": 2313.1306946612895,
+            "last_attempt_seconds": 2313.1306946612895,
+            "agent_seconds": 2218.4997979030013,
+            "local_scoring_seconds": 67.78001901134849,
+            "other_last_attempt_seconds": 26.85087774693966,
+            "last_attempt_without_scoring_seconds": 2245.350675649941
+          },
+          {
+            "user_id": "user-05",
+            "task_count": 5,
+            "short_ids": [
+              "01.05",
+              "02.03",
+              "02.11",
+              "04.01",
+              "04.09"
+            ],
+            "total_including_recorded_retries_seconds": 4045.4772965423763,
+            "last_attempt_seconds": 4045.4772965423763,
+            "agent_seconds": 3922.939500838518,
+            "local_scoring_seconds": 91.3763717673719,
+            "other_last_attempt_seconds": 31.161423936486244,
+            "last_attempt_without_scoring_seconds": 3954.1009247750044
+          },
+          {
+            "user_id": "user-06",
+            "task_count": 2,
+            "short_ids": [
+              "04.10",
+              "05.07"
+            ],
+            "total_including_recorded_retries_seconds": 844.3686444461346,
+            "last_attempt_seconds": 844.3686444461346,
+            "agent_seconds": 828.8366946168244,
+            "local_scoring_seconds": 9.491735931485891,
+            "other_last_attempt_seconds": 6.040213897824287,
+            "last_attempt_without_scoring_seconds": 834.8769085146487
+          },
+          {
+            "user_id": "user-07",
+            "task_count": 4,
+            "short_ids": [
+              "01.07",
+              "03.01",
+              "05.08",
+              "06.05"
+            ],
+            "total_including_recorded_retries_seconds": 1627.031607374549,
+            "last_attempt_seconds": 1627.031607374549,
+            "agent_seconds": 1594.6800121031702,
+            "local_scoring_seconds": 2.1899035274982452,
+            "other_last_attempt_seconds": 30.16169174388051,
+            "last_attempt_without_scoring_seconds": 1624.8417038470507
+          },
+          {
+            "user_id": "user-08",
+            "task_count": 2,
+            "short_ids": [
+              "04.04",
+              "05.09"
+            ],
+            "total_including_recorded_retries_seconds": 739.8998528756201,
+            "last_attempt_seconds": 739.8998528756201,
+            "agent_seconds": 722.7921830303967,
+            "local_scoring_seconds": 9.299504816532135,
+            "other_last_attempt_seconds": 7.808165028691292,
+            "last_attempt_without_scoring_seconds": 730.600348059088
+          }
+        ],
+        "sum_last_attempt_seconds": 16920.00150436163,
+        "sum_agent_seconds": 15997.937824614346,
+        "sum_scoring_seconds": 749.2028222754598,
+        "critical_last_attempt_seconds": 4045.4772965423763,
+        "critical_including_retries_seconds": 4045.4772965423763,
+        "critical_without_scoring_seconds": 3954.1009247750044,
+        "critical_user_last_attempt": "user-05"
+      },
+      "new_assignment_replay_selected30": {
+        "users": [
+          {
+            "user_id": "user-01",
+            "task_count": 4,
+            "short_ids": [
+              "01.01",
+              "02.09",
+              "04.04",
+              "05.11"
+            ],
+            "total_including_recorded_retries_seconds": 2171.505193490535,
+            "last_attempt_seconds": 2171.505193490535,
+            "agent_seconds": 2027.266892094165,
+            "local_scoring_seconds": 115.64874110370874,
+            "other_last_attempt_seconds": 28.58956029266119,
+            "last_attempt_without_scoring_seconds": 2055.8564523868263
+          },
+          {
+            "user_id": "user-02",
+            "task_count": 4,
+            "short_ids": [
+              "01.02",
+              "02.11",
+              "04.06",
+              "06.01"
+            ],
+            "total_including_recorded_retries_seconds": 1644.119803071022,
+            "last_attempt_seconds": 1644.119803071022,
+            "agent_seconds": 1484.0838710404932,
+            "local_scoring_seconds": 133.54544546455145,
+            "other_last_attempt_seconds": 26.490486565977335,
+            "last_attempt_without_scoring_seconds": 1510.5743576064706
+          },
+          {
+            "user_id": "user-03",
+            "task_count": 4,
+            "short_ids": [
+              "01.05",
+              "03.01",
+              "04.09",
+              "06.02"
+            ],
+            "total_including_recorded_retries_seconds": 1758.280293021351,
+            "last_attempt_seconds": 1758.280293021351,
+            "agent_seconds": 1720.5170098096132,
+            "local_scoring_seconds": 22.613077629357576,
+            "other_last_attempt_seconds": 15.150205582380295,
+            "last_attempt_without_scoring_seconds": 1735.6672153919935
+          },
+          {
+            "user_id": "user-04",
+            "task_count": 4,
+            "short_ids": [
+              "01.07",
+              "03.03",
+              "04.10",
+              "06.05"
+            ],
+            "total_including_recorded_retries_seconds": 1109.8267957642674,
+            "last_attempt_seconds": 1109.8267957642674,
+            "agent_seconds": 944.6994483619928,
+            "local_scoring_seconds": 153.5094299800694,
+            "other_last_attempt_seconds": 11.61791742220521,
+            "last_attempt_without_scoring_seconds": 956.317365784198
+          },
+          {
+            "user_id": "user-05",
+            "task_count": 4,
+            "short_ids": [
+              "01.10",
+              "03.04",
+              "05.04",
+              "06.07"
+            ],
+            "total_including_recorded_retries_seconds": 2105.216810375452,
+            "last_attempt_seconds": 2105.216810375452,
+            "agent_seconds": 1958.3580685816705,
+            "local_scoring_seconds": 126.340047840029,
+            "other_last_attempt_seconds": 20.518693953752518,
+            "last_attempt_without_scoring_seconds": 1978.876762535423
+          },
+          {
+            "user_id": "user-06",
+            "task_count": 4,
+            "short_ids": [
+              "02.02",
+              "03.05",
+              "05.07",
+              "06.10"
+            ],
+            "total_including_recorded_retries_seconds": 2918.9025958664715,
+            "last_attempt_seconds": 2918.9025958664715,
+            "agent_seconds": 2766.0219033248723,
+            "local_scoring_seconds": 123.00099594891071,
+            "other_last_attempt_seconds": 29.87969659268856,
+            "last_attempt_without_scoring_seconds": 2795.901599917561
+          },
+          {
+            "user_id": "user-07",
+            "task_count": 3,
+            "short_ids": [
+              "02.03",
+              "03.06",
+              "05.08"
+            ],
+            "total_including_recorded_retries_seconds": 2472.657618161291,
+            "last_attempt_seconds": 2472.657618161291,
+            "agent_seconds": 2407.428689006716,
+            "local_scoring_seconds": 37.22879481688142,
+            "other_last_attempt_seconds": 28.000134337693453,
+            "last_attempt_without_scoring_seconds": 2435.4288233444095
+          },
+          {
+            "user_id": "user-08",
+            "task_count": 3,
+            "short_ids": [
+              "02.07",
+              "04.01",
+              "05.09"
+            ],
+            "total_including_recorded_retries_seconds": 2739.4923946112394,
+            "last_attempt_seconds": 2739.4923946112394,
+            "agent_seconds": 2689.561942394823,
+            "local_scoring_seconds": 37.316289491951466,
+            "other_last_attempt_seconds": 12.614162724465132,
+            "last_attempt_without_scoring_seconds": 2702.176105119288
+          }
+        ],
+        "sum_last_attempt_seconds": 16920.00150436163,
+        "sum_agent_seconds": 15997.937824614346,
+        "sum_scoring_seconds": 749.2028222754598,
+        "critical_last_attempt_seconds": 2918.9025958664715,
+        "critical_including_retries_seconds": 2918.9025958664715,
+        "critical_without_scoring_seconds": 2795.901599917561,
+        "critical_user_last_attempt": "user-06"
+      },
+      "raw_records": [
+        {
+          "short_id": "01.01",
+          "old_user_id": "user-01",
+          "new_user_id": "user-01",
+          "timeout_seconds": 1200,
+          "wall_seconds": 1207.0393895842135,
+          "last_attempt_wall_seconds": 1207.0393895842135,
+          "agent_wall_seconds": 1202.4931818842888,
+          "scoring_wall_seconds": 0.4604869894683361,
+          "timed_out": true,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/02/main/shared/01.01/result.json"
+        },
+        {
+          "short_id": "01.02",
+          "old_user_id": "user-02",
+          "new_user_id": "user-02",
+          "timeout_seconds": 900,
+          "wall_seconds": 93.24995429441333,
+          "last_attempt_wall_seconds": 93.24995429441333,
+          "agent_wall_seconds": 89.06867738813162,
+          "scoring_wall_seconds": 0.4648674353957176,
+          "timed_out": false,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/02/main/shared/01.02/result.json"
+        },
+        {
+          "short_id": "01.05",
+          "old_user_id": "user-05",
+          "new_user_id": "user-03",
+          "timeout_seconds": 900,
+          "wall_seconds": 520.15284351632,
+          "last_attempt_wall_seconds": 520.15284351632,
+          "agent_wall_seconds": 515.3236035369337,
+          "scoring_wall_seconds": 0.4730852209031582,
+          "timed_out": false,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/02/main/shared/01.05/result.json"
+        },
+        {
+          "short_id": "01.07",
+          "old_user_id": "user-07",
+          "new_user_id": "user-04",
+          "timeout_seconds": 900,
+          "wall_seconds": 371.67727598547935,
+          "last_attempt_wall_seconds": 371.67727598547935,
+          "agent_wall_seconds": 367.61611411347985,
+          "scoring_wall_seconds": 0.4873246066272259,
+          "timed_out": false,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/02/main/shared/01.07/result.json"
+        },
+        {
+          "short_id": "01.10",
+          "old_user_id": "user-02",
+          "new_user_id": "user-05",
+          "timeout_seconds": 900,
+          "wall_seconds": 909.7171206660569,
+          "last_attempt_wall_seconds": 909.7171206660569,
+          "agent_wall_seconds": 902.4928341135383,
+          "scoring_wall_seconds": 0.47385652735829353,
+          "timed_out": true,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/02/main/shared/01.10/result.json"
+        },
+        {
+          "short_id": "02.02",
+          "old_user_id": "user-04",
+          "new_user_id": "user-06",
+          "timeout_seconds": 1200,
+          "wall_seconds": 980.4832807295024,
+          "last_attempt_wall_seconds": 980.4832807295024,
+          "agent_wall_seconds": 962.2071427926421,
+          "scoring_wall_seconds": 0.48480064794421196,
+          "timed_out": false,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/02/main/shared/02.02/result.json"
+        },
+        {
+          "short_id": "02.03",
+          "old_user_id": "user-05",
+          "new_user_id": "user-07",
+          "timeout_seconds": 1200,
+          "wall_seconds": 1205.8312965892255,
+          "last_attempt_wall_seconds": 1205.8312965892255,
+          "agent_wall_seconds": 1202.5365144275129,
+          "scoring_wall_seconds": 0.4319605194032192,
+          "timed_out": true,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/02/main/shared/02.03/result.json"
+        },
+        {
+          "short_id": "02.07",
+          "old_user_id": "user-01",
+          "new_user_id": "user-08",
+          "timeout_seconds": 1200,
+          "wall_seconds": 1010.1190432347357,
+          "last_attempt_wall_seconds": 1010.1190432347357,
+          "agent_wall_seconds": 987.8349840156734,
+          "scoring_wall_seconds": 17.282360333949327,
+          "timed_out": false,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/02/main/shared/02.07/result.json"
+        },
+        {
+          "short_id": "02.09",
+          "old_user_id": "user-03",
+          "new_user_id": "user-01",
+          "timeout_seconds": 1200,
+          "wall_seconds": 327.0300846323371,
+          "last_attempt_wall_seconds": 327.0300846323371,
+          "agent_wall_seconds": 285.3830159343779,
+          "scoring_wall_seconds": 36.46490936353803,
+          "timed_out": false,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/02/main/shared/02.09/result.json"
+        },
+        {
+          "short_id": "02.11",
+          "old_user_id": "user-05",
+          "new_user_id": "user-02",
+          "timeout_seconds": 1200,
+          "wall_seconds": 610.8489472679794,
+          "last_attempt_wall_seconds": 610.8489472679794,
+          "agent_wall_seconds": 526.7463621944189,
+          "scoring_wall_seconds": 66.38637456297874,
+          "timed_out": false,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/02/main/shared/02.11/result.json"
+        },
+        {
+          "short_id": "03.01",
+          "old_user_id": "user-07",
+          "new_user_id": "user-03",
+          "timeout_seconds": 600,
+          "wall_seconds": 609.0120301172137,
+          "last_attempt_wall_seconds": 609.0120301172137,
+          "agent_wall_seconds": 602.5060618370771,
+          "scoring_wall_seconds": 0.4811987355351448,
+          "timed_out": true,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/02/main/shared/03.01/result.json"
+        },
+        {
+          "short_id": "03.03",
+          "old_user_id": "user-01",
+          "new_user_id": "user-04",
+          "timeout_seconds": 360,
+          "wall_seconds": 477.67013632133603,
+          "last_attempt_wall_seconds": 477.67013632133603,
+          "agent_wall_seconds": 328.61354348808527,
+          "scoring_wall_seconds": 143.89970057085156,
+          "timed_out": false,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/02/main/shared/03.03/result.json"
+        },
+        {
+          "short_id": "03.04",
+          "old_user_id": "user-02",
+          "new_user_id": "user-05",
+          "timeout_seconds": 600,
+          "wall_seconds": 467.04892456531525,
+          "last_attempt_wall_seconds": 467.04892456531525,
+          "agent_wall_seconds": 378.6948198825121,
+          "scoring_wall_seconds": 83.27446647360921,
+          "timed_out": false,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/02/main/shared/03.04/result.json"
+        },
+        {
+          "short_id": "03.05",
+          "old_user_id": "user-03",
+          "new_user_id": "user-06",
+          "timeout_seconds": 600,
+          "wall_seconds": 684.5180770941079,
+          "last_attempt_wall_seconds": 684.5180770941079,
+          "agent_wall_seconds": 571.1797118112445,
+          "scoring_wall_seconds": 107.19936513155699,
+          "timed_out": false,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/02/main/shared/03.05/result.json"
+        },
+        {
+          "short_id": "03.06",
+          "old_user_id": "user-04",
+          "new_user_id": "user-07",
+          "timeout_seconds": 600,
+          "wall_seconds": 644.4793061763048,
+          "last_attempt_wall_seconds": 644.4793061763048,
+          "agent_wall_seconds": 602.426589678973,
+          "scoring_wall_seconds": 36.0322454534471,
+          "timed_out": true,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/02/main/shared/03.06/result.json"
+        },
+        {
+          "short_id": "04.01",
+          "old_user_id": "user-05",
+          "new_user_id": "user-08",
+          "timeout_seconds": 1200,
+          "wall_seconds": 1121.6802063584328,
+          "last_attempt_wall_seconds": 1121.6802063584328,
+          "agent_wall_seconds": 1099.3358480632305,
+          "scoring_wall_seconds": 19.198423001915216,
+          "timed_out": false,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/02/main/shared/04.01/result.json"
+        },
+        {
+          "short_id": "04.04",
+          "old_user_id": "user-08",
+          "new_user_id": "user-01",
+          "timeout_seconds": 600,
+          "wall_seconds": 132.2067078575492,
+          "last_attempt_wall_seconds": 132.2067078575492,
+          "agent_wall_seconds": 120.40107271447778,
+          "scoring_wall_seconds": 8.463998660445213,
+          "timed_out": false,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/02/main/shared/04.04/result.json"
+        },
+        {
+          "short_id": "04.06",
+          "old_user_id": "user-02",
+          "new_user_id": "user-02",
+          "timeout_seconds": 600,
+          "wall_seconds": 606.6889706924558,
+          "last_attempt_wall_seconds": 606.6889706924558,
+          "agent_wall_seconds": 602.533597625792,
+          "scoring_wall_seconds": 0.45249661430716515,
+          "timed_out": true,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/02/main/shared/04.06/result.json"
+        },
+        {
+          "short_id": "04.09",
+          "old_user_id": "user-05",
+          "new_user_id": "user-03",
+          "timeout_seconds": 600,
+          "wall_seconds": 586.9640028104186,
+          "last_attempt_wall_seconds": 586.9640028104186,
+          "agent_wall_seconds": 578.9971726164222,
+          "scoring_wall_seconds": 4.886528462171555,
+          "timed_out": false,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/02/main/shared/04.09/result.json"
+        },
+        {
+          "short_id": "04.10",
+          "old_user_id": "user-06",
+          "new_user_id": "user-04",
+          "timeout_seconds": 600,
+          "wall_seconds": 236.48409758135676,
+          "last_attempt_wall_seconds": 236.48409758135676,
+          "agent_wall_seconds": 226.37753950804472,
+          "scoring_wall_seconds": 8.66561346128583,
+          "timed_out": false,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/02/main/shared/04.10/result.json"
+        },
+        {
+          "short_id": "05.04",
+          "old_user_id": "user-03",
+          "new_user_id": "user-05",
+          "timeout_seconds": 1200,
+          "wall_seconds": 716.4310369305313,
+          "last_attempt_wall_seconds": 716.4310369305313,
+          "agent_wall_seconds": 666.9396113194525,
+          "scoring_wall_seconds": 42.125051476061344,
+          "timed_out": false,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/02/main/shared/05.04/result.json"
+        },
+        {
+          "short_id": "05.07",
+          "old_user_id": "user-06",
+          "new_user_id": "user-06",
+          "timeout_seconds": 600,
+          "wall_seconds": 607.8845468647778,
+          "last_attempt_wall_seconds": 607.8845468647778,
+          "agent_wall_seconds": 602.4591551087797,
+          "scoring_wall_seconds": 0.8261224702000618,
+          "timed_out": true,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/02/main/shared/05.07/result.json"
+        },
+        {
+          "short_id": "05.08",
+          "old_user_id": "user-07",
+          "new_user_id": "user-07",
+          "timeout_seconds": 600,
+          "wall_seconds": 622.3470153957605,
+          "last_attempt_wall_seconds": 622.3470153957605,
+          "agent_wall_seconds": 602.4655849002302,
+          "scoring_wall_seconds": 0.7645888440310955,
+          "timed_out": true,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/02/main/shared/05.08/result.json"
+        },
+        {
+          "short_id": "05.09",
+          "old_user_id": "user-08",
+          "new_user_id": "user-08",
+          "timeout_seconds": 600,
+          "wall_seconds": 607.6931450180709,
+          "last_attempt_wall_seconds": 607.6931450180709,
+          "agent_wall_seconds": 602.3911103159189,
+          "scoring_wall_seconds": 0.8355061560869217,
+          "timed_out": true,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/02/main/shared/05.09/result.json"
+        },
+        {
+          "short_id": "05.11",
+          "old_user_id": "user-02",
+          "new_user_id": "user-01",
+          "timeout_seconds": 1200,
+          "wall_seconds": 505.22901141643524,
+          "last_attempt_wall_seconds": 505.22901141643524,
+          "agent_wall_seconds": 418.9896215610206,
+          "scoring_wall_seconds": 70.25934609025717,
+          "timed_out": false,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/02/main/shared/05.11/result.json"
+        },
+        {
+          "short_id": "06.01",
+          "old_user_id": "user-03",
+          "new_user_id": "user-02",
+          "timeout_seconds": 600,
+          "wall_seconds": 333.33193081617355,
+          "last_attempt_wall_seconds": 333.33193081617355,
+          "agent_wall_seconds": 265.7352338321507,
+          "scoring_wall_seconds": 66.24170685186982,
+          "timed_out": false,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/02/main/shared/06.01/result.json"
+        },
+        {
+          "short_id": "06.02",
+          "old_user_id": "user-04",
+          "new_user_id": "user-03",
+          "timeout_seconds": 600,
+          "wall_seconds": 42.15141657739878,
+          "last_attempt_wall_seconds": 42.15141657739878,
+          "agent_wall_seconds": 23.69017181918025,
+          "scoring_wall_seconds": 16.77226521074772,
+          "timed_out": false,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/02/main/shared/06.02/result.json"
+        },
+        {
+          "short_id": "06.05",
+          "old_user_id": "user-07",
+          "new_user_id": "user-04",
+          "timeout_seconds": 600,
+          "wall_seconds": 23.995285876095295,
+          "last_attempt_wall_seconds": 23.995285876095295,
+          "agent_wall_seconds": 22.092251252382994,
+          "scoring_wall_seconds": 0.45679134130477905,
+          "timed_out": false,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/02/main/shared/06.05/result.json"
+        },
+        {
+          "short_id": "06.07",
+          "old_user_id": "user-01",
+          "new_user_id": "user-05",
+          "timeout_seconds": 600,
+          "wall_seconds": 12.01972821354866,
+          "last_attempt_wall_seconds": 12.01972821354866,
+          "agent_wall_seconds": 10.23080326616764,
+          "scoring_wall_seconds": 0.4666733630001545,
+          "timed_out": false,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/02/main/shared/06.07/result.json"
+        },
+        {
+          "short_id": "06.10",
+          "old_user_id": "user-04",
+          "new_user_id": "user-06",
+          "timeout_seconds": 600,
+          "wall_seconds": 646.0166911780834,
+          "last_attempt_wall_seconds": 646.0166911780834,
+          "agent_wall_seconds": 630.175893612206,
+          "scoring_wall_seconds": 14.490707699209452,
+          "timed_out": true,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/02/main/shared/06.10/result.json"
+        }
+      ]
+    },
+    {
+      "day": 3,
+      "selected_tasks": 30,
+      "old60_actual_stage_span_seconds": 5742.48606,
+      "old_assignment_selected30": {
+        "users": [
+          {
+            "user_id": "user-01",
+            "task_count": 4,
+            "short_ids": [
+              "01.01",
+              "02.07",
+              "03.03",
+              "06.07"
+            ],
+            "total_including_recorded_retries_seconds": 2883.2427046634257,
+            "last_attempt_seconds": 2883.2427046634257,
+            "agent_seconds": 2698.2129772119224,
+            "local_scoring_seconds": 169.41199900954962,
+            "other_last_attempt_seconds": 15.617728441953659,
+            "last_attempt_without_scoring_seconds": 2713.830705653876
+          },
+          {
+            "user_id": "user-02",
+            "task_count": 5,
+            "short_ids": [
+              "01.02",
+              "01.10",
+              "03.04",
+              "04.06",
+              "05.11"
+            ],
+            "total_including_recorded_retries_seconds": 2476.1035128198564,
+            "last_attempt_seconds": 2476.1035128198564,
+            "agent_seconds": 2301.291408892721,
+            "local_scoring_seconds": 138.39730259776115,
+            "other_last_attempt_seconds": 36.41480132937431,
+            "last_attempt_without_scoring_seconds": 2337.7062102220953
+          },
+          {
+            "user_id": "user-03",
+            "task_count": 4,
+            "short_ids": [
+              "02.09",
+              "03.05",
+              "05.04",
+              "06.01"
+            ],
+            "total_including_recorded_retries_seconds": 2180.807910975069,
+            "last_attempt_seconds": 2180.807910975069,
+            "agent_seconds": 2013.9516210965812,
+            "local_scoring_seconds": 145.7482905983925,
+            "other_last_attempt_seconds": 21.1079992800951,
+            "last_attempt_without_scoring_seconds": 2035.0596203766763
+          },
+          {
+            "user_id": "user-04",
+            "task_count": 4,
+            "short_ids": [
+              "02.02",
+              "03.06",
+              "06.02",
+              "06.10"
+            ],
+            "total_including_recorded_retries_seconds": 2135.0921138189733,
+            "last_attempt_seconds": 2135.0921138189733,
+            "agent_seconds": 2038.9960070252419,
+            "local_scoring_seconds": 69.07359667867422,
+            "other_last_attempt_seconds": 27.02251011505723,
+            "last_attempt_without_scoring_seconds": 2066.018517140299
+          },
+          {
+            "user_id": "user-05",
+            "task_count": 5,
+            "short_ids": [
+              "01.05",
+              "02.03",
+              "02.11",
+              "04.01",
+              "04.09"
+            ],
+            "total_including_recorded_retries_seconds": 4186.21510463208,
+            "last_attempt_seconds": 4186.21510463208,
+            "agent_seconds": 4066.2544268518686,
+            "local_scoring_seconds": 88.85362133383751,
+            "other_last_attempt_seconds": 31.107056446373463,
+            "last_attempt_without_scoring_seconds": 4097.361483298242
+          },
+          {
+            "user_id": "user-06",
+            "task_count": 2,
+            "short_ids": [
+              "04.10",
+              "05.07"
+            ],
+            "total_including_recorded_retries_seconds": 873.0146134868264,
+            "last_attempt_seconds": 873.0146134868264,
+            "agent_seconds": 850.7700120471418,
+            "local_scoring_seconds": 16.410632103681564,
+            "other_last_attempt_seconds": 5.833969336003065,
+            "last_attempt_without_scoring_seconds": 856.6039813831449
+          },
+          {
+            "user_id": "user-07",
+            "task_count": 4,
+            "short_ids": [
+              "01.07",
+              "03.01",
+              "05.08",
+              "06.05"
+            ],
+            "total_including_recorded_retries_seconds": 1648.1861350759864,
+            "last_attempt_seconds": 1648.1861350759864,
+            "agent_seconds": 1615.1271645091474,
+            "local_scoring_seconds": 2.2849217392504215,
+            "other_last_attempt_seconds": 30.774048827588558,
+            "last_attempt_without_scoring_seconds": 1645.901213336736
+          },
+          {
+            "user_id": "user-08",
+            "task_count": 2,
+            "short_ids": [
+              "04.04",
+              "05.09"
+            ],
+            "total_including_recorded_retries_seconds": 818.2652114033699,
+            "last_attempt_seconds": 818.2652114033699,
+            "agent_seconds": 802.0236144438386,
+            "local_scoring_seconds": 8.637710306793451,
+            "other_last_attempt_seconds": 7.603886652737856,
+            "last_attempt_without_scoring_seconds": 809.6275010965765
+          }
+        ],
+        "sum_last_attempt_seconds": 17200.927306875587,
+        "sum_agent_seconds": 16386.627232078463,
+        "sum_scoring_seconds": 638.8180743679404,
+        "critical_last_attempt_seconds": 4186.21510463208,
+        "critical_including_retries_seconds": 4186.21510463208,
+        "critical_without_scoring_seconds": 4097.361483298242,
+        "critical_user_last_attempt": "user-05"
+      },
+      "new_assignment_replay_selected30": {
+        "users": [
+          {
+            "user_id": "user-01",
+            "task_count": 4,
+            "short_ids": [
+              "01.01",
+              "02.09",
+              "04.04",
+              "05.11"
+            ],
+            "total_including_recorded_retries_seconds": 2750.971647132188,
+            "last_attempt_seconds": 2750.971647132188,
+            "agent_seconds": 2603.404386766255,
+            "local_scoring_seconds": 118.3704280629754,
+            "other_last_attempt_seconds": 29.196832302957773,
+            "last_attempt_without_scoring_seconds": 2632.6012190692127
+          },
+          {
+            "user_id": "user-02",
+            "task_count": 4,
+            "short_ids": [
+              "01.02",
+              "02.11",
+              "04.06",
+              "06.01"
+            ],
+            "total_including_recorded_retries_seconds": 1362.0868986546993,
+            "last_attempt_seconds": 1362.0868986546993,
+            "agent_seconds": 1207.711868327111,
+            "local_scoring_seconds": 127.23508478701115,
+            "other_last_attempt_seconds": 27.139945540577173,
+            "last_attempt_without_scoring_seconds": 1234.8518138676882
+          },
+          {
+            "user_id": "user-03",
+            "task_count": 4,
+            "short_ids": [
+              "01.05",
+              "03.01",
+              "04.09",
+              "06.02"
+            ],
+            "total_including_recorded_retries_seconds": 1891.9939064085484,
+            "last_attempt_seconds": 1891.9939064085484,
+            "agent_seconds": 1849.9231981672347,
+            "local_scoring_seconds": 27.83039290830493,
+            "other_last_attempt_seconds": 14.240315333008766,
+            "last_attempt_without_scoring_seconds": 1864.1635135002434
+          },
+          {
+            "user_id": "user-04",
+            "task_count": 4,
+            "short_ids": [
+              "01.07",
+              "03.03",
+              "04.10",
+              "06.05"
+            ],
+            "total_including_recorded_retries_seconds": 1135.4860644750297,
+            "last_attempt_seconds": 1135.4860644750297,
+            "agent_seconds": 939.592320818454,
+            "local_scoring_seconds": 184.20199374854565,
+            "other_last_attempt_seconds": 11.691749908030033,
+            "last_attempt_without_scoring_seconds": 951.2840707264841
+          },
+          {
+            "user_id": "user-05",
+            "task_count": 4,
+            "short_ids": [
+              "01.10",
+              "03.04",
+              "05.04",
+              "06.07"
+            ],
+            "total_including_recorded_retries_seconds": 1959.2914047800004,
+            "last_attempt_seconds": 1959.2914047800004,
+            "agent_seconds": 1814.4055582508445,
+            "local_scoring_seconds": 123.3944157063961,
+            "other_last_attempt_seconds": 21.491430822759867,
+            "last_attempt_without_scoring_seconds": 1835.8969890736043
+          },
+          {
+            "user_id": "user-06",
+            "task_count": 4,
+            "short_ids": [
+              "02.02",
+              "03.05",
+              "05.07",
+              "06.10"
+            ],
+            "total_including_recorded_retries_seconds": 2834.0647050626576,
+            "last_attempt_seconds": 2834.0647050626576,
+            "agent_seconds": 2795.9622113853693,
+            "local_scoring_seconds": 8.095710277557373,
+            "other_last_attempt_seconds": 30.00678339973092,
+            "last_attempt_without_scoring_seconds": 2825.9689947851
+          },
+          {
+            "user_id": "user-07",
+            "task_count": 3,
+            "short_ids": [
+              "02.03",
+              "03.06",
+              "05.08"
+            ],
+            "total_including_recorded_retries_seconds": 2288.772319216281,
+            "last_attempt_seconds": 2288.772319216281,
+            "agent_seconds": 2212.353282686323,
+            "local_scoring_seconds": 47.58425883576274,
+            "other_last_attempt_seconds": 28.83477769419551,
+            "last_attempt_without_scoring_seconds": 2241.1880603805184
+          },
+          {
+            "user_id": "user-08",
+            "task_count": 3,
+            "short_ids": [
+              "02.07",
+              "04.01",
+              "05.09"
+            ],
+            "total_including_recorded_retries_seconds": 2978.260361146182,
+            "last_attempt_seconds": 2978.260361146182,
+            "agent_seconds": 2963.2744056768715,
+            "local_scoring_seconds": 2.105790041387081,
+            "other_last_attempt_seconds": 12.880165427923203,
+            "last_attempt_without_scoring_seconds": 2976.1545711047947
+          }
+        ],
+        "sum_last_attempt_seconds": 17200.927306875587,
+        "sum_agent_seconds": 16386.627232078463,
+        "sum_scoring_seconds": 638.8180743679404,
+        "critical_last_attempt_seconds": 2978.260361146182,
+        "critical_including_retries_seconds": 2978.260361146182,
+        "critical_without_scoring_seconds": 2976.1545711047947,
+        "critical_user_last_attempt": "user-08"
+      },
+      "raw_records": [
+        {
+          "short_id": "01.01",
+          "old_user_id": "user-01",
+          "new_user_id": "user-01",
+          "timeout_seconds": 1200,
+          "wall_seconds": 1206.7907822541893,
+          "last_attempt_wall_seconds": 1206.7907822541893,
+          "agent_wall_seconds": 1202.4310188777745,
+          "scoring_wall_seconds": 0.4630306176841259,
+          "timed_out": true,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/03/main/shared/01.01/result.json"
+        },
+        {
+          "short_id": "01.02",
+          "old_user_id": "user-02",
+          "new_user_id": "user-02",
+          "timeout_seconds": 900,
+          "wall_seconds": 78.95099054649472,
+          "last_attempt_wall_seconds": 78.95099054649472,
+          "agent_wall_seconds": 74.28644214197993,
+          "scoring_wall_seconds": 0.47629061713814735,
+          "timed_out": false,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/03/main/shared/01.02/result.json"
+        },
+        {
+          "short_id": "01.05",
+          "old_user_id": "user-05",
+          "new_user_id": "user-03",
+          "timeout_seconds": 900,
+          "wall_seconds": 717.5046203918755,
+          "last_attempt_wall_seconds": 717.5046203918755,
+          "agent_wall_seconds": 713.7039993181825,
+          "scoring_wall_seconds": 0.48698829859495163,
+          "timed_out": false,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/03/main/shared/01.05/result.json"
+        },
+        {
+          "short_id": "01.07",
+          "old_user_id": "user-07",
+          "new_user_id": "user-04",
+          "timeout_seconds": 900,
+          "wall_seconds": 390.1846156939864,
+          "last_attempt_wall_seconds": 390.1846156939864,
+          "agent_wall_seconds": 386.1380840651691,
+          "scoring_wall_seconds": 0.43097466602921486,
+          "timed_out": false,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/03/main/shared/01.07/result.json"
+        },
+        {
+          "short_id": "01.10",
+          "old_user_id": "user-02",
+          "new_user_id": "user-05",
+          "timeout_seconds": 900,
+          "wall_seconds": 621.6796695515513,
+          "last_attempt_wall_seconds": 621.6796695515513,
+          "agent_wall_seconds": 614.1700749769807,
+          "scoring_wall_seconds": 0.4823582395911217,
+          "timed_out": false,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/03/main/shared/01.10/result.json"
+        },
+        {
+          "short_id": "02.02",
+          "old_user_id": "user-04",
+          "new_user_id": "user-06",
+          "timeout_seconds": 1200,
+          "wall_seconds": 1007.0870140753686,
+          "last_attempt_wall_seconds": 1007.0870140753686,
+          "agent_wall_seconds": 988.7466184273362,
+          "scoring_wall_seconds": 0.4390189163386822,
+          "timed_out": false,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/03/main/shared/02.02/result.json"
+        },
+        {
+          "short_id": "02.03",
+          "old_user_id": "user-05",
+          "new_user_id": "user-07",
+          "timeout_seconds": 1200,
+          "wall_seconds": 1211.8922973535955,
+          "last_attempt_wall_seconds": 1211.8922973535955,
+          "agent_wall_seconds": 1202.3740187212825,
+          "scoring_wall_seconds": 6.384773299098015,
+          "timed_out": true,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/03/main/shared/02.03/result.json"
+        },
+        {
+          "short_id": "02.07",
+          "old_user_id": "user-01",
+          "new_user_id": "user-08",
+          "timeout_seconds": 1200,
+          "wall_seconds": 1208.4949077032506,
+          "last_attempt_wall_seconds": 1208.4949077032506,
+          "agent_wall_seconds": 1202.4274952299893,
+          "scoring_wall_seconds": 0.8135138899087906,
+          "timed_out": true,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/03/main/shared/02.07/result.json"
+        },
+        {
+          "short_id": "02.09",
+          "old_user_id": "user-03",
+          "new_user_id": "user-01",
+          "timeout_seconds": 1200,
+          "wall_seconds": 388.7166922353208,
+          "last_attempt_wall_seconds": 388.7166922353208,
+          "agent_wall_seconds": 332.00595748052,
+          "scoring_wall_seconds": 51.348987609148026,
+          "timed_out": false,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/03/main/shared/02.09/result.json"
+        },
+        {
+          "short_id": "02.11",
+          "old_user_id": "user-05",
+          "new_user_id": "user-02",
+          "timeout_seconds": 1200,
+          "wall_seconds": 593.5153965242207,
+          "last_attempt_wall_seconds": 593.5153965242207,
+          "agent_wall_seconds": 498.40153221413493,
+          "scoring_wall_seconds": 76.9198630452156,
+          "timed_out": false,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/03/main/shared/02.11/result.json"
+        },
+        {
+          "short_id": "03.01",
+          "old_user_id": "user-07",
+          "new_user_id": "user-03",
+          "timeout_seconds": 600,
+          "wall_seconds": 608.9426609054208,
+          "last_attempt_wall_seconds": 608.9426609054208,
+          "agent_wall_seconds": 602.4131197482347,
+          "scoring_wall_seconds": 0.4772888608276844,
+          "timed_out": true,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/03/main/shared/03.01/result.json"
+        },
+        {
+          "short_id": "03.03",
+          "old_user_id": "user-01",
+          "new_user_id": "user-04",
+          "timeout_seconds": 360,
+          "wall_seconds": 453.94094187021255,
+          "last_attempt_wall_seconds": 453.94094187021255,
+          "agent_wall_seconds": 281.03705878555775,
+          "scoring_wall_seconds": 167.66154567152262,
+          "timed_out": false,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/03/main/shared/03.03/result.json"
+        },
+        {
+          "short_id": "03.04",
+          "old_user_id": "user-02",
+          "new_user_id": "user-05",
+          "timeout_seconds": 600,
+          "wall_seconds": 508.6806869469583,
+          "last_attempt_wall_seconds": 508.6806869469583,
+          "agent_wall_seconds": 429.54554526880383,
+          "scoring_wall_seconds": 74.11552480608225,
+          "timed_out": false,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/03/main/shared/03.04/result.json"
+        },
+        {
+          "short_id": "03.05",
+          "old_user_id": "user-03",
+          "new_user_id": "user-06",
+          "timeout_seconds": 600,
+          "wall_seconds": 609.4339761771262,
+          "last_attempt_wall_seconds": 609.4339761771262,
+          "agent_wall_seconds": 602.4699128754437,
+          "scoring_wall_seconds": 0.8199445530772209,
+          "timed_out": true,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/03/main/shared/03.05/result.json"
+        },
+        {
+          "short_id": "03.06",
+          "old_user_id": "user-04",
+          "new_user_id": "user-07",
+          "timeout_seconds": 600,
+          "wall_seconds": 453.8362154997885,
+          "last_attempt_wall_seconds": 453.8362154997885,
+          "agent_wall_seconds": 407.4047270193696,
+          "scoring_wall_seconds": 40.30385496839881,
+          "timed_out": false,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/03/main/shared/03.06/result.json"
+        },
+        {
+          "short_id": "04.01",
+          "old_user_id": "user-05",
+          "new_user_id": "user-08",
+          "timeout_seconds": 1200,
+          "wall_seconds": 1162.050493374467,
+          "last_attempt_wall_seconds": 1162.050493374467,
+          "agent_wall_seconds": 1158.4220368228853,
+          "scoring_wall_seconds": 0.472043264657259,
+          "timed_out": false,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/03/main/shared/04.01/result.json"
+        },
+        {
+          "short_id": "04.04",
+          "old_user_id": "user-08",
+          "new_user_id": "user-01",
+          "timeout_seconds": 600,
+          "wall_seconds": 210.55025133490562,
+          "last_attempt_wall_seconds": 210.55025133490562,
+          "agent_wall_seconds": 199.59874081984162,
+          "scoring_wall_seconds": 7.81747741997242,
+          "timed_out": false,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/03/main/shared/04.04/result.json"
+        },
+        {
+          "short_id": "04.06",
+          "old_user_id": "user-02",
+          "new_user_id": "user-02",
+          "timeout_seconds": 600,
+          "wall_seconds": 321.87824446707964,
+          "last_attempt_wall_seconds": 321.87824446707964,
+          "agent_wall_seconds": 313.9206769168377,
+          "scoring_wall_seconds": 4.582196518778801,
+          "timed_out": false,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/03/main/shared/04.06/result.json"
+        },
+        {
+          "short_id": "04.09",
+          "old_user_id": "user-05",
+          "new_user_id": "user-03",
+          "timeout_seconds": 600,
+          "wall_seconds": 501.252296987921,
+          "last_attempt_wall_seconds": 501.252296987921,
+          "agent_wall_seconds": 493.3528397753835,
+          "scoring_wall_seconds": 4.589953426271677,
+          "timed_out": false,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/03/main/shared/04.09/result.json"
+        },
+        {
+          "short_id": "04.10",
+          "old_user_id": "user-06",
+          "new_user_id": "user-04",
+          "timeout_seconds": 600,
+          "wall_seconds": 265.3454547971487,
+          "last_attempt_wall_seconds": 265.3454547971487,
+          "agent_wall_seconds": 248.41575421765447,
+          "scoring_wall_seconds": 15.628445766866207,
+          "timed_out": false,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/03/main/shared/04.10/result.json"
+        },
+        {
+          "short_id": "05.04",
+          "old_user_id": "user-03",
+          "new_user_id": "user-05",
+          "timeout_seconds": 1200,
+          "wall_seconds": 814.9149754457176,
+          "last_attempt_wall_seconds": 814.9149754457176,
+          "agent_wall_seconds": 758.3725336864591,
+          "scoring_wall_seconds": 48.32262383028865,
+          "timed_out": false,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/03/main/shared/05.04/result.json"
+        },
+        {
+          "short_id": "05.07",
+          "old_user_id": "user-06",
+          "new_user_id": "user-06",
+          "timeout_seconds": 600,
+          "wall_seconds": 607.6691586896777,
+          "last_attempt_wall_seconds": 607.6691586896777,
+          "agent_wall_seconds": 602.3542578294873,
+          "scoring_wall_seconds": 0.7821863368153572,
+          "timed_out": true,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/03/main/shared/05.07/result.json"
+        },
+        {
+          "short_id": "05.08",
+          "old_user_id": "user-07",
+          "new_user_id": "user-07",
+          "timeout_seconds": 600,
+          "wall_seconds": 623.0438063628972,
+          "last_attempt_wall_seconds": 623.0438063628972,
+          "agent_wall_seconds": 602.5745369456708,
+          "scoring_wall_seconds": 0.8956305682659149,
+          "timed_out": true,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/03/main/shared/05.08/result.json"
+        },
+        {
+          "short_id": "05.09",
+          "old_user_id": "user-08",
+          "new_user_id": "user-08",
+          "timeout_seconds": 600,
+          "wall_seconds": 607.7149600684643,
+          "last_attempt_wall_seconds": 607.7149600684643,
+          "agent_wall_seconds": 602.424873623997,
+          "scoring_wall_seconds": 0.8202328868210316,
+          "timed_out": true,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/03/main/shared/05.09/result.json"
+        },
+        {
+          "short_id": "05.11",
+          "old_user_id": "user-02",
+          "new_user_id": "user-01",
+          "timeout_seconds": 1200,
+          "wall_seconds": 944.9139213077724,
+          "last_attempt_wall_seconds": 944.9139213077724,
+          "agent_wall_seconds": 869.3686695881188,
+          "scoring_wall_seconds": 58.740932416170835,
+          "timed_out": false,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/03/main/shared/05.11/result.json"
+        },
+        {
+          "short_id": "06.01",
+          "old_user_id": "user-03",
+          "new_user_id": "user-02",
+          "timeout_seconds": 600,
+          "wall_seconds": 367.74226711690426,
+          "last_attempt_wall_seconds": 367.74226711690426,
+          "agent_wall_seconds": 321.10321705415845,
+          "scoring_wall_seconds": 45.25673460587859,
+          "timed_out": false,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/03/main/shared/06.01/result.json"
+        },
+        {
+          "short_id": "06.02",
+          "old_user_id": "user-04",
+          "new_user_id": "user-03",
+          "timeout_seconds": 600,
+          "wall_seconds": 64.29432812333107,
+          "last_attempt_wall_seconds": 64.29432812333107,
+          "agent_wall_seconds": 40.45323932543397,
+          "scoring_wall_seconds": 22.276162322610617,
+          "timed_out": false,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/03/main/shared/06.02/result.json"
+        },
+        {
+          "short_id": "06.05",
+          "old_user_id": "user-07",
+          "new_user_id": "user-04",
+          "timeout_seconds": 600,
+          "wall_seconds": 26.01505211368203,
+          "last_attempt_wall_seconds": 26.01505211368203,
+          "agent_wall_seconds": 24.001423750072718,
+          "scoring_wall_seconds": 0.48102764412760735,
+          "timed_out": false,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/03/main/shared/06.05/result.json"
+        },
+        {
+          "short_id": "06.07",
+          "old_user_id": "user-01",
+          "new_user_id": "user-05",
+          "timeout_seconds": 600,
+          "wall_seconds": 14.01607283577323,
+          "last_attempt_wall_seconds": 14.01607283577323,
+          "agent_wall_seconds": 12.317404318600893,
+          "scoring_wall_seconds": 0.47390883043408394,
+          "timed_out": false,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/03/main/shared/06.07/result.json"
+        },
+        {
+          "short_id": "06.10",
+          "old_user_id": "user-04",
+          "new_user_id": "user-06",
+          "timeout_seconds": 600,
+          "wall_seconds": 609.8745561204851,
+          "last_attempt_wall_seconds": 609.8745561204851,
+          "agent_wall_seconds": 602.3914222531021,
+          "scoring_wall_seconds": 6.054560471326113,
+          "timed_out": true,
+          "evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/day/03/main/shared/06.10/result.json"
+        }
+      ]
+    }
+  ],
+  "night_proxies": [
+    {
+      "night": 1,
+      "published": true,
+      "old_proposal_elapsed_includes_summary_seconds": 2332.6262112408876,
+      "old_summary_seconds": 957.8500442653894,
+      "old_group_generation_seconds": 1373.578465566039,
+      "old_group_count": 7,
+      "selected_source_group_count": 6,
+      "selected_source_groups": [
+        {
+          "evidence_group": "03_task1",
+          "old_source_task_count": 1,
+          "selected_source_task_count": 1,
+          "retained_old_elapsed_seconds": 134.4507246389985
+        },
+        {
+          "evidence_group": "03_task3",
+          "old_source_task_count": 1,
+          "selected_source_task_count": 1,
+          "retained_old_elapsed_seconds": 137.39119493588805
+        },
+        {
+          "evidence_group": "03_task4",
+          "old_source_task_count": 1,
+          "selected_source_task_count": 1,
+          "retained_old_elapsed_seconds": 130.28915121778846
+        },
+        {
+          "evidence_group": "03_task5",
+          "old_source_task_count": 1,
+          "selected_source_task_count": 1,
+          "retained_old_elapsed_seconds": 139.01851954311132
+        },
+        {
+          "evidence_group": "03_task6",
+          "old_source_task_count": 1,
+          "selected_source_task_count": 1,
+          "retained_old_elapsed_seconds": 97.6201105453074
+        },
+        {
+          "evidence_group": "__no_skill__",
+          "old_source_task_count": 54,
+          "selected_source_task_count": 25,
+          "retained_old_elapsed_seconds": 632.4105756543577
+        }
+      ],
+      "selected30_summary_measured_request_count": 30,
+      "selected30_summary_two_slot_replay_seconds": 481.7466142177582,
+      "generation_proxy_seconds": 1752.9268907532096,
+      "generation_proxy_method": "Two-slot summary scheduling from selected30 actual request durations + retain full old duration of each group whose sources intersect selected30. Native summary concurrency2, proposal groups sequential.",
+      "validation_executions_selected30": 60,
+      "selected_validation_critical_seconds": 10227.811101421714,
+      "selected_validation_without_local_scoring_seconds": 9715.501287437975,
+      "max_direct_local_scoring_savings_seconds": 512.3098139837384,
+      "projected_night_without_paid_grader_latency_seconds": 11468.428178191185,
+      "validation_blocks": [
+        {
+          "candidate_id": "001-03_task1",
+          "arm": "old",
+          "old_all_tasks": 1,
+          "selected_tasks": 1,
+          "old_actual_block_span_seconds": 609.348375,
+          "new_assignment_replay_selected30": {
+            "users": [
+              {
+                "user_id": "user-03",
+                "task_count": 1,
+                "short_ids": [
+                  "03.01"
+                ],
+                "total_including_recorded_retries_seconds": 609.345013383776,
+                "last_attempt_seconds": 609.345013383776,
+                "agent_seconds": 602.549710880965,
+                "local_scoring_seconds": 0.5021977685391903,
+                "other_last_attempt_seconds": 6.293104734271765,
+                "last_attempt_without_scoring_seconds": 608.8428156152368
+              }
+            ],
+            "sum_last_attempt_seconds": 609.345013383776,
+            "sum_agent_seconds": 602.549710880965,
+            "sum_scoring_seconds": 0.5021977685391903,
+            "critical_last_attempt_seconds": 609.345013383776,
+            "critical_including_retries_seconds": 609.345013383776,
+            "critical_without_scoring_seconds": 608.8428156152368,
+            "critical_user_last_attempt": "user-03"
+          },
+          "source_dir": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/validation/01/001-03_task1/old"
+        },
+        {
+          "candidate_id": "001-03_task1",
+          "arm": "candidate",
+          "old_all_tasks": 1,
+          "selected_tasks": 1,
+          "old_actual_block_span_seconds": 602.147003,
+          "new_assignment_replay_selected30": {
+            "users": [
+              {
+                "user_id": "user-03",
+                "task_count": 1,
+                "short_ids": [
+                  "03.01"
+                ],
+                "total_including_recorded_retries_seconds": 602.1434408910573,
+                "last_attempt_seconds": 602.1434408910573,
+                "agent_seconds": 594.8781737722456,
+                "local_scoring_seconds": 0.5304404534399509,
+                "other_last_attempt_seconds": 6.734826665371656,
+                "last_attempt_without_scoring_seconds": 601.6130004376173
+              }
+            ],
+            "sum_last_attempt_seconds": 602.1434408910573,
+            "sum_agent_seconds": 594.8781737722456,
+            "sum_scoring_seconds": 0.5304404534399509,
+            "critical_last_attempt_seconds": 602.1434408910573,
+            "critical_including_retries_seconds": 602.1434408910573,
+            "critical_without_scoring_seconds": 601.6130004376173,
+            "critical_user_last_attempt": "user-03"
+          },
+          "source_dir": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/validation/01/001-03_task1/candidate"
+        },
+        {
+          "candidate_id": "002-03_task2",
+          "arm": "old",
+          "old_all_tasks": 1,
+          "selected_tasks": 0,
+          "old_actual_block_span_seconds": 257.777124,
+          "new_assignment_replay_selected30": {
+            "users": [],
+            "sum_last_attempt_seconds": 0,
+            "sum_agent_seconds": 0,
+            "sum_scoring_seconds": 0,
+            "critical_last_attempt_seconds": 0,
+            "critical_including_retries_seconds": 0,
+            "critical_without_scoring_seconds": 0,
+            "critical_user_last_attempt": null
+          },
+          "source_dir": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/validation/01/002-03_task2/old"
+        },
+        {
+          "candidate_id": "002-03_task2",
+          "arm": "candidate",
+          "old_all_tasks": 1,
+          "selected_tasks": 0,
+          "old_actual_block_span_seconds": 272.000098,
+          "new_assignment_replay_selected30": {
+            "users": [],
+            "sum_last_attempt_seconds": 0,
+            "sum_agent_seconds": 0,
+            "sum_scoring_seconds": 0,
+            "critical_last_attempt_seconds": 0,
+            "critical_including_retries_seconds": 0,
+            "critical_without_scoring_seconds": 0,
+            "critical_user_last_attempt": null
+          },
+          "source_dir": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/validation/01/002-03_task2/candidate"
+        },
+        {
+          "candidate_id": "003-03_task3",
+          "arm": "old",
+          "old_all_tasks": 1,
+          "selected_tasks": 1,
+          "old_actual_block_span_seconds": 289.332989,
+          "new_assignment_replay_selected30": {
+            "users": [
+              {
+                "user_id": "user-04",
+                "task_count": 1,
+                "short_ids": [
+                  "03.03"
+                ],
+                "total_including_recorded_retries_seconds": 289.32959551364183,
+                "last_attempt_seconds": 289.32959551364183,
+                "agent_seconds": 170.70955305173993,
+                "local_scoring_seconds": 113.31374638900161,
+                "other_last_attempt_seconds": 5.306296072900295,
+                "last_attempt_without_scoring_seconds": 176.01584912464023
+              }
+            ],
+            "sum_last_attempt_seconds": 289.32959551364183,
+            "sum_agent_seconds": 170.70955305173993,
+            "sum_scoring_seconds": 113.31374638900161,
+            "critical_last_attempt_seconds": 289.32959551364183,
+            "critical_including_retries_seconds": 289.32959551364183,
+            "critical_without_scoring_seconds": 176.01584912464023,
+            "critical_user_last_attempt": "user-04"
+          },
+          "source_dir": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/validation/01/003-03_task3/old"
+        },
+        {
+          "candidate_id": "003-03_task3",
+          "arm": "candidate",
+          "old_all_tasks": 1,
+          "selected_tasks": 1,
+          "old_actual_block_span_seconds": 279.372071,
+          "new_assignment_replay_selected30": {
+            "users": [
+              {
+                "user_id": "user-04",
+                "task_count": 1,
+                "short_ids": [
+                  "03.03"
+                ],
+                "total_including_recorded_retries_seconds": 279.3683086670935,
+                "last_attempt_seconds": 279.3683086670935,
+                "agent_seconds": 168.11617646366358,
+                "local_scoring_seconds": 106.07448225468397,
+                "other_last_attempt_seconds": 5.177649948745966,
+                "last_attempt_without_scoring_seconds": 173.29382641240954
+              }
+            ],
+            "sum_last_attempt_seconds": 279.3683086670935,
+            "sum_agent_seconds": 168.11617646366358,
+            "sum_scoring_seconds": 106.07448225468397,
+            "critical_last_attempt_seconds": 279.3683086670935,
+            "critical_including_retries_seconds": 279.3683086670935,
+            "critical_without_scoring_seconds": 173.29382641240954,
+            "critical_user_last_attempt": "user-04"
+          },
+          "source_dir": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/validation/01/003-03_task3/candidate"
+        },
+        {
+          "candidate_id": "004-03_task4",
+          "arm": "old",
+          "old_all_tasks": 1,
+          "selected_tasks": 1,
+          "old_actual_block_span_seconds": 299.524928,
+          "new_assignment_replay_selected30": {
+            "users": [
+              {
+                "user_id": "user-05",
+                "task_count": 1,
+                "short_ids": [
+                  "03.04"
+                ],
+                "total_including_recorded_retries_seconds": 299.5213170684874,
+                "last_attempt_seconds": 299.5213170684874,
+                "agent_seconds": 235.2130318209529,
+                "local_scoring_seconds": 59.00951883941889,
+                "other_last_attempt_seconds": 5.298766408115625,
+                "last_attempt_without_scoring_seconds": 240.51179822906852
+              }
+            ],
+            "sum_last_attempt_seconds": 299.5213170684874,
+            "sum_agent_seconds": 235.2130318209529,
+            "sum_scoring_seconds": 59.00951883941889,
+            "critical_last_attempt_seconds": 299.5213170684874,
+            "critical_including_retries_seconds": 299.5213170684874,
+            "critical_without_scoring_seconds": 240.51179822906852,
+            "critical_user_last_attempt": "user-05"
+          },
+          "source_dir": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/validation/01/004-03_task4/old"
+        },
+        {
+          "candidate_id": "004-03_task4",
+          "arm": "candidate",
+          "old_all_tasks": 1,
+          "selected_tasks": 1,
+          "old_actual_block_span_seconds": 289.682651,
+          "new_assignment_replay_selected30": {
+            "users": [
+              {
+                "user_id": "user-05",
+                "task_count": 1,
+                "short_ids": [
+                  "03.04"
+                ],
+                "total_including_recorded_retries_seconds": 289.67857702821493,
+                "last_attempt_seconds": 289.67857702821493,
+                "agent_seconds": 214.44357939437032,
+                "local_scoring_seconds": 69.77009496092796,
+                "other_last_attempt_seconds": 5.464902672916651,
+                "last_attempt_without_scoring_seconds": 219.90848206728697
+              }
+            ],
+            "sum_last_attempt_seconds": 289.67857702821493,
+            "sum_agent_seconds": 214.44357939437032,
+            "sum_scoring_seconds": 69.77009496092796,
+            "critical_last_attempt_seconds": 289.67857702821493,
+            "critical_including_retries_seconds": 289.67857702821493,
+            "critical_without_scoring_seconds": 219.90848206728697,
+            "critical_user_last_attempt": "user-05"
+          },
+          "source_dir": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/validation/01/004-03_task4/candidate"
+        },
+        {
+          "candidate_id": "005-03_task5",
+          "arm": "old",
+          "old_all_tasks": 1,
+          "selected_tasks": 1,
+          "old_actual_block_span_seconds": 579.063413,
+          "new_assignment_replay_selected30": {
+            "users": [
+              {
+                "user_id": "user-06",
+                "task_count": 1,
+                "short_ids": [
+                  "03.05"
+                ],
+                "total_including_recorded_retries_seconds": 579.0597737953067,
+                "last_attempt_seconds": 579.0597737953067,
+                "agent_seconds": 511.2219834960997,
+                "local_scoring_seconds": 61.56929333880544,
+                "other_last_attempt_seconds": 6.268496960401535,
+                "last_attempt_without_scoring_seconds": 517.4904804565012
+              }
+            ],
+            "sum_last_attempt_seconds": 579.0597737953067,
+            "sum_agent_seconds": 511.2219834960997,
+            "sum_scoring_seconds": 61.56929333880544,
+            "critical_last_attempt_seconds": 579.0597737953067,
+            "critical_including_retries_seconds": 579.0597737953067,
+            "critical_without_scoring_seconds": 517.4904804565012,
+            "critical_user_last_attempt": "user-06"
+          },
+          "source_dir": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/validation/01/005-03_task5/old"
+        },
+        {
+          "candidate_id": "005-03_task5",
+          "arm": "candidate",
+          "old_all_tasks": 1,
+          "selected_tasks": 1,
+          "old_actual_block_span_seconds": 609.386869,
+          "new_assignment_replay_selected30": {
+            "users": [
+              {
+                "user_id": "user-06",
+                "task_count": 1,
+                "short_ids": [
+                  "03.05"
+                ],
+                "total_including_recorded_retries_seconds": 609.3819366022944,
+                "last_attempt_seconds": 609.3819366022944,
+                "agent_seconds": 602.4716878794134,
+                "local_scoring_seconds": 0.7817016020417213,
+                "other_last_attempt_seconds": 6.128547120839357,
+                "last_attempt_without_scoring_seconds": 608.6002350002527
+              }
+            ],
+            "sum_last_attempt_seconds": 609.3819366022944,
+            "sum_agent_seconds": 602.4716878794134,
+            "sum_scoring_seconds": 0.7817016020417213,
+            "critical_last_attempt_seconds": 609.3819366022944,
+            "critical_including_retries_seconds": 609.3819366022944,
+            "critical_without_scoring_seconds": 608.6002350002527,
+            "critical_user_last_attempt": "user-06"
+          },
+          "source_dir": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/validation/01/005-03_task5/candidate"
+        },
+        {
+          "candidate_id": "006-03_task6",
+          "arm": "old",
+          "old_all_tasks": 1,
+          "selected_tasks": 1,
+          "old_actual_block_span_seconds": 351.701682,
+          "new_assignment_replay_selected30": {
+            "users": [
+              {
+                "user_id": "user-07",
+                "task_count": 1,
+                "short_ids": [
+                  "03.06"
+                ],
+                "total_including_recorded_retries_seconds": 351.6980160176754,
+                "last_attempt_seconds": 351.6980160176754,
+                "agent_seconds": 314.1680462099612,
+                "local_scoring_seconds": 31.00661725923419,
+                "other_last_attempt_seconds": 6.523352548480034,
+                "last_attempt_without_scoring_seconds": 320.6913987584412
+              }
+            ],
+            "sum_last_attempt_seconds": 351.6980160176754,
+            "sum_agent_seconds": 314.1680462099612,
+            "sum_scoring_seconds": 31.00661725923419,
+            "critical_last_attempt_seconds": 351.6980160176754,
+            "critical_including_retries_seconds": 351.6980160176754,
+            "critical_without_scoring_seconds": 320.6913987584412,
+            "critical_user_last_attempt": "user-07"
+          },
+          "source_dir": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/validation/01/006-03_task6/old"
+        },
+        {
+          "candidate_id": "006-03_task6",
+          "arm": "candidate",
+          "old_all_tasks": 1,
+          "selected_tasks": 1,
+          "old_actual_block_span_seconds": 338.503361,
+          "new_assignment_replay_selected30": {
+            "users": [
+              {
+                "user_id": "user-07",
+                "task_count": 1,
+                "short_ids": [
+                  "03.06"
+                ],
+                "total_including_recorded_retries_seconds": 338.4993648044765,
+                "last_attempt_seconds": 338.4993648044765,
+                "agent_seconds": 304.5464696213603,
+                "local_scoring_seconds": 27.607790548354387,
+                "other_last_attempt_seconds": 6.34510463476181,
+                "last_attempt_without_scoring_seconds": 310.8915742561221
+              }
+            ],
+            "sum_last_attempt_seconds": 338.4993648044765,
+            "sum_agent_seconds": 304.5464696213603,
+            "sum_scoring_seconds": 27.607790548354387,
+            "critical_last_attempt_seconds": 338.4993648044765,
+            "critical_including_retries_seconds": 338.4993648044765,
+            "critical_without_scoring_seconds": 310.8915742561221,
+            "critical_user_last_attempt": "user-07"
+          },
+          "source_dir": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/validation/01/006-03_task6/candidate"
+        },
+        {
+          "candidate_id": "007-visual-puzzle-solving",
+          "arm": "old",
+          "old_all_tasks": 54,
+          "selected_tasks": 25,
+          "old_actual_block_span_seconds": 6021.25385,
+          "new_assignment_replay_selected30": {
+            "users": [
+              {
+                "user_id": "user-01",
+                "task_count": 4,
+                "short_ids": [
+                  "01.01",
+                  "02.09",
+                  "04.04",
+                  "05.11"
+                ],
+                "total_including_recorded_retries_seconds": 2611.7274251282215,
+                "last_attempt_seconds": 2611.7274251282215,
+                "agent_seconds": 2484.050619531423,
+                "local_scoring_seconds": 99.65457877516747,
+                "other_last_attempt_seconds": 28.022226821631193,
+                "last_attempt_without_scoring_seconds": 2512.072846353054
+              },
+              {
+                "user_id": "user-02",
+                "task_count": 4,
+                "short_ids": [
+                  "01.02",
+                  "02.11",
+                  "04.06",
+                  "06.01"
+                ],
+                "total_including_recorded_retries_seconds": 1502.8834536150098,
+                "last_attempt_seconds": 1502.8834536150098,
+                "agent_seconds": 1362.9651070646942,
+                "local_scoring_seconds": 112.33201221376657,
+                "other_last_attempt_seconds": 27.586334336549044,
+                "last_attempt_without_scoring_seconds": 1390.5514414012432
+              },
+              {
+                "user_id": "user-03",
+                "task_count": 3,
+                "short_ids": [
+                  "01.05",
+                  "04.09",
+                  "06.02"
+                ],
+                "total_including_recorded_retries_seconds": 1520.104194611311,
+                "last_attempt_seconds": 1520.104194611311,
+                "agent_seconds": 1483.0115697048604,
+                "local_scoring_seconds": 28.065486807376146,
+                "other_last_attempt_seconds": 9.027138099074364,
+                "last_attempt_without_scoring_seconds": 1492.0387078039348
+              },
+              {
+                "user_id": "user-04",
+                "task_count": 3,
+                "short_ids": [
+                  "01.07",
+                  "04.10",
+                  "06.05"
+                ],
+                "total_including_recorded_retries_seconds": 505.24461913481355,
+                "last_attempt_seconds": 505.24461913481355,
+                "agent_seconds": 487.4192388281226,
+                "local_scoring_seconds": 11.463564902544022,
+                "other_last_attempt_seconds": 6.36181540414691,
+                "last_attempt_without_scoring_seconds": 493.7810542322695
+              },
+              {
+                "user_id": "user-05",
+                "task_count": 3,
+                "short_ids": [
+                  "01.10",
+                  "05.04",
+                  "06.07"
+                ],
+                "total_including_recorded_retries_seconds": 1466.5628664307296,
+                "last_attempt_seconds": 1466.5628664307296,
+                "agent_seconds": 1404.9648271016777,
+                "local_scoring_seconds": 45.788686249405146,
+                "other_last_attempt_seconds": 15.809353079646826,
+                "last_attempt_without_scoring_seconds": 1420.7741801813245
+              },
+              {
+                "user_id": "user-06",
+                "task_count": 3,
+                "short_ids": [
+                  "02.02",
+                  "05.07",
+                  "06.10"
+                ],
+                "total_including_recorded_retries_seconds": 2122.2200714573264,
+                "last_attempt_seconds": 2122.2200714573264,
+                "agent_seconds": 2088.959659215063,
+                "local_scoring_seconds": 8.32953753694892,
+                "other_last_attempt_seconds": 24.930874705314636,
+                "last_attempt_without_scoring_seconds": 2113.8905339203775
+              },
+              {
+                "user_id": "user-07",
+                "task_count": 2,
+                "short_ids": [
+                  "02.03",
+                  "05.08"
+                ],
+                "total_including_recorded_retries_seconds": 1594.5231861285865,
+                "last_attempt_seconds": 1594.5231861285865,
+                "agent_seconds": 1564.8485356867313,
+                "local_scoring_seconds": 7.7564866580069065,
+                "other_last_attempt_seconds": 21.918163783848286,
+                "last_attempt_without_scoring_seconds": 1586.7666994705796
+              },
+              {
+                "user_id": "user-08",
+                "task_count": 3,
+                "short_ids": [
+                  "02.07",
+                  "04.01",
+                  "05.09"
+                ],
+                "total_including_recorded_retries_seconds": 2712.122347358614,
+                "last_attempt_seconds": 2712.122347358614,
+                "agent_seconds": 2667.599496565759,
+                "local_scoring_seconds": 31.980846378952265,
+                "other_last_attempt_seconds": 12.54200441390276,
+                "last_attempt_without_scoring_seconds": 2680.141500979662
+              }
+            ],
+            "sum_last_attempt_seconds": 14035.388163864613,
+            "sum_agent_seconds": 13543.819053698331,
+            "sum_scoring_seconds": 345.37119952216744,
+            "critical_last_attempt_seconds": 2712.122347358614,
+            "critical_including_retries_seconds": 2712.122347358614,
+            "critical_without_scoring_seconds": 2680.141500979662,
+            "critical_user_last_attempt": "user-08"
+          },
+          "source_dir": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/validation/01/007-visual-puzzle-solving/old"
+        },
+        {
+          "candidate_id": "007-visual-puzzle-solving",
+          "arm": "candidate",
+          "old_all_tasks": 54,
+          "selected_tasks": 25,
+          "old_actual_block_span_seconds": 5550.827029,
+          "new_assignment_replay_selected30": {
+            "users": [
+              {
+                "user_id": "user-01",
+                "task_count": 4,
+                "short_ids": [
+                  "01.01",
+                  "02.09",
+                  "04.04",
+                  "05.11"
+                ],
+                "total_including_recorded_retries_seconds": 3267.6634102910757,
+                "last_attempt_seconds": 3267.6634102910757,
+                "agent_seconds": 3227.78075767681,
+                "local_scoring_seconds": 10.16308419033885,
+                "other_last_attempt_seconds": 29.71956842392683,
+                "last_attempt_without_scoring_seconds": 3257.500326100737
+              },
+              {
+                "user_id": "user-02",
+                "task_count": 4,
+                "short_ids": [
+                  "01.02",
+                  "02.11",
+                  "04.06",
+                  "06.01"
+                ],
+                "total_including_recorded_retries_seconds": 1409.8441057503223,
+                "last_attempt_seconds": 1409.8441057503223,
+                "agent_seconds": 1230.784659985453,
+                "local_scoring_seconds": 152.68732442706823,
+                "other_last_attempt_seconds": 26.372121337801218,
+                "last_attempt_without_scoring_seconds": 1257.156781323254
+              },
+              {
+                "user_id": "user-03",
+                "task_count": 3,
+                "short_ids": [
+                  "01.05",
+                  "04.09",
+                  "06.02"
+                ],
+                "total_including_recorded_retries_seconds": 1141.8522038534284,
+                "last_attempt_seconds": 1141.8522038534284,
+                "agent_seconds": 1104.491419840604,
+                "local_scoring_seconds": 28.65804311260581,
+                "other_last_attempt_seconds": 8.702740900218487,
+                "last_attempt_without_scoring_seconds": 1113.1941607408226
+              },
+              {
+                "user_id": "user-04",
+                "task_count": 3,
+                "short_ids": [
+                  "01.07",
+                  "04.10",
+                  "06.05"
+                ],
+                "total_including_recorded_retries_seconds": 907.2626855745912,
+                "last_attempt_seconds": 907.2626855745912,
+                "agent_seconds": 890.2907879985869,
+                "local_scoring_seconds": 9.463408470153809,
+                "other_last_attempt_seconds": 7.508489105850458,
+                "last_attempt_without_scoring_seconds": 897.7992771044374
+              },
+              {
+                "user_id": "user-05",
+                "task_count": 3,
+                "short_ids": [
+                  "01.10",
+                  "05.04",
+                  "06.07"
+                ],
+                "total_including_recorded_retries_seconds": 1728.1492344625294,
+                "last_attempt_seconds": 1728.1492344625294,
+                "agent_seconds": 1674.7923168987036,
+                "local_scoring_seconds": 37.674560662359,
+                "other_last_attempt_seconds": 15.682356901466846,
+                "last_attempt_without_scoring_seconds": 1690.4746738001704
+              },
+              {
+                "user_id": "user-06",
+                "task_count": 3,
+                "short_ids": [
+                  "02.02",
+                  "05.07",
+                  "06.10"
+                ],
+                "total_including_recorded_retries_seconds": 1754.7115990631282,
+                "last_attempt_seconds": 1754.7115990631282,
+                "agent_seconds": 1667.9162736050785,
+                "local_scoring_seconds": 61.260405380278826,
+                "other_last_attempt_seconds": 25.53492007777095,
+                "last_attempt_without_scoring_seconds": 1693.4511936828494
+              },
+              {
+                "user_id": "user-07",
+                "task_count": 2,
+                "short_ids": [
+                  "02.03",
+                  "05.08"
+                ],
+                "total_including_recorded_retries_seconds": 1863.944954123348,
+                "last_attempt_seconds": 1863.944954123348,
+                "agent_seconds": 1804.9833230152726,
+                "local_scoring_seconds": 37.198297049850225,
+                "other_last_attempt_seconds": 21.763334058225155,
+                "last_attempt_without_scoring_seconds": 1826.7466570734978
+              },
+              {
+                "user_id": "user-08",
+                "task_count": 3,
+                "short_ids": [
+                  "02.07",
+                  "04.01",
+                  "05.09"
+                ],
+                "total_including_recorded_retries_seconds": 3050.2130197137594,
+                "last_attempt_seconds": 3050.2130197137594,
+                "agent_seconds": 3035.129016149789,
+                "local_scoring_seconds": 2.1037809662520885,
+                "other_last_attempt_seconds": 12.980222597718239,
+                "last_attempt_without_scoring_seconds": 3048.1092387475073
+              }
+            ],
+            "sum_last_attempt_seconds": 15123.641212832183,
+            "sum_agent_seconds": 14636.168555170298,
+            "sum_scoring_seconds": 339.20890425890684,
+            "critical_last_attempt_seconds": 3267.6634102910757,
+            "critical_including_retries_seconds": 3267.6634102910757,
+            "critical_without_scoring_seconds": 3257.500326100737,
+            "critical_user_last_attempt": "user-01"
+          },
+          "source_dir": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/validation/01/007-visual-puzzle-solving/candidate"
+        }
+      ],
+      "summary_requests": [
+        {
+          "request_id": "2d4f32ad4a1c408cbd67e132c7d9dd39",
+          "started_unix": 1791860940.6142828,
+          "seconds": 17.06901526451111,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-a9bcc2faa6aa9ce3a44a9256/2d4f32ad4a1c408cbd67e132c7d9dd39/record.json"
+        },
+        {
+          "request_id": "aa802b15c38b46fc80523940340599ed",
+          "started_unix": 1791860425.679194,
+          "seconds": 35.70517897605896,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-a9bcc2faa6aa9ce3a44a9256/aa802b15c38b46fc80523940340599ed/record.json"
+        },
+        {
+          "request_id": "df578d5e146a44bba4a013dab6a5eb9e",
+          "started_unix": 1791860354.299085,
+          "seconds": 38.613412857055664,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-a9bcc2faa6aa9ce3a44a9256/df578d5e146a44bba4a013dab6a5eb9e/record.json"
+        },
+        {
+          "request_id": "f1c27bd938ed4f71a6bf786ed8b80560",
+          "started_unix": 1791860746.9543777,
+          "seconds": 34.173032999038696,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-a9bcc2faa6aa9ce3a44a9256/f1c27bd938ed4f71a6bf786ed8b80560/record.json"
+        },
+        {
+          "request_id": "5ff4b45bcf0040dba6e67f3b5b8b84b6",
+          "started_unix": 1791860648.1193874,
+          "seconds": 33.21506953239441,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-a9bcc2faa6aa9ce3a44a9256/5ff4b45bcf0040dba6e67f3b5b8b84b6/record.json"
+        },
+        {
+          "request_id": "962c56b6ce1044ea9583328c72e4781f",
+          "started_unix": 1791860598.1957538,
+          "seconds": 49.918097496032715,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-a9bcc2faa6aa9ce3a44a9256/962c56b6ce1044ea9583328c72e4781f/record.json"
+        },
+        {
+          "request_id": "630656f15e1e4f329cfa074decd3bc79",
+          "started_unix": 1791860222.4547756,
+          "seconds": 31.60668110847473,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-a9bcc2faa6aa9ce3a44a9256/630656f15e1e4f329cfa074decd3bc79/record.json"
+        },
+        {
+          "request_id": "103ae93e3db5462eac648596dad775c2",
+          "started_unix": 1791860811.1259987,
+          "seconds": 36.70263719558716,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-a9bcc2faa6aa9ce3a44a9256/103ae93e3db5462eac648596dad775c2/record.json"
+        },
+        {
+          "request_id": "28f08ad8c1d44387a9a7ac2b99c472d5",
+          "started_unix": 1791860978.7322805,
+          "seconds": 26.54123854637146,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-a9bcc2faa6aa9ce3a44a9256/28f08ad8c1d44387a9a7ac2b99c472d5/record.json"
+        },
+        {
+          "request_id": "88fd0f98af1c4d91abe30560ee7bc9ab",
+          "started_unix": 1791860149.194672,
+          "seconds": 36.45186924934387,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-a9bcc2faa6aa9ce3a44a9256/88fd0f98af1c4d91abe30560ee7bc9ab/record.json"
+        },
+        {
+          "request_id": "4e2bad9208584c7586446b8289b2b244",
+          "started_unix": 1791860835.314148,
+          "seconds": 36.2239191532135,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-a9bcc2faa6aa9ce3a44a9256/4e2bad9208584c7586446b8289b2b244/record.json"
+        },
+        {
+          "request_id": "95859f9a91d84cfe85554e61126e03cf",
+          "started_unix": 1791860565.576129,
+          "seconds": 32.6140832901001,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-a9bcc2faa6aa9ce3a44a9256/95859f9a91d84cfe85554e61126e03cf/record.json"
+        },
+        {
+          "request_id": "4a014d3568bf4d7e90ae5ea60088fb80",
+          "started_unix": 1791860244.9402747,
+          "seconds": 34.13137245178223,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-a9bcc2faa6aa9ce3a44a9256/4a014d3568bf4d7e90ae5ea60088fb80/record.json"
+        },
+        {
+          "request_id": "ef01bbc789da42d5a6e523360de73d44",
+          "started_unix": 1791860047.7873635,
+          "seconds": 35.87894940376282,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-a9bcc2faa6aa9ce3a44a9256/ef01bbc789da42d5a6e523360de73d44/record.json"
+        },
+        {
+          "request_id": "f632d0e782054e37a69c133d60f7a2ec",
+          "started_unix": 1791860460.3162003,
+          "seconds": 25.889975786209106,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-a9bcc2faa6aa9ce3a44a9256/f632d0e782054e37a69c133d60f7a2ec/record.json"
+        },
+        {
+          "request_id": "a6b44ba8924b467aa5a5baf3ad1142a6",
+          "started_unix": 1791860392.9178257,
+          "seconds": 32.75602149963379,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-a9bcc2faa6aa9ce3a44a9256/a6b44ba8924b467aa5a5baf3ad1142a6/record.json"
+        },
+        {
+          "request_id": "1a86237deca746ecbd9211aed36e2027",
+          "started_unix": 1791860461.389744,
+          "seconds": 30.23620367050171,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-a9bcc2faa6aa9ce3a44a9256/1a86237deca746ecbd9211aed36e2027/record.json"
+        },
+        {
+          "request_id": "0b2d8c3cfb394a32a8890010888abcdc",
+          "started_unix": 1791860871.5434625,
+          "seconds": 49.10294008255005,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-a9bcc2faa6aa9ce3a44a9256/0b2d8c3cfb394a32a8890010888abcdc/record.json"
+        },
+        {
+          "request_id": "bb47afa8bfed4ffea6adb94ac546ab6b",
+          "started_unix": 1791860806.0489643,
+          "seconds": 29.25964069366455,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-a9bcc2faa6aa9ce3a44a9256/bb47afa8bfed4ffea6adb94ac546ab6b/record.json"
+        },
+        {
+          "request_id": "6256731de857480a84cba1984dd2e0d5",
+          "started_unix": 1791860516.4700913,
+          "seconds": 28.56058406829834,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-a9bcc2faa6aa9ce3a44a9256/6256731de857480a84cba1984dd2e0d5/record.json"
+        },
+        {
+          "request_id": "3dc1d9b4bad84e6c8a51f947e3ef5c91",
+          "started_unix": 1791860898.7263875,
+          "seconds": 19.054890155792236,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-a9bcc2faa6aa9ce3a44a9256/3dc1d9b4bad84e6c8a51f947e3ef5c91/record.json"
+        },
+        {
+          "request_id": "749af2bd13754dc48e6a1194afb54413",
+          "started_unix": 1791860047.778679,
+          "seconds": 23.066593647003174,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-a9bcc2faa6aa9ce3a44a9256/749af2bd13754dc48e6a1194afb54413/record.json"
+        },
+        {
+          "request_id": "56201ff060094867bd1a3236cd80eace",
+          "started_unix": 1791860320.168045,
+          "seconds": 34.12561774253845,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-a9bcc2faa6aa9ce3a44a9256/56201ff060094867bd1a3236cd80eace/record.json"
+        },
+        {
+          "request_id": "84b0e25328914a4e98d84c210afdc483",
+          "started_unix": 1791860957.6882887,
+          "seconds": 11.540210247039795,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-a9bcc2faa6aa9ce3a44a9256/84b0e25328914a4e98d84c210afdc483/record.json"
+        },
+        {
+          "request_id": "c074620af9cf478395f64e74483ba8dc",
+          "started_unix": 1791860491.631186,
+          "seconds": 30.912083864212036,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-a9bcc2faa6aa9ce3a44a9256/c074620af9cf478395f64e74483ba8dc/record.json"
+        },
+        {
+          "request_id": "4fd77fb1fcc746919fba4cd75b2b6238",
+          "started_unix": 1791860185.6518464,
+          "seconds": 36.7989706993103,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-a9bcc2faa6aa9ce3a44a9256/4fd77fb1fcc746919fba4cd75b2b6238/record.json"
+        },
+        {
+          "request_id": "477bffe3d4a64a66ad57f4ac62731308",
+          "started_unix": 1791860486.2116156,
+          "seconds": 30.253105640411377,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-a9bcc2faa6aa9ce3a44a9256/477bffe3d4a64a66ad57f4ac62731308/record.json"
+        },
+        {
+          "request_id": "981360c8567945f4a413f111b13bfdda",
+          "started_unix": 1791860681.339815,
+          "seconds": 28.713524341583252,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-a9bcc2faa6aa9ce3a44a9256/981360c8567945f4a413f111b13bfdda/record.json"
+        },
+        {
+          "request_id": "f521ce04b9bd4d8aa574d61dc90b918b",
+          "started_unix": 1791860876.9137087,
+          "seconds": 21.807514667510986,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-a9bcc2faa6aa9ce3a44a9256/f521ce04b9bd4d8aa574d61dc90b918b/record.json"
+        },
+        {
+          "request_id": "c63f3ce0dda44fe4923d573c4195eeab",
+          "started_unix": 1791860118.0589964,
+          "seconds": 31.13089871406555,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-a9bcc2faa6aa9ce3a44a9256/c63f3ce0dda44fe4923d573c4195eeab/record.json"
+        }
+      ],
+      "generation_evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/nights/01/proposals/evolution/proposal-summary.json"
+    },
+    {
+      "night": 2,
+      "published": true,
+      "old_proposal_elapsed_includes_summary_seconds": 2649.2256239429116,
+      "old_summary_seconds": 956.7340604774654,
+      "old_group_generation_seconds": 1691.2146014012396,
+      "old_group_count": 8,
+      "selected_source_group_count": 7,
+      "selected_source_groups": [
+        {
+          "evidence_group": "03_task1",
+          "old_source_task_count": 1,
+          "selected_source_task_count": 1,
+          "retained_old_elapsed_seconds": 228.11081732809544
+        },
+        {
+          "evidence_group": "03_task3",
+          "old_source_task_count": 1,
+          "selected_source_task_count": 1,
+          "retained_old_elapsed_seconds": 146.1410622522235
+        },
+        {
+          "evidence_group": "03_task4",
+          "old_source_task_count": 1,
+          "selected_source_task_count": 1,
+          "retained_old_elapsed_seconds": 159.6473318040371
+        },
+        {
+          "evidence_group": "03_task5",
+          "old_source_task_count": 1,
+          "selected_source_task_count": 1,
+          "retained_old_elapsed_seconds": 151.49031395092607
+        },
+        {
+          "evidence_group": "03_task6",
+          "old_source_task_count": 1,
+          "selected_source_task_count": 1,
+          "retained_old_elapsed_seconds": 144.6359893232584
+        },
+        {
+          "evidence_group": "__no_skill__",
+          "old_source_task_count": 50,
+          "selected_source_task_count": 22,
+          "retained_old_elapsed_seconds": 426.1172080077231
+        },
+        {
+          "evidence_group": "agent-browser",
+          "old_source_task_count": 4,
+          "selected_source_task_count": 3,
+          "retained_old_elapsed_seconds": 283.39505153149366
+        }
+      ],
+      "selected30_summary_measured_request_count": 30,
+      "selected30_summary_two_slot_replay_seconds": 471.72114539146423,
+      "generation_proxy_seconds": 2011.2589195892215,
+      "generation_proxy_method": "Two-slot summary scheduling from selected30 actual request durations + retain full old duration of each group whose sources intersect selected30. Native summary concurrency2, proposal groups sequential.",
+      "validation_executions_selected30": 60,
+      "selected_validation_critical_seconds": 12217.45187741518,
+      "selected_validation_without_local_scoring_seconds": 11667.25518027693,
+      "max_direct_local_scoring_savings_seconds": 550.1966971382499,
+      "projected_night_without_paid_grader_latency_seconds": 13678.514099866152,
+      "validation_blocks": [
+        {
+          "candidate_id": "001-03_task1",
+          "arm": "old",
+          "old_all_tasks": 1,
+          "selected_tasks": 1,
+          "old_actual_block_span_seconds": 608.932918,
+          "new_assignment_replay_selected30": {
+            "users": [
+              {
+                "user_id": "user-03",
+                "task_count": 1,
+                "short_ids": [
+                  "03.01"
+                ],
+                "total_including_recorded_retries_seconds": 608.9292729087174,
+                "last_attempt_seconds": 608.9292729087174,
+                "agent_seconds": 602.389550793916,
+                "local_scoring_seconds": 0.516362875699997,
+                "other_last_attempt_seconds": 6.02335923910141,
+                "last_attempt_without_scoring_seconds": 608.4129100330174
+              }
+            ],
+            "sum_last_attempt_seconds": 608.9292729087174,
+            "sum_agent_seconds": 602.389550793916,
+            "sum_scoring_seconds": 0.516362875699997,
+            "critical_last_attempt_seconds": 608.9292729087174,
+            "critical_including_retries_seconds": 608.9292729087174,
+            "critical_without_scoring_seconds": 608.4129100330174,
+            "critical_user_last_attempt": "user-03"
+          },
+          "source_dir": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/validation/02/001-03_task1/old"
+        },
+        {
+          "candidate_id": "001-03_task1",
+          "arm": "candidate",
+          "old_all_tasks": 1,
+          "selected_tasks": 1,
+          "old_actual_block_span_seconds": 366.649974,
+          "new_assignment_replay_selected30": {
+            "users": [
+              {
+                "user_id": "user-03",
+                "task_count": 1,
+                "short_ids": [
+                  "03.01"
+                ],
+                "total_including_recorded_retries_seconds": 366.6453268416226,
+                "last_attempt_seconds": 366.6453268416226,
+                "agent_seconds": 360.1352613456547,
+                "local_scoring_seconds": 0.5313266701996326,
+                "other_last_attempt_seconds": 5.978738825768232,
+                "last_attempt_without_scoring_seconds": 366.11400017142296
+              }
+            ],
+            "sum_last_attempt_seconds": 366.6453268416226,
+            "sum_agent_seconds": 360.1352613456547,
+            "sum_scoring_seconds": 0.5313266701996326,
+            "critical_last_attempt_seconds": 366.6453268416226,
+            "critical_including_retries_seconds": 366.6453268416226,
+            "critical_without_scoring_seconds": 366.11400017142296,
+            "critical_user_last_attempt": "user-03"
+          },
+          "source_dir": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/validation/02/001-03_task1/candidate"
+        },
+        {
+          "candidate_id": "002-03_task2",
+          "arm": "old",
+          "old_all_tasks": 1,
+          "selected_tasks": 0,
+          "old_actual_block_span_seconds": 288.289712,
+          "new_assignment_replay_selected30": {
+            "users": [],
+            "sum_last_attempt_seconds": 0,
+            "sum_agent_seconds": 0,
+            "sum_scoring_seconds": 0,
+            "critical_last_attempt_seconds": 0,
+            "critical_including_retries_seconds": 0,
+            "critical_without_scoring_seconds": 0,
+            "critical_user_last_attempt": null
+          },
+          "source_dir": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/validation/02/002-03_task2/old"
+        },
+        {
+          "candidate_id": "002-03_task2",
+          "arm": "candidate",
+          "old_all_tasks": 1,
+          "selected_tasks": 0,
+          "old_actual_block_span_seconds": 332.317627,
+          "new_assignment_replay_selected30": {
+            "users": [],
+            "sum_last_attempt_seconds": 0,
+            "sum_agent_seconds": 0,
+            "sum_scoring_seconds": 0,
+            "critical_last_attempt_seconds": 0,
+            "critical_including_retries_seconds": 0,
+            "critical_without_scoring_seconds": 0,
+            "critical_user_last_attempt": null
+          },
+          "source_dir": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/validation/02/002-03_task2/candidate"
+        },
+        {
+          "candidate_id": "003-03_task3",
+          "arm": "old",
+          "old_all_tasks": 1,
+          "selected_tasks": 1,
+          "old_actual_block_span_seconds": 308.877145,
+          "new_assignment_replay_selected30": {
+            "users": [
+              {
+                "user_id": "user-04",
+                "task_count": 1,
+                "short_ids": [
+                  "03.03"
+                ],
+                "total_including_recorded_retries_seconds": 308.8732914812863,
+                "last_attempt_seconds": 308.8732914812863,
+                "agent_seconds": 212.90025547146797,
+                "local_scoring_seconds": 90.78454637154937,
+                "other_last_attempt_seconds": 5.188489638268948,
+                "last_attempt_without_scoring_seconds": 218.08874510973692
+              }
+            ],
+            "sum_last_attempt_seconds": 308.8732914812863,
+            "sum_agent_seconds": 212.90025547146797,
+            "sum_scoring_seconds": 90.78454637154937,
+            "critical_last_attempt_seconds": 308.8732914812863,
+            "critical_including_retries_seconds": 308.8732914812863,
+            "critical_without_scoring_seconds": 218.08874510973692,
+            "critical_user_last_attempt": "user-04"
+          },
+          "source_dir": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/validation/02/003-03_task3/old"
+        },
+        {
+          "candidate_id": "003-03_task3",
+          "arm": "candidate",
+          "old_all_tasks": 1,
+          "selected_tasks": 1,
+          "old_actual_block_span_seconds": 353.426711,
+          "new_assignment_replay_selected30": {
+            "users": [
+              {
+                "user_id": "user-04",
+                "task_count": 1,
+                "short_ids": [
+                  "03.03"
+                ],
+                "total_including_recorded_retries_seconds": 353.4225396774709,
+                "last_attempt_seconds": 353.4225396774709,
+                "agent_seconds": 228.33924731612206,
+                "local_scoring_seconds": 119.85525408759713,
+                "other_last_attempt_seconds": 5.228038273751736,
+                "last_attempt_without_scoring_seconds": 233.5672855898738
+              }
+            ],
+            "sum_last_attempt_seconds": 353.4225396774709,
+            "sum_agent_seconds": 228.33924731612206,
+            "sum_scoring_seconds": 119.85525408759713,
+            "critical_last_attempt_seconds": 353.4225396774709,
+            "critical_including_retries_seconds": 353.4225396774709,
+            "critical_without_scoring_seconds": 233.5672855898738,
+            "critical_user_last_attempt": "user-04"
+          },
+          "source_dir": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/validation/02/003-03_task3/candidate"
+        },
+        {
+          "candidate_id": "004-03_task4",
+          "arm": "old",
+          "old_all_tasks": 1,
+          "selected_tasks": 1,
+          "old_actual_block_span_seconds": 287.279009,
+          "new_assignment_replay_selected30": {
+            "users": [
+              {
+                "user_id": "user-05",
+                "task_count": 1,
+                "short_ids": [
+                  "03.04"
+                ],
+                "total_including_recorded_retries_seconds": 287.2751831896603,
+                "last_attempt_seconds": 287.2751831896603,
+                "agent_seconds": 216.32616079226136,
+                "local_scoring_seconds": 65.8734073266387,
+                "other_last_attempt_seconds": 5.07561507076025,
+                "last_attempt_without_scoring_seconds": 221.4017758630216
+              }
+            ],
+            "sum_last_attempt_seconds": 287.2751831896603,
+            "sum_agent_seconds": 216.32616079226136,
+            "sum_scoring_seconds": 65.8734073266387,
+            "critical_last_attempt_seconds": 287.2751831896603,
+            "critical_including_retries_seconds": 287.2751831896603,
+            "critical_without_scoring_seconds": 221.4017758630216,
+            "critical_user_last_attempt": "user-05"
+          },
+          "source_dir": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/validation/02/004-03_task4/old"
+        },
+        {
+          "candidate_id": "004-03_task4",
+          "arm": "candidate",
+          "old_all_tasks": 1,
+          "selected_tasks": 1,
+          "old_actual_block_span_seconds": 349.05267,
+          "new_assignment_replay_selected30": {
+            "users": [
+              {
+                "user_id": "user-05",
+                "task_count": 1,
+                "short_ids": [
+                  "03.04"
+                ],
+                "total_including_recorded_retries_seconds": 349.0484229400754,
+                "last_attempt_seconds": 349.0484229400754,
+                "agent_seconds": 293.8067966401577,
+                "local_scoring_seconds": 50.20276505500078,
+                "other_last_attempt_seconds": 5.038861244916916,
+                "last_attempt_without_scoring_seconds": 298.8456578850746
+              }
+            ],
+            "sum_last_attempt_seconds": 349.0484229400754,
+            "sum_agent_seconds": 293.8067966401577,
+            "sum_scoring_seconds": 50.20276505500078,
+            "critical_last_attempt_seconds": 349.0484229400754,
+            "critical_including_retries_seconds": 349.0484229400754,
+            "critical_without_scoring_seconds": 298.8456578850746,
+            "critical_user_last_attempt": "user-05"
+          },
+          "source_dir": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/validation/02/004-03_task4/candidate"
+        },
+        {
+          "candidate_id": "005-03_task5",
+          "arm": "old",
+          "old_all_tasks": 1,
+          "selected_tasks": 1,
+          "old_actual_block_span_seconds": 632.313504,
+          "new_assignment_replay_selected30": {
+            "users": [
+              {
+                "user_id": "user-06",
+                "task_count": 1,
+                "short_ids": [
+                  "03.05"
+                ],
+                "total_including_recorded_retries_seconds": 632.3066720664501,
+                "last_attempt_seconds": 632.3066720664501,
+                "agent_seconds": 549.0851107165217,
+                "local_scoring_seconds": 77.04282389208674,
+                "other_last_attempt_seconds": 6.178737457841635,
+                "last_attempt_without_scoring_seconds": 555.2638481743634
+              }
+            ],
+            "sum_last_attempt_seconds": 632.3066720664501,
+            "sum_agent_seconds": 549.0851107165217,
+            "sum_scoring_seconds": 77.04282389208674,
+            "critical_last_attempt_seconds": 632.3066720664501,
+            "critical_including_retries_seconds": 632.3066720664501,
+            "critical_without_scoring_seconds": 555.2638481743634,
+            "critical_user_last_attempt": "user-06"
+          },
+          "source_dir": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/validation/02/005-03_task5/old"
+        },
+        {
+          "candidate_id": "005-03_task5",
+          "arm": "candidate",
+          "old_all_tasks": 1,
+          "selected_tasks": 1,
+          "old_actual_block_span_seconds": 609.278126,
+          "new_assignment_replay_selected30": {
+            "users": [
+              {
+                "user_id": "user-06",
+                "task_count": 1,
+                "short_ids": [
+                  "03.05"
+                ],
+                "total_including_recorded_retries_seconds": 609.2738958597183,
+                "last_attempt_seconds": 609.2738958597183,
+                "agent_seconds": 602.4028787352145,
+                "local_scoring_seconds": 0.7901719249784946,
+                "other_last_attempt_seconds": 6.080845199525356,
+                "last_attempt_without_scoring_seconds": 608.4837239347398
+              }
+            ],
+            "sum_last_attempt_seconds": 609.2738958597183,
+            "sum_agent_seconds": 602.4028787352145,
+            "sum_scoring_seconds": 0.7901719249784946,
+            "critical_last_attempt_seconds": 609.2738958597183,
+            "critical_including_retries_seconds": 609.2738958597183,
+            "critical_without_scoring_seconds": 608.4837239347398,
+            "critical_user_last_attempt": "user-06"
+          },
+          "source_dir": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/validation/02/005-03_task5/candidate"
+        },
+        {
+          "candidate_id": "006-03_task6",
+          "arm": "old",
+          "old_all_tasks": 1,
+          "selected_tasks": 1,
+          "old_actual_block_span_seconds": 327.265754,
+          "new_assignment_replay_selected30": {
+            "users": [
+              {
+                "user_id": "user-07",
+                "task_count": 1,
+                "short_ids": [
+                  "03.06"
+                ],
+                "total_including_recorded_retries_seconds": 327.2617790065706,
+                "last_attempt_seconds": 327.2617790065706,
+                "agent_seconds": 289.8748838528991,
+                "local_scoring_seconds": 31.364234015345573,
+                "other_last_attempt_seconds": 6.02266113832593,
+                "last_attempt_without_scoring_seconds": 295.897544991225
+              }
+            ],
+            "sum_last_attempt_seconds": 327.2617790065706,
+            "sum_agent_seconds": 289.8748838528991,
+            "sum_scoring_seconds": 31.364234015345573,
+            "critical_last_attempt_seconds": 327.2617790065706,
+            "critical_including_retries_seconds": 327.2617790065706,
+            "critical_without_scoring_seconds": 295.897544991225,
+            "critical_user_last_attempt": "user-07"
+          },
+          "source_dir": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/validation/02/006-03_task6/old"
+        },
+        {
+          "candidate_id": "006-03_task6",
+          "arm": "candidate",
+          "old_all_tasks": 1,
+          "selected_tasks": 1,
+          "old_actual_block_span_seconds": 442.175003,
+          "new_assignment_replay_selected30": {
+            "users": [
+              {
+                "user_id": "user-07",
+                "task_count": 1,
+                "short_ids": [
+                  "03.06"
+                ],
+                "total_including_recorded_retries_seconds": 442.1708138510585,
+                "last_attempt_seconds": 442.1708138510585,
+                "agent_seconds": 412.50877127051353,
+                "local_scoring_seconds": 23.53950599208474,
+                "other_last_attempt_seconds": 6.122536588460207,
+                "last_attempt_without_scoring_seconds": 418.63130785897374
+              }
+            ],
+            "sum_last_attempt_seconds": 442.1708138510585,
+            "sum_agent_seconds": 412.50877127051353,
+            "sum_scoring_seconds": 23.53950599208474,
+            "critical_last_attempt_seconds": 442.1708138510585,
+            "critical_including_retries_seconds": 442.1708138510585,
+            "critical_without_scoring_seconds": 418.63130785897374,
+            "critical_user_last_attempt": "user-07"
+          },
+          "source_dir": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/validation/02/006-03_task6/candidate"
+        },
+        {
+          "candidate_id": "007-local-media-api",
+          "arm": "old",
+          "old_all_tasks": 50,
+          "selected_tasks": 22,
+          "old_actual_block_span_seconds": 6132.846581,
+          "new_assignment_replay_selected30": {
+            "users": [
+              {
+                "user_id": "user-01",
+                "task_count": 4,
+                "short_ids": [
+                  "01.01",
+                  "02.09",
+                  "04.04",
+                  "05.11"
+                ],
+                "total_including_recorded_retries_seconds": 3589.2341699376702,
+                "last_attempt_seconds": 3589.2341699376702,
+                "agent_seconds": 3477.7459943778813,
+                "local_scoring_seconds": 80.84108984470367,
+                "other_last_attempt_seconds": 30.647085715085268,
+                "last_attempt_without_scoring_seconds": 3508.3930800929666
+              },
+              {
+                "user_id": "user-02",
+                "task_count": 4,
+                "short_ids": [
+                  "01.02",
+                  "02.11",
+                  "04.06",
+                  "06.01"
+                ],
+                "total_including_recorded_retries_seconds": 1846.1513554044068,
+                "last_attempt_seconds": 1846.1513554044068,
+                "agent_seconds": 1678.2149686440825,
+                "local_scoring_seconds": 142.42298766598105,
+                "other_last_attempt_seconds": 25.513399094343185,
+                "last_attempt_without_scoring_seconds": 1703.7283677384257
+              },
+              {
+                "user_id": "user-03",
+                "task_count": 2,
+                "short_ids": [
+                  "01.05",
+                  "06.02"
+                ],
+                "total_including_recorded_retries_seconds": 952.8978328965604,
+                "last_attempt_seconds": 952.8978328965604,
+                "agent_seconds": 926.3814639039338,
+                "local_scoring_seconds": 20.59428085014224,
+                "other_last_attempt_seconds": 5.9220881424844265,
+                "last_attempt_without_scoring_seconds": 932.3035520464182
+              },
+              {
+                "user_id": "user-04",
+                "task_count": 2,
+                "short_ids": [
+                  "01.07",
+                  "06.05"
+                ],
+                "total_including_recorded_retries_seconds": 282.575617428869,
+                "last_attempt_seconds": 282.575617428869,
+                "agent_seconds": 276.6330521069467,
+                "local_scoring_seconds": 0.9571336135268211,
+                "other_last_attempt_seconds": 4.985431708395481,
+                "last_attempt_without_scoring_seconds": 281.6184838153422
+              },
+              {
+                "user_id": "user-05",
+                "task_count": 3,
+                "short_ids": [
+                  "01.10",
+                  "05.04",
+                  "06.07"
+                ],
+                "total_including_recorded_retries_seconds": 2684.7210354954004,
+                "last_attempt_seconds": 2684.7210354954004,
+                "agent_seconds": 1372.4436805918813,
+                "local_scoring_seconds": 89.04791341722012,
+                "other_last_attempt_seconds": 1223.229441486299,
+                "last_attempt_without_scoring_seconds": 2595.6731220781803
+              },
+              {
+                "user_id": "user-06",
+                "task_count": 3,
+                "short_ids": [
+                  "02.02",
+                  "05.07",
+                  "06.10"
+                ],
+                "total_including_recorded_retries_seconds": 1752.7187161073089,
+                "last_attempt_seconds": 1752.7187161073089,
+                "agent_seconds": 1719.4556819424033,
+                "local_scoring_seconds": 7.87471890822053,
+                "other_last_attempt_seconds": 25.38831525668502,
+                "last_attempt_without_scoring_seconds": 1744.8439971990883
+              },
+              {
+                "user_id": "user-07",
+                "task_count": 2,
+                "short_ids": [
+                  "02.03",
+                  "05.08"
+                ],
+                "total_including_recorded_retries_seconds": 1827.4419598467648,
+                "last_attempt_seconds": 1827.4419598467648,
+                "agent_seconds": 1804.8138750977814,
+                "local_scoring_seconds": 1.2367646545171738,
+                "other_last_attempt_seconds": 21.39132009446621,
+                "last_attempt_without_scoring_seconds": 1826.2051951922476
+              },
+              {
+                "user_id": "user-08",
+                "task_count": 2,
+                "short_ids": [
+                  "02.07",
+                  "05.09"
+                ],
+                "total_including_recorded_retries_seconds": 1583.9494048468769,
+                "last_attempt_seconds": 1583.9494048468769,
+                "agent_seconds": 1557.9363814741373,
+                "local_scoring_seconds": 16.23157862946391,
+                "other_last_attempt_seconds": 9.781444743275642,
+                "last_attempt_without_scoring_seconds": 1567.717826217413
+              }
+            ],
+            "sum_last_attempt_seconds": 14519.690091963857,
+            "sum_agent_seconds": 12813.625098139048,
+            "sum_scoring_seconds": 359.2064675837755,
+            "critical_last_attempt_seconds": 3589.2341699376702,
+            "critical_including_retries_seconds": 3589.2341699376702,
+            "critical_without_scoring_seconds": 3508.3930800929666,
+            "critical_user_last_attempt": "user-01"
+          },
+          "source_dir": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/validation/02/007-local-media-api/old"
+        },
+        {
+          "candidate_id": "007-local-media-api",
+          "arm": "candidate",
+          "old_all_tasks": 50,
+          "selected_tasks": 22,
+          "old_actual_block_span_seconds": 5481.869546,
+          "new_assignment_replay_selected30": {
+            "users": [
+              {
+                "user_id": "user-01",
+                "task_count": 4,
+                "short_ids": [
+                  "01.01",
+                  "02.09",
+                  "04.04",
+                  "05.11"
+                ],
+                "total_including_recorded_retries_seconds": 2448.344731103629,
+                "last_attempt_seconds": 2448.344731103629,
+                "agent_seconds": 2362.426454305649,
+                "local_scoring_seconds": 57.00462728738785,
+                "other_last_attempt_seconds": 28.913649510592222,
+                "last_attempt_without_scoring_seconds": 2391.340103816241
+              },
+              {
+                "user_id": "user-02",
+                "task_count": 4,
+                "short_ids": [
+                  "01.02",
+                  "02.11",
+                  "04.06",
+                  "06.01"
+                ],
+                "total_including_recorded_retries_seconds": 2151.0298682898283,
+                "last_attempt_seconds": 2151.0298682898283,
+                "agent_seconds": 2010.688044268638,
+                "local_scoring_seconds": 111.54279050603509,
+                "other_last_attempt_seconds": 28.799033515155315,
+                "last_attempt_without_scoring_seconds": 2039.4870777837932
+              },
+              {
+                "user_id": "user-03",
+                "task_count": 2,
+                "short_ids": [
+                  "01.05",
+                  "06.02"
+                ],
+                "total_including_recorded_retries_seconds": 954.9360837638378,
+                "last_attempt_seconds": 954.9360837638378,
+                "agent_seconds": 924.5550570115447,
+                "local_scoring_seconds": 24.331315748393536,
+                "other_last_attempt_seconds": 6.049711003899574,
+                "last_attempt_without_scoring_seconds": 930.6047680154443
+              },
+              {
+                "user_id": "user-04",
+                "task_count": 2,
+                "short_ids": [
+                  "01.07",
+                  "06.05"
+                ],
+                "total_including_recorded_retries_seconds": 441.7553350403905,
+                "last_attempt_seconds": 441.7553350403905,
+                "agent_seconds": 436.2266266979277,
+                "local_scoring_seconds": 0.8751978315412998,
+                "other_last_attempt_seconds": 4.653510510921478,
+                "last_attempt_without_scoring_seconds": 440.8801372088492
+              },
+              {
+                "user_id": "user-05",
+                "task_count": 3,
+                "short_ids": [
+                  "01.10",
+                  "05.04",
+                  "06.07"
+                ],
+                "total_including_recorded_retries_seconds": 1994.4871821440756,
+                "last_attempt_seconds": 1994.4871821440756,
+                "agent_seconds": 1937.7683293037117,
+                "local_scoring_seconds": 43.15385152027011,
+                "other_last_attempt_seconds": 13.56500132009387,
+                "last_attempt_without_scoring_seconds": 1951.3333306238055
+              },
+              {
+                "user_id": "user-06",
+                "task_count": 3,
+                "short_ids": [
+                  "02.02",
+                  "05.07",
+                  "06.10"
+                ],
+                "total_including_recorded_retries_seconds": 1913.417576059699,
+                "last_attempt_seconds": 1913.417576059699,
+                "agent_seconds": 1882.4705574251711,
+                "local_scoring_seconds": 6.556585635989904,
+                "other_last_attempt_seconds": 24.390432998538017,
+                "last_attempt_without_scoring_seconds": 1906.8609904237092
+              },
+              {
+                "user_id": "user-07",
+                "task_count": 2,
+                "short_ids": [
+                  "02.03",
+                  "05.08"
+                ],
+                "total_including_recorded_retries_seconds": 2503.345844887197,
+                "last_attempt_seconds": 2503.345844887197,
+                "agent_seconds": 1804.916671399027,
+                "local_scoring_seconds": 7.89624647051096,
+                "other_last_attempt_seconds": 690.532927017659,
+                "last_attempt_without_scoring_seconds": 2495.449598416686
+              },
+              {
+                "user_id": "user-08",
+                "task_count": 2,
+                "short_ids": [
+                  "02.07",
+                  "05.09"
+                ],
+                "total_including_recorded_retries_seconds": 1892.653898473829,
+                "last_attempt_seconds": 1892.653898473829,
+                "agent_seconds": 1832.6101487353444,
+                "local_scoring_seconds": 50.232341676950455,
+                "other_last_attempt_seconds": 9.811408061534166,
+                "last_attempt_without_scoring_seconds": 1842.4215567968786
+              }
+            ],
+            "sum_last_attempt_seconds": 14299.970519762486,
+            "sum_agent_seconds": 13191.661889147013,
+            "sum_scoring_seconds": 301.5929566770792,
+            "critical_last_attempt_seconds": 2503.345844887197,
+            "critical_including_retries_seconds": 2503.345844887197,
+            "critical_without_scoring_seconds": 2495.449598416686,
+            "critical_user_last_attempt": "user-07"
+          },
+          "source_dir": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/validation/02/007-local-media-api/candidate"
+        },
+        {
+          "candidate_id": "008-agent-browser",
+          "arm": "old",
+          "old_all_tasks": 4,
+          "selected_tasks": 3,
+          "old_actual_block_span_seconds": 1871.567863,
+          "new_assignment_replay_selected30": {
+            "users": [
+              {
+                "user_id": "user-03",
+                "task_count": 1,
+                "short_ids": [
+                  "04.09"
+                ],
+                "total_including_recorded_retries_seconds": 637.7501760981977,
+                "last_attempt_seconds": 637.7501760981977,
+                "agent_seconds": 630.2557366341352,
+                "local_scoring_seconds": 4.1922827064991,
+                "other_last_attempt_seconds": 3.3021567575633526,
+                "last_attempt_without_scoring_seconds": 633.5578933916986
+              },
+              {
+                "user_id": "user-04",
+                "task_count": 1,
+                "short_ids": [
+                  "04.10"
+                ],
+                "total_including_recorded_retries_seconds": 182.73312147334218,
+                "last_attempt_seconds": 182.73312147334218,
+                "agent_seconds": 174.29709382727742,
+                "local_scoring_seconds": 7.1878512762486935,
+                "other_last_attempt_seconds": 1.2481763698160648,
+                "last_attempt_without_scoring_seconds": 175.5452701970935
+              },
+              {
+                "user_id": "user-08",
+                "task_count": 1,
+                "short_ids": [
+                  "04.01"
+                ],
+                "total_including_recorded_retries_seconds": 1233.6655218824744,
+                "last_attempt_seconds": 1233.6655218824744,
+                "agent_seconds": 1230.1657263599336,
+                "local_scoring_seconds": 0.46240269020199776,
+                "other_last_attempt_seconds": 3.03739283233881,
+                "last_attempt_without_scoring_seconds": 1233.2031191922724
+              }
+            ],
+            "sum_last_attempt_seconds": 2054.1488194540143,
+            "sum_agent_seconds": 2034.7185568213463,
+            "sum_scoring_seconds": 11.842536672949791,
+            "critical_last_attempt_seconds": 1233.6655218824744,
+            "critical_including_retries_seconds": 1233.6655218824744,
+            "critical_without_scoring_seconds": 1233.2031191922724,
+            "critical_user_last_attempt": "user-08"
+          },
+          "source_dir": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/validation/02/008-agent-browser/old"
+        },
+        {
+          "candidate_id": "008-agent-browser",
+          "arm": "candidate",
+          "old_all_tasks": 4,
+          "selected_tasks": 3,
+          "old_actual_block_span_seconds": 987.48764,
+          "new_assignment_replay_selected30": {
+            "users": [
+              {
+                "user_id": "user-03",
+                "task_count": 1,
+                "short_ids": [
+                  "04.09"
+                ],
+                "total_including_recorded_retries_seconds": 605.9991428852081,
+                "last_attempt_seconds": 605.9991428852081,
+                "agent_seconds": 602.3493445366621,
+                "local_scoring_seconds": 0.49655992165207863,
+                "other_last_attempt_seconds": 3.1532384268939495,
+                "last_attempt_without_scoring_seconds": 605.502582963556
+              },
+              {
+                "user_id": "user-04",
+                "task_count": 1,
+                "short_ids": [
+                  "04.10"
+                ],
+                "total_including_recorded_retries_seconds": 236.05075151845813,
+                "last_attempt_seconds": 236.05075151845813,
+                "agent_seconds": 227.37412583455443,
+                "local_scoring_seconds": 7.433352921158075,
+                "other_last_attempt_seconds": 1.2432727627456188,
+                "last_attempt_without_scoring_seconds": 228.61739859730005
+              },
+              {
+                "user_id": "user-08",
+                "task_count": 1,
+                "short_ids": [
+                  "04.01"
+                ],
+                "total_including_recorded_retries_seconds": 381.33929343894124,
+                "last_attempt_seconds": 381.33929343894124,
+                "agent_seconds": 378.0850235633552,
+                "local_scoring_seconds": 0.4718671068549156,
+                "other_last_attempt_seconds": 2.7824027687311172,
+                "last_attempt_without_scoring_seconds": 380.8674263320863
+              }
+            ],
+            "sum_last_attempt_seconds": 1223.3891878426075,
+            "sum_agent_seconds": 1207.8084939345717,
+            "sum_scoring_seconds": 8.40177994966507,
+            "critical_last_attempt_seconds": 605.9991428852081,
+            "critical_including_retries_seconds": 605.9991428852081,
+            "critical_without_scoring_seconds": 605.502582963556,
+            "critical_user_last_attempt": "user-03"
+          },
+          "source_dir": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/executions/validation/02/008-agent-browser/candidate"
+        }
+      ],
+      "summary_requests": [
+        {
+          "request_id": "e13f7b78759144a69219aaf1db297f67",
+          "started_unix": 1791885670.6530938,
+          "seconds": 32.51812386512756,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-77ec8da61880837bc0cd10ce/e13f7b78759144a69219aaf1db297f67/record.json"
+        },
+        {
+          "request_id": "4adb55573e7f4583b3bd90f331c5b306",
+          "started_unix": 1791885703.1770654,
+          "seconds": 33.855934858322144,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-77ec8da61880837bc0cd10ce/4adb55573e7f4583b3bd90f331c5b306/record.json"
+        },
+        {
+          "request_id": "ac59b0b3a5c84aa2ae216aacdc8a6f7f",
+          "started_unix": 1791886168.514177,
+          "seconds": 12.417747497558594,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-77ec8da61880837bc0cd10ce/ac59b0b3a5c84aa2ae216aacdc8a6f7f/record.json"
+        },
+        {
+          "request_id": "53a1b4e0febf4c4cb77703e64761af4b",
+          "started_unix": 1791885656.9906032,
+          "seconds": 34.18041777610779,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-77ec8da61880837bc0cd10ce/53a1b4e0febf4c4cb77703e64761af4b/record.json"
+        },
+        {
+          "request_id": "156394f89b4245ad9cbe805f4f2b8819",
+          "started_unix": 1791885264.7091374,
+          "seconds": 25.21450448036194,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-77ec8da61880837bc0cd10ce/156394f89b4245ad9cbe805f4f2b8819/record.json"
+        },
+        {
+          "request_id": "2ae362d59fce4f1f8540472910648719",
+          "started_unix": 1791885264.6937113,
+          "seconds": 29.34580969810486,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-77ec8da61880837bc0cd10ce/2ae362d59fce4f1f8540472910648719/record.json"
+        },
+        {
+          "request_id": "a5aad700f604416fb9c71715ed61856b",
+          "started_unix": 1791885624.2041516,
+          "seconds": 32.780354738235474,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-77ec8da61880837bc0cd10ce/a5aad700f604416fb9c71715ed61856b/record.json"
+        },
+        {
+          "request_id": "38e3ebeeb98e42d080111c799b279b78",
+          "started_unix": 1791885394.6224947,
+          "seconds": 32.096450090408325,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-77ec8da61880837bc0cd10ce/38e3ebeeb98e42d080111c799b279b78/record.json"
+        },
+        {
+          "request_id": "13d7399283e14b68ba162b886fff451d",
+          "started_unix": 1791885590.7827685,
+          "seconds": 33.415024280548096,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-77ec8da61880837bc0cd10ce/13d7399283e14b68ba162b886fff451d/record.json"
+        },
+        {
+          "request_id": "cc1e741a1af64c9ab28a82f2a7329e80",
+          "started_unix": 1791885892.1978838,
+          "seconds": 37.13258957862854,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-77ec8da61880837bc0cd10ce/cc1e741a1af64c9ab28a82f2a7329e80/record.json"
+        },
+        {
+          "request_id": "2cebd5b08fee42f18692aa40895a72bf",
+          "started_unix": 1791885530.9441757,
+          "seconds": 34.49546480178833,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-77ec8da61880837bc0cd10ce/2cebd5b08fee42f18692aa40895a72bf/record.json"
+        },
+        {
+          "request_id": "3aa24e021c1f4a7e9e6e0414f2010438",
+          "started_unix": 1791885973.1372252,
+          "seconds": 27.38214373588562,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-77ec8da61880837bc0cd10ce/3aa24e021c1f4a7e9e6e0414f2010438/record.json"
+        },
+        {
+          "request_id": "9d33a91eafb94ce9989ff34d2126e505",
+          "started_unix": 1791885326.754997,
+          "seconds": 45.467228174209595,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-77ec8da61880837bc0cd10ce/9d33a91eafb94ce9989ff34d2126e505/record.json"
+        },
+        {
+          "request_id": "42ef80b782d645639cdcaf7185cd4043",
+          "started_unix": 1791886151.484694,
+          "seconds": 17.023619174957275,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-77ec8da61880837bc0cd10ce/42ef80b782d645639cdcaf7185cd4043/record.json"
+        },
+        {
+          "request_id": "aaaab54d82434bacb46fdf243e706b1b",
+          "started_unix": 1791885360.4555268,
+          "seconds": 32.32238578796387,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-77ec8da61880837bc0cd10ce/aaaab54d82434bacb46fdf243e706b1b/record.json"
+        },
+        {
+          "request_id": "525ce28c2d5d4aaba2672ee6a3266b11",
+          "started_unix": 1791886091.6105893,
+          "seconds": 37.43915677070618,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-77ec8da61880837bc0cd10ce/525ce28c2d5d4aaba2672ee6a3266b11/record.json"
+        },
+        {
+          "request_id": "ebb100f1b81f42afa7ad958ab04c7ffe",
+          "started_unix": 1791885691.177114,
+          "seconds": 33.80703043937683,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-77ec8da61880837bc0cd10ce/ebb100f1b81f42afa7ad958ab04c7ffe/record.json"
+        },
+        {
+          "request_id": "14a608a5534a4894a186813e7c123af6",
+          "started_unix": 1791886036.2610228,
+          "seconds": 24.133445978164673,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-77ec8da61880837bc0cd10ce/14a608a5534a4894a186813e7c123af6/record.json"
+        },
+        {
+          "request_id": "8485fae9db9449a7aaf783130712044f",
+          "started_unix": 1791885457.1172824,
+          "seconds": 36.72870898246765,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-77ec8da61880837bc0cd10ce/8485fae9db9449a7aaf783130712044f/record.json"
+        },
+        {
+          "request_id": "35123f6d350f4a9ca6a25dd4bf0e1a79",
+          "started_unix": 1791886196.1482382,
+          "seconds": 25.247575044631958,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-77ec8da61880837bc0cd10ce/35123f6d350f4a9ca6a25dd4bf0e1a79/record.json"
+        },
+        {
+          "request_id": "2afab53a8f944f928479bdae569bf04d",
+          "started_unix": 1791885770.3864868,
+          "seconds": 34.31414794921875,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-77ec8da61880837bc0cd10ce/2afab53a8f944f928479bdae569bf04d/record.json"
+        },
+        {
+          "request_id": "ed71268959534bb6918548a496e9e90a",
+          "started_unix": 1791885804.706963,
+          "seconds": 42.67218494415283,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-77ec8da61880837bc0cd10ce/ed71268959534bb6918548a496e9e90a/record.json"
+        },
+        {
+          "request_id": "2f73624947cb4b6499b40df9c793c23c",
+          "started_unix": 1791885724.9899788,
+          "seconds": 29.633785247802734,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-77ec8da61880837bc0cd10ce/2f73624947cb4b6499b40df9c793c23c/record.json"
+        },
+        {
+          "request_id": "d82afbddcbb44b0c8188d3430b16e41a",
+          "started_unix": 1791885872.4291825,
+          "seconds": 29.753263235092163,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-77ec8da61880837bc0cd10ce/d82afbddcbb44b0c8188d3430b16e41a/record.json"
+        },
+        {
+          "request_id": "9f34727870344bafbc64fd171f90d062",
+          "started_unix": 1791885428.8966222,
+          "seconds": 32.7175509929657,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-77ec8da61880837bc0cd10ce/9f34727870344bafbc64fd171f90d062/record.json"
+        },
+        {
+          "request_id": "7c69292e1f9c4c84a5ba39ac38b0dda9",
+          "started_unix": 1791886118.6779833,
+          "seconds": 21.914941787719727,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-77ec8da61880837bc0cd10ce/7c69292e1f9c4c84a5ba39ac38b0dda9/record.json"
+        },
+        {
+          "request_id": "278eba8432154048ab625d2d17f1cd82",
+          "started_unix": 1791885565.4452465,
+          "seconds": 29.47095537185669,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-77ec8da61880837bc0cd10ce/278eba8432154048ab625d2d17f1cd82/record.json"
+        },
+        {
+          "request_id": "91ccd7d3487e49fca5c12b0660fac41e",
+          "started_unix": 1791886029.6218624,
+          "seconds": 24.12662696838379,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-77ec8da61880837bc0cd10ce/91ccd7d3487e49fca5c12b0660fac41e/record.json"
+        },
+        {
+          "request_id": "2230fcba4ca74b7fa2d2fce8b3dc9ce9",
+          "started_unix": 1791886053.754555,
+          "seconds": 37.84993863105774,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-77ec8da61880837bc0cd10ce/2230fcba4ca74b7fa2d2fce8b3dc9ce9/record.json"
+        },
+        {
+          "request_id": "f9344324cec74607b455e281f0d67fb6",
+          "started_unix": 1791886098.574746,
+          "seconds": 20.09738039970398,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-77ec8da61880837bc0cd10ce/f9344324cec74607b455e281f0d67fb6/record.json"
+        }
+      ],
+      "generation_evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/nights/02/proposals/evolution/proposal-summary.json"
+    },
+    {
+      "night": 3,
+      "published": false,
+      "old_proposal_elapsed_includes_summary_seconds": 3042.872785728425,
+      "old_summary_seconds": 944.0687602460384,
+      "old_group_generation_seconds": 2097.529198564589,
+      "old_group_count": 8,
+      "selected_source_group_count": 7,
+      "selected_source_groups": [
+        {
+          "evidence_group": "03_task1",
+          "old_source_task_count": 1,
+          "selected_source_task_count": 1,
+          "retained_old_elapsed_seconds": 313.17255837470293
+        },
+        {
+          "evidence_group": "03_task3",
+          "old_source_task_count": 1,
+          "selected_source_task_count": 1,
+          "retained_old_elapsed_seconds": 79.42880309000611
+        },
+        {
+          "evidence_group": "03_task4",
+          "old_source_task_count": 1,
+          "selected_source_task_count": 1,
+          "retained_old_elapsed_seconds": 95.66751427948475
+        },
+        {
+          "evidence_group": "03_task5",
+          "old_source_task_count": 1,
+          "selected_source_task_count": 1,
+          "retained_old_elapsed_seconds": 149.81032253056765
+        },
+        {
+          "evidence_group": "03_task6",
+          "old_source_task_count": 1,
+          "selected_source_task_count": 1,
+          "retained_old_elapsed_seconds": 120.73916071280837
+        },
+        {
+          "evidence_group": "__no_skill__",
+          "old_source_task_count": 53,
+          "selected_source_task_count": 24,
+          "retained_old_elapsed_seconds": 586.6311487369239
+        },
+        {
+          "evidence_group": "agent-browser",
+          "old_source_task_count": 1,
+          "selected_source_task_count": 1,
+          "retained_old_elapsed_seconds": 603.4143267273903
+        }
+      ],
+      "selected30_summary_measured_request_count": 30,
+      "selected30_summary_two_slot_replay_seconds": 484.2880640029907,
+      "generation_proxy_seconds": 2433.1518984548748,
+      "generation_proxy_method": "Two-slot summary scheduling from selected30 actual request durations + retain full old duration of each group whose sources intersect selected30. Native summary concurrency2, proposal groups sequential.",
+      "validation_executions_selected30": 0,
+      "selected_validation_critical_seconds": 0,
+      "selected_validation_without_local_scoring_seconds": 0,
+      "max_direct_local_scoring_savings_seconds": 0,
+      "projected_night_without_paid_grader_latency_seconds": null,
+      "validation_blocks": [],
+      "summary_requests": [
+        {
+          "request_id": "c3f723eed43240df9d44daa771a753e6",
+          "started_unix": 1791914088.8163857,
+          "seconds": 28.797662019729614,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-c487dfa15c9c175f4522c8c7/c3f723eed43240df9d44daa771a753e6/record.json"
+        },
+        {
+          "request_id": "76e6c50a302343d1b4f59f7f19a39096",
+          "started_unix": 1791914189.5216577,
+          "seconds": 15.944694519042969,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-c487dfa15c9c175f4522c8c7/76e6c50a302343d1b4f59f7f19a39096/record.json"
+        },
+        {
+          "request_id": "b39cda8e71e34c65a621c6fa340c42fd",
+          "started_unix": 1791914062.9205613,
+          "seconds": 35.36741805076599,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-c487dfa15c9c175f4522c8c7/b39cda8e71e34c65a621c6fa340c42fd/record.json"
+        },
+        {
+          "request_id": "8b7a933fb57f4297a01740bb359ec626",
+          "started_unix": 1791913313.2929616,
+          "seconds": 27.176241874694824,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-c487dfa15c9c175f4522c8c7/8b7a933fb57f4297a01740bb359ec626/record.json"
+        },
+        {
+          "request_id": "79a40b6d92404be0b177da122cd2d112",
+          "started_unix": 1791913487.3105173,
+          "seconds": 31.687516927719116,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-c487dfa15c9c175f4522c8c7/79a40b6d92404be0b177da122cd2d112/record.json"
+        },
+        {
+          "request_id": "f7c4817bca0944a9ad3b6fbf1b16a2c8",
+          "started_unix": 1791913586.1419861,
+          "seconds": 33.1749165058136,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-c487dfa15c9c175f4522c8c7/f7c4817bca0944a9ad3b6fbf1b16a2c8/record.json"
+        },
+        {
+          "request_id": "fea1508db39f4007a59bf92e5b81dab6",
+          "started_unix": 1791913724.8441505,
+          "seconds": 30.368242502212524,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-c487dfa15c9c175f4522c8c7/fea1508db39f4007a59bf92e5b81dab6/record.json"
+        },
+        {
+          "request_id": "e6910fa51a124a23a05e880197f3401f",
+          "started_unix": 1791913313.27775,
+          "seconds": 43.29314565658569,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-c487dfa15c9c175f4522c8c7/e6910fa51a124a23a05e880197f3401f/record.json"
+        },
+        {
+          "request_id": "861e0daf338041558eca4b3e6d5e3570",
+          "started_unix": 1791913378.0078852,
+          "seconds": 37.55085563659668,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-c487dfa15c9c175f4522c8c7/861e0daf338041558eca4b3e6d5e3570/record.json"
+        },
+        {
+          "request_id": "c8711eb36c04409badd3553fbd54af47",
+          "started_unix": 1791913996.632466,
+          "seconds": 41.31115651130676,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-c487dfa15c9c175f4522c8c7/c8711eb36c04409badd3553fbd54af47/record.json"
+        },
+        {
+          "request_id": "792fa5f76b6e49629a2dbdd955245c12",
+          "started_unix": 1791913751.7955377,
+          "seconds": 28.020791053771973,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-c487dfa15c9c175f4522c8c7/792fa5f76b6e49629a2dbdd955245c12/record.json"
+        },
+        {
+          "request_id": "a46eb43d47ec4cad9cad79557509fa9a",
+          "started_unix": 1791914205.4714775,
+          "seconds": 12.159052848815918,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-c487dfa15c9c175f4522c8c7/a46eb43d47ec4cad9cad79557509fa9a/record.json"
+        },
+        {
+          "request_id": "f0386b36801c4da0897f2438d8889cd2",
+          "started_unix": 1791913755.217959,
+          "seconds": 33.980698347091675,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-c487dfa15c9c175f4522c8c7/f0386b36801c4da0897f2438d8889cd2/record.json"
+        },
+        {
+          "request_id": "5c6c8ee00f4a4abf81331f09f081fe43",
+          "started_unix": 1791913690.6371891,
+          "seconds": 35.0280487537384,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-c487dfa15c9c175f4522c8c7/5c6c8ee00f4a4abf81331f09f081fe43/record.json"
+        },
+        {
+          "request_id": "8708214bc445487d808df3bd4097f27f",
+          "started_unix": 1791913824.3628268,
+          "seconds": 39.26728963851929,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-c487dfa15c9c175f4522c8c7/8708214bc445487d808df3bd4097f27f/record.json"
+        },
+        {
+          "request_id": "b132b228e3a34c3ea6b7cceec14fbd2d",
+          "started_unix": 1791914232.316922,
+          "seconds": 25.00342082977295,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-c487dfa15c9c175f4522c8c7/b132b228e3a34c3ea6b7cceec14fbd2d/record.json"
+        },
+        {
+          "request_id": "2a1680ca3a564aefb980e652f451a88d",
+          "started_unix": 1791913863.6352973,
+          "seconds": 29.974143981933594,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-c487dfa15c9c175f4522c8c7/2a1680ca3a564aefb980e652f451a88d/record.json"
+        },
+        {
+          "request_id": "b2256c00cbdd4b6aba04324f0b5d3d59",
+          "started_unix": 1791913619.3224723,
+          "seconds": 26.98771905899048,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-c487dfa15c9c175f4522c8c7/b2256c00cbdd4b6aba04324f0b5d3d59/record.json"
+        },
+        {
+          "request_id": "b1d53baa1fa344cbb27f010aaef8147e",
+          "started_unix": 1791914155.1783233,
+          "seconds": 20.169896841049194,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-c487dfa15c9c175f4522c8c7/b1d53baa1fa344cbb27f010aaef8147e/record.json"
+        },
+        {
+          "request_id": "43fe06e0fa0a4857bd90221ae6d87410",
+          "started_unix": 1791914117.6199753,
+          "seconds": 40.31532406806946,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-c487dfa15c9c175f4522c8c7/43fe06e0fa0a4857bd90221ae6d87410/record.json"
+        },
+        {
+          "request_id": "6482365444f94ec1a67f9935a13db357",
+          "started_unix": 1791913415.5636666,
+          "seconds": 36.967145919799805,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-c487dfa15c9c175f4522c8c7/6482365444f94ec1a67f9935a13db357/record.json"
+        },
+        {
+          "request_id": "3f45aa51cf0a4c30a256dd104610b937",
+          "started_unix": 1791913924.0103495,
+          "seconds": 33.69352698326111,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-c487dfa15c9c175f4522c8c7/3f45aa51cf0a4c30a256dd104610b937/record.json"
+        },
+        {
+          "request_id": "dd693f756bd54613ae6b1690d5f1171b",
+          "started_unix": 1791913896.0999892,
+          "seconds": 35.83349847793579,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-c487dfa15c9c175f4522c8c7/dd693f756bd54613ae6b1690d5f1171b/record.json"
+        },
+        {
+          "request_id": "898d2ee7540c4d398e291c200ee4ac74",
+          "started_unix": 1791914061.952236,
+          "seconds": 26.858714818954468,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-c487dfa15c9c175f4522c8c7/898d2ee7540c4d398e291c200ee4ac74/record.json"
+        },
+        {
+          "request_id": "98127d4b2e8f44f6b8494aa0bf2d46ce",
+          "started_unix": 1791913725.6705523,
+          "seconds": 26.121327877044678,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-c487dfa15c9c175f4522c8c7/98127d4b2e8f44f6b8494aa0bf2d46ce/record.json"
+        },
+        {
+          "request_id": "6b7a26c3324145158b1344f05c1a210d",
+          "started_unix": 1791914133.6692917,
+          "seconds": 21.503610134124756,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-c487dfa15c9c175f4522c8c7/6b7a26c3324145158b1344f05c1a210d/record.json"
+        },
+        {
+          "request_id": "f56afef4946d4fe9b93213e5c0a99d02",
+          "started_unix": 1791913779.8218644,
+          "seconds": 29.91950559616089,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-c487dfa15c9c175f4522c8c7/f56afef4946d4fe9b93213e5c0a99d02/record.json"
+        },
+        {
+          "request_id": "273b996255734616ab5794a329cae555",
+          "started_unix": 1791913514.5968132,
+          "seconds": 42.1007821559906,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-c487dfa15c9c175f4522c8c7/273b996255734616ab5794a329cae555/record.json"
+        },
+        {
+          "request_id": "fb5ea01254924cafb22547286e684b18",
+          "started_unix": 1791913646.3153584,
+          "seconds": 44.316269874572754,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-c487dfa15c9c175f4522c8c7/fb5ea01254924cafb22547286e684b18/record.json"
+        },
+        {
+          "request_id": "44408a05e0c649758fec7f1fde4d61b3",
+          "started_unix": 1791913452.5363715,
+          "seconds": 31.29680299758911,
+          "source_record": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/api-evidence/night-c487dfa15c9c175f4522c8c7/44408a05e0c649758fec7f1fde4d61b3/record.json"
+        }
+      ],
+      "generation_evidence": "/home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261012T230206Z/nights/03/proposals/evolution/proposal-summary.json"
+    }
+  ],
+  "workload": {
+    "day_task_executions": 180,
+    "endpoint_task_executions": 60,
+    "fixed_executions": 240,
+    "observed_selected_validation_executions_each_completed_night": [
+      60,
+      60
+    ],
+    "six_nights_extra_validation_assumption": 360,
+    "total_executions_under_observed_candidate_pattern": 600,
+    "night_validation_count_formula": "2 * sum(candidate source-related task count); not fixed and no validation tasks removed"
+  },
+  "nominal_from_replayed_measured_critical_paths": {
+    "single_day_seconds_without_local_grade": 2778.8841501350203,
+    "fixed240_seconds_without_local_grade": 22231.073201080162,
+    "single_night_seconds_without_APIgrade": 12573.471139028668,
+    "six_nights_seconds_without_APIgrade": 75440.82683417201,
+    "formal_total_seconds_without_APIgrade": 97671.90003525217,
+    "formal_total_hours_without_APIgrade": 27.131083343125603
+  },
+  "planning_intervals_hours": {
+    "one_day_30_tasks": [
+      0.75,
+      1.25
+    ],
+    "six_days_180_tasks": [
+      4.5,
+      7.5
+    ],
+    "endpoint_S0_S6_60_tasks": [
+      1.5,
+      2.5
+    ],
+    "one_night_generate_validate_publish": [
+      3,
+      4.25
+    ],
+    "six_nights": [
+      18,
+      25.5
+    ],
+    "formal_run_common_case": [
+      25,
+      32
+    ],
+    "formal_run_with_operational_margin": [
+      26,
+      36
+    ],
+    "pilot_interfaces_and_6_tasks": [
+      0.5,
+      1
+    ],
+    "start_to_finish_if_shared_environment_ready": [
+      26.5,
+      37
+    ]
+  },
+  "ETA_origin": "Duration from actual formalrun start after environment/interface readiness and pilot; not an assertion that run has started.",
+  "calibration_update": "Replace proxy with newpilot perrequest latency, peruser execution span, and Night1 actual candidate/source counts; update after first complete newday and newnight.",
+  "limitations": [
+    "Do not divide cumulative taskwall by8: fixeduser sequential work, uneventaskcost, tailuser, oneGPU contention, candidate-stage barriers and serialproposal groups govern time.",
+    "Newusers redistributed4/4/4/4/4/4/3/3; old60user assignments differed. Both mappings are shown.",
+    "Day1 includes documentedinfraretry. Nominal proxy uses last_attempt_wall_seconds and excludes controller outage; inclusive durations retained separately.",
+    "APIonlygrading removes at most observedlocalgrade waiting directly; paidAPI latency mustbeadded. It doesnot remove localAgent execution, scriptwork, originaltaskdeadlines, nativeevolution, or realold/candidatevalidation.",
+    "OldNight1/2 directcriticalpathlocalgrade waiting corresponds to roughly9min/night; resource relief might affect Agentduration, but this is unmeasured and notassumed.",
+    "Old summaries generated60 sessions; new30summary timing simulates2workers usingselectedrequestdurations. Fullrelatedgroup generation costs retained ratherthan blindlyhalved.",
+    "Night3 had generated candidates but no validation publication before supersession; its generation proxy is recorded but excluded from complete-night ETA average.",
+    "Endpoint has randomizedarmorder within eachtask; eachuser runs botharms sequentially. Fixed240execution proxy uses8thirtytaskbatches as a workloadequivalent, not actual endpoint stage scheduling.",
+    "Endpoint scorecomparisons, candidatecounts, additionalcreatedskills, toolfailures, APItimeouts/retries, model/auxGPU queues, and services can change totalduration.",
+    "More candidates or overlapping sourcetasksets increase validations. No candidates/taskcoverage shortened to fit ETA.",
+    "Taskagenttimeouts bound eachAgent invocation ratherthan entirestage; infraretries, grading, and proposals have additionalbudgets. Planningrange is not a hard upperbound.",
+    "Initial image/models/dataset preparation reuse alreadyready sharedruntime. A newfull download/service reinstall is excluded.",
+    "Sourceprotocol lacked officialpreamble; corrected prompt can change strategies, modelcalls and completiontime, so oldtimes are empiricalreferences only.",
+    "Subtracting entire oldscoringwall produces an optimistic floor: localOmni audio scoring, deterministic CPU checks, API latency and grader setup still remain; this is not a zero-time scoring forecast."
+  ]
+}

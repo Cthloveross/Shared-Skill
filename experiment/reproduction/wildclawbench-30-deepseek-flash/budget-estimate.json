@@ -1,0 +1,128 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-10-13T19:23:35.456711+00:00",
+  "purpose": "Cost planning only; does not authorize paid requests or alter experiment configuration.",
+  "evidence_file": "cost-evidence.json",
+  "task_manifest_file": "tasks.json",
+  "pricing_file": "pricing.json",
+  "pricing_source": "https://api-docs.deepseek.com/quick_start/pricing/",
+  "served_model_version": "DeepSeek-V4.1-Flash",
+  "currency": "USD",
+  "current_api_role": "pending_user_selection",
+  "fixed_workload": {
+    "selected_tasks": 30,
+    "day_rounds": 6,
+    "endpoint_arms": 2,
+    "fixed_executions": 240
+  },
+  "night_workload_assumption": {
+    "nights": 6,
+    "validation_executions_each_night": 60,
+    "extra_validation_executions": 360,
+    "formula": "2 * sum(candidate source-related task count); future number is not fixed",
+    "justification": "Selected30 subset of both completed source-run nights had60 canonical validation executions each."
+  },
+  "modes": {
+    "api_only_judge": {
+      "roles_paid": [
+        "ordinary benchmark model graders",
+        "vision benchmark model graders if supported and explicitly chosen",
+        "final old/candidate execution comparators"
+      ],
+      "roles_local": [
+        "day Agent",
+        "validation old Agent",
+        "validation candidate Agent",
+        "endpoint Agent",
+        "session summaries",
+        "evolver proposals",
+        "audio grading and inference via Omni",
+        "SDXL image generation"
+      ],
+      "empirical_qwen_token_proxy": {
+        "input_tokens": 1441513.6666666667,
+        "output_tokens": 470914,
+        "total_tokens": 1912427.6666666665,
+        "request_count": 423.66666666666663,
+        "measured_request_count": 423.66666666666663,
+        "missing_usage_requests": 0,
+        "image_request_count": 78,
+        "text_request_count": 345.66666666666663,
+        "after_agent_unmatched_main_requests": 0,
+        "local_auxiliary_grading_requests": 14
+      },
+      "cache_miss_cost_usd": {
+        "off_peak_mean": 0.49877544999999995,
+        "peak_mean": 0.9975508999999999,
+        "off_peak_observed_workload_range": [
+          0.4565235,
+          0.5341506
+        ],
+        "peak_observed_workload_range": [
+          0.913047,
+          1.0683012
+        ]
+      },
+      "configured_budget_cap_usd": 10,
+      "cap_scope": "Only api_only_judge; role selection and capability checks still pending.",
+      "cache_hit_savings_assumed": false,
+      "planning_comment": "~$0.5 offpeak / ~$1 peak at old token counts. $10 configured cap provides room for extra completed-artifact grading, retries and more comparisons; not a cost guarantee."
+    },
+    "all_main_model_api": {
+      "roles_paid": [
+        "day Agent",
+        "validation old Agent",
+        "validation candidate Agent",
+        "endpoint Agent",
+        "session summaries",
+        "evolver proposals",
+        "ordinary/vision benchmark model graders if supported",
+        "final execution comparators"
+      ],
+      "roles_local": [
+        "auxiliary Omni audio service",
+        "SDXL image generation"
+      ],
+      "empirical_qwen_token_proxy": {
+        "input_tokens": 383824737.0,
+        "output_tokens": 10402156.0,
+        "total_tokens": 394226893.0,
+        "request_count": 13047.0,
+        "measured_request_count": 12850.333333333332,
+        "missing_usage_requests": 196.66666666666669
+      },
+      "cache_miss_cost_usd": {
+        "off_peak_mean": 63.81500415,
+        "peak_mean": 127.6300083,
+        "off_peak_observed_workload_range": [
+          58.270594499999994,
+          69.5125326
+        ],
+        "peak_observed_workload_range": [
+          116.54118899999999,
+          139.0250652
+        ]
+      },
+      "configured_budget_cap_usd": null,
+      "paid_execution_enabled": false,
+      "not_covered_by_api_only_judge_cap": true,
+      "cache_hit_savings_assumed": false,
+      "planning_comment": "Observed workload proxy ~$58–70 offpeak / ~$117–139 peak. No budget is automatically selected or raised for this mode; requires explicit mode and separate cap."
+    }
+  },
+  "limitations": [
+    "Raw source Qwen completion_tokens include reasoning; reasoning tokens are not added again.",
+    "Source protocol omitted official preamble and has been superseded. Its token usage remains real empirical evidence, but corrected entry and another model may change task trajectories and token counts.",
+    "Source30 tasks selected by seed42 stratified random sampling before inspecting scores;5/category.",
+    "Cancelled main requests missing finalusage make all-main-model totals a measured lowerbound. Selected paid-grader fingerprint matches have complete usage; global source-run metadata records non-grader requests separately.",
+    "Paid-graders identified by exact SHA256(URL+HTTPbody) fingerprint against judge-api.jsonl, avoiding oldAgent background-request contamination. Time-window unmatched requests are explicitly recorded and excluded.",
+    "More successful task deliverables may trigger model graders that previously returned rule-based zero without a model request, increasing paid-grader costs.",
+    "Future candidate count and relatedtaskcoverage alter extra validation and comparison workloads.",
+    "Full60task source evolver proposal and comparison overhead retained in allAPI estimate as conservative proxy; native summaries/validations limited to selected30task source data.",
+    "API tokenizer, vision patch count/representation, effective output length, actual billing, prompt cache and rates can differ. No cachehit savings assumed.",
+    "DeepSeek Flash vision/audio support must be checked before routing those graders. Unsupported capabilities require an explicit hybrid grader protocol, not silent fallback or fake grades.",
+    "Audio-grading requests remain localOmni and are not charged as DeepSeek main-model requests.",
+    "Pilot/interface checks, retries, rescoring and additional result analysis may add spending.",
+    "Observed range is variation across old rounds, not a statistical prediction interval or upperbound. Run a small pilot and recalculate from actual DeepSeek usage before formal freeze."
+  ]
+}
