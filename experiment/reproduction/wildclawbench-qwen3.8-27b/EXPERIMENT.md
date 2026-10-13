@@ -249,6 +249,8 @@ uv pip install --python .venv/bin/python -r experiment/reproduction/wildclawbenc
 - 2026-10-12 23:00 UTC：OCR 评分的冻结原表锚定、导出表完整性检查及真实 null-length 空答案计分已修复；最终 93 项测试、171 项子测试和 Ruff 通过。加入 question／image／groundtruth／索引篡改、实际请求不匹配、原始宿主输入变化必须停止、空答案真实失败及伪造响应的回归。模型采样、16384 输出额度和 1200 秒题目限时保持一致。上一轮媒体真实性详见 [pilot-media.json](runtime/runs/20261012T223532Z/audits/pilot-media.json)，审计没有修改旧成绩。
 - 2026-10-12 23:02 UTC：已推送代码 `9a28d1d`，以干净工作区启动独立运行 `20261012T230206Z`，协议 hash `91f8f1d9d70e2c74e645519f8667e5b598cf63a2c1a363b44ebc42de6b42529c`，初始9技能 S0 hash不变。六个本地接口检查全部通过；主控制进程 PID3283683 独立于终端，启动身份见 [controller-process.json](runtime/runs/20261012T230206Z/controller-process.json)，版本见 [startup-inventory.json](runtime/runs/20261012T230206Z/startup-inventory.json)。重新从完整预跑开始，通过后自动运行六个白天／夜晚和 S0/S6 终点对照。旧运行的 16 题证据（8 预跑、8 已启动但无完成成绩的 Day1）已归档，仅精确清理其8个活动容器。旧 OCR 真实1000条调用核验与独立准确率842/1000见 [pilot-ocr.json](runtime/runs/20261012T223532Z/audits/pilot-ocr.json)，原始任务分0.2保持不动，旧分数不跨版本复用。
 - 2026-10-12 23:22 UTC：当前冻结运行 8/8 预跑通过接口／执行／评分门槛，同一调度器已自动进入 Day 1，首批八题实际启动。BibTeX 按原 900 秒限时正常评分 0；OCR 按原 1200 秒限时正常评分 0.2，失败原因为 Agent 产物重复样本索引，`verified_samples=0`，不能宣称本轮完成 1000 样本认证。评分锚定原 TSV，宿主及导出表 SHA 均为 `39458e4d42b1107f6646b8e0445769958466a1cb6301528ddb31ad3c5530aa4d`。本轮没有实际走到 null-length 样本认证分支，其处理仍由真实旧证据和回归检查支撑。结构清理分支 96 项测试、171 项子测试通过；主分支报告与测试整理 95 项测试、171 项子测试通过。70 份冻结源码未变，未因代码整理重启实验。
+- 2026-10-13 01:01 UTC：Day 1 初次调度结束，59 题有效评分、1 题 `06.10` 被记为 infra；未进入 Night 1。59 题平均墙钟 9.56 分钟，18 题达到限时，整体首次调度约 99 分钟。这不是完整 60 题成绩。两份独立审阅确认 `06.10` 的 HTTP400 来自 Agent 生成的 `generate_report.py`，它发送不可识别的图像数据后采用 heuristic，并继续修改和打包；主 Agent 没有模型错误，最后正常达到 600 秒题目限时。运行器把工具内部输入错误归为主推理 infra，提前退出评分，是分类遗漏；未将其补零分或改 completed。
+- 2026-10-13 02:43 UTC：70 份冻结源码逐 SHA 未变，在同一 run 内启动 `resume`，只重新执行未完成的 `06.10`，保留其余59份结果。恢复前 hash、HTTP400 原始证据及进程身份见 [recovery-20261013T024326Z.json](runtime/runs/20261012T230206Z/audits/recovery-20261013T024326Z.json)，旧控制器记录见同 run 的 `operations/20261013T024326Z/`。分类修正仅在独立分支准备，未悄改本轮冻结协议。原生 `status` 的递归搜索会把新增 attempt-history 中的旧 result 也计入；当前任务数量以 canonical 五层执行目录及修正后的报告为准，不把归档错误算成新任务。
 - 预跑及正式成绩以随后真实运行记录为准。
 
 <!-- LIVE_STATUS -->
@@ -256,6 +258,6 @@ uv pip install --python .venv/bin/python -r experiment/reproduction/wildclawbenc
 
 - 状态：`day`。
 - 运行：`runtime/runs/20261012T230206Z/`。
-- 报告更新：`2026-10-12T23:23:32.145792+00:00`；阶段更新：`2026-10-12T23:22:31.492474+00:00`。
-- 已记录任务执行：8；终点有效配对：0/60。
+- 报告更新：`2026-10-13T02:46:20.060230+00:00`；阶段更新：`2026-10-13T02:43:27.848867+00:00`。
+- 已记录任务执行：68；终点有效配对：0/60。
 - [运行报告](runtime/runs/20261012T230206Z/report/REPORT.md)。
