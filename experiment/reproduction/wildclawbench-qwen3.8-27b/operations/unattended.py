@@ -133,6 +133,15 @@ class Policy:
                 validate_task_inputs(config, task)
             return result or {"task_id": task["task_id"], "short_id": task["short_id"],
                               "status": "missing", "score": None}
+        if result and result.get("status") == "infrastructure_error":
+            if task.get("input_sha256"):
+                from provenance import validate_task_inputs
+                validate_task_inputs(config, task)
+            self.record(digest, "task", execution_hash=digest, result_path=str(path), phase=phase,
+                        round=number, arm=arm, candidate_id=candidate_id, task_id=task["task_id"],
+                        status=result["status"], score_available=False,
+                        error=result.get("error", "Existing native execution exhausted its infrastructure retries"))
+            return result
         # The native runner retains its infrastructure retry and rescore behavior.
         try:
             result = self.one(task, bank, run_dir, config, phase, number, arm, candidate_id)
