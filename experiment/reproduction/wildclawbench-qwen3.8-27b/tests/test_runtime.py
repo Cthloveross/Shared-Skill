@@ -36,6 +36,24 @@ def completed(stdout: str = "", stderr: str = "", returncode: int = 0):
     return subprocess.CompletedProcess([], returncode, stdout, stderr)
 
 
+def official_execution_prompt(task):
+    """Evaluate only the pinned entrypoint's prompt assignments, without its services."""
+    tree = ast.parse((SOURCE / "eval" / "run_batch.py").read_text())
+    entrypoint = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "run_single_task")
+    assignments = []
+    for node in entrypoint.body:
+        if isinstance(node, ast.Assign) and any(
+            isinstance(target, ast.Name) and target.id in {"prompt", "timeout_seconds", "system_prompt"}
+            for target in node.targets
+        ):
+            assignments.append(node)
+            if isinstance(node.value, ast.BinOp) and isinstance(node.value.op, ast.Add):
+                break
+    namespace = {"task": task}
+    exec(compile(ast.Module(body=assignments, type_ignores=[]), "official-run-batch-prompt", "exec"), namespace)
+    return namespace["prompt"]
+
+
 @unittest.skipUnless(HAS_CORPUS, "Prepare pinned benchmark sources first")
 class OfficialCorpusTests(unittest.TestCase):
     def test_all_60_parse_and_accept_original_grader_keywords(self):
@@ -70,20 +88,103 @@ class OfficialCorpusTests(unittest.TestCase):
                     manifest = json.loads((output / "task-variant.json").read_text())
                     self.assertEqual((output / "official-task.md").read_bytes(), file.read_bytes())
                     self.assertEqual(manifest["source_sha256"], hashlib.sha256(file.read_bytes()).hexdigest())
+                    self.assertEqual((output / "official-task-prompt.txt").read_text(), spec["prompt"])
+                    self.assertEqual((output / "task-prompt.txt").read_text(), modified["task_prompt"])
+                    self.assertEqual((output / "execution-prompt.txt").read_text(), modified["prompt"])
+                    self.assertEqual(manifest["timeout_seconds"], spec["timeout_seconds"])
+                    self.assertEqual(
+                        modified["prompt"], official_execution_prompt({**spec, "prompt": modified["task_prompt"]})
+                    )
+                    self.assertEqual(manifest["execution_preamble"], modified["execution_preamble"])
+                    for field, key in (
+                        ("official_prompt", "official_prompt_sha256"),
+                        ("task_prompt", "task_prompt_sha256"),
+                        ("prompt", "execution_prompt_sha256"),
+                    ):
+                        self.assertEqual(manifest[key], hashlib.sha256(modified[field].encode()).hexdigest())
                     self.assertEqual(
                         manifest["modified_prompt_sha256"], hashlib.sha256(modified["prompt"].encode()).hexdigest()
                     )
                     if "ocrbench" in spec["task_id"].lower():
                         ocr += 1
-                        self.assertNotEqual(modified["prompt"], spec["prompt"])
+                        self.assertNotEqual(modified["task_prompt"], spec["prompt"])
                         self.assertIn("1000", modified["prompt"])
                         self.assertIn("qwen3.8-27b", modified["prompt"])
                         self.assertTrue(manifest["ocr_task_completion_is_not_model_accuracy"])
+                        self.assertEqual(manifest["task_prompt_variant"], "local-Qwen OCR model")
                     else:
                         unchanged += 1
-                        self.assertEqual(modified["prompt"], spec["prompt"])
+                        self.assertEqual(modified["task_prompt"], spec["prompt"])
+                        self.assertEqual(modified["prompt"], official_execution_prompt(spec))
+                        self.assertEqual(manifest["task_prompt_variant"], "none")
                         self.assertFalse(any(s["field"] == "prompt" for s in manifest["substitutions"]))
         self.assertEqual((unchanged, ocr), (59, 1))
+
+
+class SavedExecutionPromptTests(unittest.TestCase):
+    def historical_execution(self, output):
+        spec = {"task_id": "01_task_1", "prompt": "original task", "timeout_seconds": 600}
+        checks = "def grade(**kwargs): return {'overall_score': 0.5}"
+        manifest = {
+            "execution_preamble": None,
+            "modified_prompt_sha256": hashlib.sha256(spec["prompt"].encode()).hexdigest(),
+            "modified_checks_sha256": hashlib.sha256(checks.encode()).hexdigest(),
+        }
+        (output / "execution-prompt.txt").write_text(spec["prompt"])
+        (output / "automated-checks.py").write_text(checks)
+        (output / "task-variant.json").write_text(json.dumps(manifest))
+        return spec
+
+    def test_historical_rescore_keeps_actual_prompt_and_does_not_rewrite_evidence(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary)
+            spec = self.historical_execution(output)
+            before = {file.name: file.read_bytes() for file in output.iterdir()}
+            patched = runtime._variants(spec, {}, output, "http://local-only/v1", True)
+            self.assertEqual(patched["prompt"], spec["prompt"])
+            self.assertIsNone(patched["execution_preamble"])
+            self.assertEqual({file.name: file.read_bytes() for file in output.iterdir()}, before)
+
+    def test_rescore_rejects_changed_prompt_or_checks(self):
+        for name in ("execution-prompt.txt", "automated-checks.py"):
+            with self.subTest(file=name), tempfile.TemporaryDirectory() as temporary:
+                output = Path(temporary)
+                spec = self.historical_execution(output)
+                (output / name).write_text("tampered saved execution")
+                with self.assertRaisesRegex(RuntimeError, "recorded hash"):
+                    runtime._variants(spec, {}, output, "http://local-only/v1", True)
+
+
+class LocalImageToolTests(unittest.TestCase):
+    def test_documented_seed_override_is_sent_as_supported_top_level_request_field(self):
+        import httpx
+        from openai import OpenAI
+
+        guide = runtime._local_tools("http://local-only/v1", "qwen3.8-27b")
+        code = guide.split("```python\n", 1)[1].split("```", 1)[0]
+        tree = ast.parse(code)
+        image_call = next(
+            node for node in tree.body
+            if isinstance(node, ast.Assign) and any(isinstance(t, ast.Name) and t.id == "image" for t in node.targets)
+        )
+        requests = []
+
+        def respond(request):
+            requests.append(json.loads(request.content))
+            return httpx.Response(200, json={"created": 1, "data": [{"b64_json": "bW9jaw=="}]})
+
+        with OpenAI(
+            base_url="http://local-only/v1", api_key="local-only",
+            http_client=httpx.Client(transport=httpx.MockTransport(respond)),
+        ) as client:
+            example = compile(ast.Module(body=[image_call], type_ignores=[]), "local-image-example", "exec")
+            exec(example, {"client": client})
+        self.assertEqual(len(requests), 1)
+        self.assertEqual(requests[0]["seed"], 43)
+        self.assertEqual(requests[0]["model"], "local-image")
+        self.assertNotIn("extra_body", requests[0])
+        self.assertIn("default seed 42", guide)
+        self.assertIn("an unchanged retry is not a new sample", guide)
 
 
 class GraderTests(unittest.TestCase):
@@ -731,14 +832,14 @@ class TaskDeadlineTests(unittest.TestCase):
 
     def deadline_execution(self, directory, *, outer=False):
         execution = MockExecution(directory)
-        execution.agent_elapsed = 35 if outer else 5
+        execution.agent_elapsed = 5
         execution.agent_stdout = json.dumps({"payloads": [], "meta": {"aborted": True, "durationMs": 5000}})
         execution.agent_stderr = self.NATIVE_MARKER
-        execution.gateway_errors = [self.cancellation(finished_unix=135.0 if outer else 105.0)]
+        execution.gateway_errors = [self.cancellation(finished_unix=105.0)]
         if outer:
             execution.agent_stderr = ""
             execution.agent_exception = subprocess.TimeoutExpired(
-                "mock agent", 35, output=execution.agent_stdout.encode(), stderr=b"original native stderr"
+                "mock agent", 5, output=execution.agent_stdout.encode(), stderr=b"original native stderr"
             )
         return execution
 
@@ -746,7 +847,7 @@ class TaskDeadlineTests(unittest.TestCase):
         self.assertEqual(result["status"], "completed")
         self.assertEqual(result["score"], 0.0)
         self.assertTrue(result["timed_out"])
-        self.assertEqual(execution.agent_wait_timeouts, [35])
+        self.assertEqual(execution.agent_wait_timeouts, [5])
         args = next(e[1] for e in execution.events if e[0] == "agent")
         self.assertEqual(args[args.index("--timeout") + 1], "5")
         workspace_index = next(
@@ -778,6 +879,7 @@ class TaskDeadlineTests(unittest.TestCase):
             result = execution.execute()
             self.assert_graded_deadline(execution, result)
             self.assertTrue(result["task_deadline_evidence"]["outer_timeout"])
+            self.assertEqual(result["task_deadline_evidence"]["native_deadline_markers"], [])
             self.assertIn("original native stderr", (execution.output / "agent.stderr").read_text())
 
     def test_deadline_before_assistant_activity_still_preserves_trace_and_grades(self):
@@ -894,7 +996,7 @@ class TaskDeadlineTests(unittest.TestCase):
 
 
 class TaskClientInputErrorTests(unittest.TestCase):
-    """Reproduce the observed bad-image tool request using captured contract fields."""
+    """Recover attributable task-tool 400s while preserving service failures."""
 
     ERROR = "Failed to load image: cannot identify image file <_io.BytesIO object>"
 
@@ -958,7 +1060,7 @@ class TaskClientInputErrorTests(unittest.TestCase):
             execution.grade_scores = {"overall_score": 0.25}
             result = execution.execute()
             self.assertEqual((result["status"], result["score"], result["timed_out"]), ("completed", 0.25, True))
-            self.assertEqual(result["task_client_input_errors"][0]["tool_call_id"], "exec-report")
+            self.assertEqual(result["task_tool_input_errors"][0]["tool_call_id"], "exec-report")
             self.assertEqual(execution.gateway_errors, [failure])
             self.assertEqual(request.read_bytes(), original)
             self.assertEqual(result["task_deadline_evidence"]["cancelled_gateway_requests"], [])
@@ -982,7 +1084,40 @@ class TaskClientInputErrorTests(unittest.TestCase):
                 self.assertIs(result["gateway_main_errors"][0], failure)
                 self.assertFalse(any(e[0] == "grade" for e in execution.events))
 
-    def test_missing_provenance_no_continuation_or_other_400_is_not_exempt(self):
+    def test_recovered_tool_client_400s_require_exact_error_attribution(self):
+        errors = (
+            "Failed to apply Qwen3VLProcessor on image size=2x2048",
+            "messages body validation failed",
+        )
+        for error in errors:
+            with self.subTest(error=error), tempfile.TemporaryDirectory() as temporary:
+                execution = self.execution(Path(temporary))
+                directory = Path(execution.gateway_errors[0]["evidence_directory"])
+                (directory / "response.bin").write_text(json.dumps({"error": {"message": error}}))
+                execution.chat_entries[1]["message"]["content"][0]["text"] = "Error code: 400 - " + error
+                result = execution.execute()
+                self.assertEqual(result["status"], "completed")
+                self.assertEqual(len(result["task_tool_input_errors"]), 1)
+                self.assertEqual(result["task_tool_input_errors"][0]["classification"], "recovered_tool_client_input_error")
+
+    def test_native_image_stream_400_requires_structured_matching_tool_error(self):
+        for valid_details in (True, False):
+            with self.subTest(valid_details=valid_details), tempfile.TemporaryDirectory() as temporary:
+                execution = self.execution(Path(temporary))
+                directory = Path(execution.gateway_errors[0]["evidence_directory"])
+                request = json.loads((directory / "request.json").read_text())
+                request["stream"] = True
+                (directory / "request.json").write_text(json.dumps(request))
+                execution.chat_entries[0]["message"]["content"][0]["name"] = "image"
+                if valid_details:
+                    execution.chat_entries[1]["message"]["details"] = {"status": "error", "tool": "image"}
+                result = execution.execute()
+                self.assertEqual(result["status"], "completed" if valid_details else "infrastructure_error")
+                if valid_details:
+                    self.assertEqual(result["task_tool_input_errors"][0]["tool_name"], "image")
+                    self.assertEqual(result["tool_errors"], 1)
+
+    def test_missing_provenance_no_continuation_or_unmatched_400_is_not_exempt(self):
         for change in (
             "no_tool",
             "no_continuation",
@@ -990,6 +1125,7 @@ class TaskClientInputErrorTests(unittest.TestCase):
             "outside_tool",
             "other_400",
             "no_evidence",
+            "agent_tools",
         ):
             with self.subTest(change=change), tempfile.TemporaryDirectory() as temporary:
                 execution = self.execution(Path(temporary))
@@ -1006,20 +1142,29 @@ class TaskClientInputErrorTests(unittest.TestCase):
                     (Path(failure["evidence_directory"]) / "response.bin").write_text(
                         json.dumps({"error": {"message": "messages body validation failed"}})
                     )
+                elif change == "agent_tools":
+                    request = Path(failure["evidence_directory"]) / "request.json"
+                    body = json.loads(request.read_text())
+                    body["tools"] = [{"type": "function", "function": {"name": "exec"}}]
+                    request.write_text(json.dumps(body))
                 else:
                     failure.pop("evidence_directory")
                 result = execution.execute()
                 self.assertEqual(result["status"], "infrastructure_error")
                 self.assertFalse(any(e[0] == "grade" for e in execution.events))
 
-    def test_bad_image_classification_never_masks_assistant_or_grading_failures(self):
-        for stage in ("assistant", "grading", "service"):
+    def test_tool_input_classification_never_masks_assistant_grading_or_service_failures(self):
+        for stage in ("assistant", "grading", "service", "network"):
             with self.subTest(stage=stage), tempfile.TemporaryDirectory() as temporary:
                 execution = self.execution(Path(temporary))
                 if stage == "assistant":
                     execution.chat_entries[-1]["message"].update(stopReason="error", errorMessage="model failed")
                 elif stage == "grading":
                     execution.grade_events = [{"kind": "model_api", "fingerprint": "judge", "status": 500}]
+                elif stage == "network":
+                    execution.gateway_errors.append(
+                        {"role": "main", "status": "error", "error": "ReadError: disconnected"}
+                    )
                 else:
                     execution.gateway_errors.append({"role": "main", "status": "error", "http_status": 500})
                 result = execution.execute()
@@ -1049,7 +1194,145 @@ class TaskClientInputErrorTests(unittest.TestCase):
                 )
 
 
+ARCHIVED_RUNTIME = SOURCE.resolve().parents[1]
+ARCHIVED_RUN = ARCHIVED_RUNTIME / "runs" / "20261012T230206Z"
+
+
+@unittest.skipUnless(ARCHIVED_RUN.is_dir(), "Historical reproduction traces are not available")
+class ArchivedClientErrorReplayTests(unittest.TestCase):
+    """Replay captured failures read-only; never regenerate historical task scores."""
+
+    def test_real_recovered_image_and_exec_400s_and_ambiguous_format_errors(self):
+        cases = (
+            (
+                "executions/validation/01/007-visual-puzzle-solving/old/02.05/"
+                "attempt-history/1791868795336894160-330a8c4b",
+                {"a568cce7e9d649ecac434bb89eaddbbf"}, 0,
+            ),
+            (
+                "executions/day/01/main/shared/06.10/attempt-history/1791859424075364878-a3c94dff",
+                {"d0836ed8a46543a2bfab8894e1b51520"}, 0,
+            ),
+            (
+                "executions/day/01/main/shared/06.10/attempt-history/1791852700502734277-4990aa8c",
+                set(), 4,
+            ),
+        )
+        for relative_path, recovered_ids, remaining_count in cases:
+            with self.subTest(archive=relative_path):
+                output = ARCHIVED_RUN / relative_path
+                saved = json.loads((output / "runtime-result.json").read_text())
+                deadline = json.loads((output / "agent-deadline.json").read_text())
+                records = runtime._gateway_main_records(
+                    {"gateway_log_dir": str(ARCHIVED_RUNTIME / "api-evidence")},
+                    saved["run_id"], deadline["agent_started_unix"],
+                )
+                records = [r for r in records if r["started_unix"] <= deadline["agent_finished_unix"]]
+                failures = runtime._gateway_main_failures({}, saved["run_id"], records=records)
+                files = list(output.glob("*.json")) + [output / "chat.jsonl"]
+                for failure in failures:
+                    directory = Path(failure["evidence_directory"])
+                    files.extend(directory / name for name in ("record.json", "request.json", "response.bin"))
+                before = {file: hashlib.sha256(file.read_bytes()).hexdigest() for file in files if file.exists()}
+                messages = [json.loads(line) for line in (output / "chat.jsonl").read_text().splitlines()]
+                failures, _ = runtime._deadline_stream_cancellations(failures, deadline)
+                remaining, recovered = runtime._tool_input_errors(failures, messages)
+                self.assertEqual({r["request_id"] for r in recovered}, recovered_ids)
+                self.assertEqual(len(remaining), remaining_count)
+                self.assertEqual({file: hashlib.sha256(file.read_bytes()).hexdigest() for file in before}, before)
+
+
 class TaskExecutionTests(unittest.TestCase):
+    def test_rescore_preserves_agent_configuration_guidance_and_workspace_tools(self):
+        for live_container in (True, False):
+            with self.subTest(live_container=live_container), tempfile.TemporaryDirectory() as temporary:
+                execution = MockExecution(Path(temporary))
+                execution.grade_scores = {"error": "grading transport failed"}
+                self.assertEqual(execution.execute()["status"], "pending_score")
+                files = {
+                    execution.output / "openclaw-config.json": b'{"historical_agent_config": true}\n',
+                    execution.output / "local-tools.md": b"Historical Agent guide before seed explanation.\n",
+                    execution.output / "workspace/TOOLS.md": b"Historical workspace tool instructions.\n",
+                    execution.output / "python-bootstrap.json": b'{"historical_bootstrap": true}\n',
+                    execution.output / "local-tool-adapters.json": b'{"historical_adapters": true}\n',
+                }
+                for file, content in files.items():
+                    file.write_bytes(content)
+                boundary = len(execution.events)
+                execution.live_container = live_container
+                execution.grade_scores = {"overall_score": 0.8}
+                self.assertEqual(execution.execute(rescore=True)["status"], "completed")
+                self.assertEqual(execution.agent_calls, 1)
+                self.assertEqual({file: file.read_bytes() for file in files}, files)
+                self.assertTrue((execution.output / "rescore-openclaw-config.json").is_file())
+                self.assertFalse(any(
+                    event[0] == "copy_in" and event[2] == "/tmp_workspace/TOOLS.md"
+                    for event in execution.events[boundary:]
+                ))
+                if not live_container:
+                    for event in execution.events[boundary:]:
+                        if event[0] in ("adapters", "python_bootstrap"):
+                            self.assertTrue(Path(event[-1]).name.startswith("rescore-"))
+
+    def test_tool_errors_use_structured_flags_and_count_each_failed_result_once(self):
+        cases = [
+            ("successful exec", "exec", False, {"exitCode": 0, "status": "completed"}, "Traceback example", 0),
+            ("nonzero exec", "exec", False, {"exitCode": 1, "status": "completed"}, "", 1),
+            ("image failure", "image", False, {"status": "error", "error": "image unavailable"}, "", 1),
+            ("explicit flag", "read", True, {}, "", 1),
+            ("multiple flags", "exec", True, {"exitCode": 1, "status": "error"}, "", 1),
+            ("unstructured text", "exec", False, {}, "Error: traceback from quoted documentation", 0),
+            ("running exec", "exec", False, {"status": "running"}, "", 0),
+        ]
+        for label, tool, is_error, details, text, expected in cases:
+            with self.subTest(case=label), tempfile.TemporaryDirectory() as temporary:
+                execution = MockExecution(Path(temporary))
+                execution.chat_entries = [
+                    {"message": {"role": "assistant", "content": [
+                        {"type": "toolCall", "id": "tool-1", "name": tool, "arguments": {}}
+                    ]}},
+                    {"message": {
+                        "role": "toolResult", "toolCallId": "tool-1", "isError": is_error,
+                        "details": details, "content": [{"type": "text", "text": text}],
+                    }},
+                ]
+                result = execution.execute()
+                self.assertEqual(result["status"], "completed")
+                self.assertEqual(result["tool_errors"], expected)
+                self.assertEqual(result["session"]["tool_errors"], expected)
+                self.assertEqual(result["session"]["messages"], execution.chat_entries)
+
+    def test_agent_and_session_use_the_recorded_complete_prompt_and_rescore_preserves_it(self):
+        real_variants = runtime._variants
+        with tempfile.TemporaryDirectory() as temporary:
+            execution = MockExecution(Path(temporary))
+            task_file = execution.root / "official-task.md"
+            task_file.write_text("## Prompt\n" + execution.spec["prompt"])
+            execution.spec["file_path"] = str(task_file)
+            execution.grade_scores = {"error": "grading transport failed"}
+            with execution.context(), patch.object(runtime, "_variants", side_effect=real_variants):
+                result = runtime._execute_child(execution.spec["task_id"], execution.bank, execution.output, {}, False)
+                self.assertEqual(result["status"], "pending_score")
+                complete_prompt = (execution.output / "execution-prompt.txt").read_text()
+                agent = next(event[1] for event in execution.events if event[0] == "agent")
+                self.assertEqual(agent[agent.index("--message") + 1], complete_prompt)
+                self.assertEqual(result["session"]["prompt_text"], complete_prompt)
+                self.assertEqual(result["session"]["task_prompt_text"], execution.spec["prompt"])
+                self.assertIn("timeout (5s)", complete_prompt)
+                self.assertEqual(agent[agent.index("--timeout") + 1], "5")
+                saved_evidence = {
+                    name: (execution.output / name).read_bytes()
+                    for name in ("task-variant.json", "execution-prompt.txt", "official-task-prompt.txt", "task-prompt.txt")
+                }
+                execution.grade_scores = {"overall_score": 0.8}
+                rescored = runtime._execute_child(execution.spec["task_id"], execution.bank, execution.output, {}, True)
+                self.assertEqual(rescored["status"], "completed")
+                self.assertEqual(execution.agent_calls, 1)
+                self.assertEqual(rescored["session"]["prompt_text"], complete_prompt)
+                self.assertEqual(
+                    {name: (execution.output / name).read_bytes() for name in saved_evidence}, saved_evidence
+                )
+
     def test_failed_start_without_assistant_is_infrastructure_not_zero(self):
         with tempfile.TemporaryDirectory() as temporary:
             execution = MockExecution(Path(temporary))
