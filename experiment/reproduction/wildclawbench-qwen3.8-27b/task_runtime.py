@@ -21,6 +21,7 @@ import subprocess
 import sys
 import time
 import uuid
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -66,6 +67,11 @@ All supplied shared skills are in /root/skills and in the OpenClaw skill catalog
 Use the following OpenAI-compatible local interfaces when a task needs media.
 They create actual media through the configured local adapter. A service error
 means the service is unavailable; preserve the error and report it.
+The local image backend is SDXL with default seed 42. Repeating the same image
+prompt, size and seed produces the same image. To try a different image, change
+the prompt or explicitly change the seed; an unchanged retry is not a new sample.
+Each messages item must have role and content. Put image_url items inside the
+user message's content list, never directly as a top-level message.
 
 ```python
 import os, base64
@@ -77,7 +83,8 @@ client = OpenAI(base_url=os.environ['OPENROUTER_BASE_URL'],
 
 # Image generation; write the returned real image bytes to the required file.
 image = client.images.generate(model='local-image', prompt='YOUR IMAGE PROMPT',
-                               size='1024x1024', n=1, response_format='b64_json')
+                               size='1024x1024', n=1, response_format='b64_json',
+                               extra_body={{'seed':43}})
 open('/tmp_workspace/output.png','wb').write(base64.b64decode(image.data[0].b64_json))
 
 # Speech synthesis, including Chinese text when the local backend supports it.
@@ -136,7 +143,19 @@ def task_spec(task_id: str, config: Mapping[str, Any]) -> dict[str, Any]:
     return spec
 
 
-def _variants(spec: dict[str, Any], config: Mapping[str, Any], output: Path, api_url: str) -> dict[str, Any]:
+def _execution_preamble(timeout_seconds: int) -> str:
+    # Keep byte-for-byte equivalent to the pinned eval/run_batch.py entrypoint.
+    return (
+        "You are an expert in a restricted, non-interactive environment. "
+        f"Solve the task efficiently before the timeout ({timeout_seconds}s). "
+        "Run all processes in the foreground without user input or background services. "
+        "Provide a complete, functional solution in a single pass with no placeholders. \n"
+    )
+
+
+def _variants(
+    spec: dict[str, Any], config: Mapping[str, Any], output: Path, api_url: str, rescore: bool = False
+) -> dict[str, Any]:
     patched = dict(spec)
     substitutions: list[dict[str, str]] = []
     model = str(config.get("model_id", "qwen3.8-27b"))
@@ -168,37 +187,64 @@ def _variants(spec: dict[str, Any], config: Mapping[str, Any], output: Path, api
             set(str(spec.get("env", "")).splitlines()) | {"OPENROUTER_API_KEY", "OPENROUTER_BASE_URL", "JUDGE_MODEL"}
         )
     )
-    _save(
-        output / "task-variant.json",
-        {
-            "task_id": spec["task_id"],
-            "source_path": spec["file_path"],
-            "source_sha256": hashlib.sha256(Path(spec["file_path"]).read_bytes()).hexdigest(),
-            "approved_variant": "local-Qwen OCR model"
-            if "ocrbench" in spec["task_id"].lower()
-            else "local execution and judge services",
-            "substitutions": substitutions,
-            "execution_preamble": None,
-            "judge_model": model,
-            "audio_judge_route": "local adapter via gateway",
-            "shared_skill_bank": "complete supplied snapshot",
-            "search": "free browser; Brave disabled",
+    patched["official_prompt"] = spec["prompt"]
+    patched["task_prompt"] = patched["prompt"]
+    patched["execution_preamble"] = _execution_preamble(spec["timeout_seconds"])
+    patched["prompt"] = patched["execution_preamble"] + patched["task_prompt"]
+    if rescore:
+        # Scoring an existing execution must preserve the prompt/checks it used,
+        # including historical runs that omitted the official execution prefix.
+        manifest = json.loads((output / "task-variant.json").read_text())
+        patched["prompt"] = (output / "execution-prompt.txt").read_text()
+        patched["automated_checks"] = (output / "automated-checks.py").read_text()
+        for field, key in (("prompt", "modified_prompt_sha256"), ("automated_checks", "modified_checks_sha256")):
+            if hashlib.sha256(patched[field].encode()).hexdigest() != manifest[key]:
+                raise RuntimeError(f"Saved execution {field} does not match its recorded hash")
+        patched["execution_preamble"] = manifest.get("execution_preamble")
+        task_prompt_file = output / "task-prompt.txt"
+        patched["task_prompt"] = task_prompt_file.read_text() if task_prompt_file.exists() else patched["prompt"]
+        return patched
+    manifest = {
+        "task_id": spec["task_id"],
+        "source_path": spec["file_path"],
+        "source_sha256": hashlib.sha256(Path(spec["file_path"]).read_bytes()).hexdigest(),
+        "approved_variant": "local-Qwen OCR model"
+        if "ocrbench" in spec["task_id"].lower()
+        else "local execution and judge services",
+        "task_prompt_variant": "local-Qwen OCR model" if "ocrbench" in spec["task_id"].lower() else "none",
+        "substitutions": substitutions,
+        "execution_preamble": patched["execution_preamble"],
+        "execution_preamble_source": "eval/run_batch.py:run_single_task",
+        "timeout_seconds": spec["timeout_seconds"],
+        "judge_model": model,
+        "audio_judge_route": "local adapter via gateway",
+        "shared_skill_bank": "complete supplied snapshot",
+        "search": "free browser; Brave disabled",
+        "local_image_generation": {
+            "backend": "SDXL",
+            "default_seed": 42,
+            "seed_control": "images.generate extra_body={'seed': integer}",
+            "repeat_semantics": "same prompt/size/seed produces the same image",
         },
-    )
+        "official_prompt_sha256": hashlib.sha256(patched["official_prompt"].encode()).hexdigest(),
+        "task_prompt_sha256": hashlib.sha256(patched["task_prompt"].encode()).hexdigest(),
+        "execution_prompt_sha256": hashlib.sha256(patched["prompt"].encode()).hexdigest(),
+        "modified_prompt_sha256": hashlib.sha256(patched["prompt"].encode()).hexdigest(),
+        "modified_prompt_sha256_scope": "execution_prompt",
+        "modified_checks_sha256": hashlib.sha256(patched["automated_checks"].encode()).hexdigest(),
+    }
     (output / "official-task.md").write_bytes(Path(spec["file_path"]).read_bytes())
+    (output / "official-task-prompt.txt").write_text(patched["official_prompt"])
+    (output / "task-prompt.txt").write_text(patched["task_prompt"])
     (output / "execution-prompt.txt").write_text(patched["prompt"])
     (output / "automated-checks.py").write_text(patched["automated_checks"])
-    manifest_path = output / "task-variant.json"
-    manifest = json.loads(manifest_path.read_text())
-    manifest["modified_prompt_sha256"] = hashlib.sha256(patched["prompt"].encode()).hexdigest()
-    manifest["modified_checks_sha256"] = hashlib.sha256(patched["automated_checks"].encode()).hexdigest()
     if "ocrbench" in spec["task_id"].lower():
         manifest["ocr_protocol"] = _OCR_PROTOCOL
         manifest["ocr_rules_source"] = (
             "https://github.com/open-compass/VLMEvalKit/blob/main/vlmeval/dataset/image_vqa.py#L485"
         )
         manifest["ocr_task_completion_is_not_model_accuracy"] = True
-    _save(manifest_path, manifest)
+    _save(output / "task-variant.json", manifest)
     return patched
 
 
@@ -694,7 +740,15 @@ def _session(output: Path, spec: Mapping[str, Any]) -> dict[str, Any]:
                 if part.get("type") in ("toolCall", "tool_use", "tool_call"):
                     args = part.get("arguments", part.get("input", {}))
                     calls[str(part.get("id", ""))] = {"name": part.get("name"), "arguments": args}
-            if message.get("role") in ("toolResult", "tool") and message.get("isError"):
+            details = message.get("details", {})
+            details = details if isinstance(details, dict) else {}
+            exit_code = details.get("exitCode")
+            tool_failed = (
+                bool(message.get("isError"))
+                or details.get("status") == "error"
+                or (isinstance(exit_code, int) and not isinstance(exit_code, bool) and exit_code != 0)
+            )
+            if message.get("role") in ("toolResult", "tool") and tool_failed:
                 tool_errors += 1
             elif message.get("role") in ("toolResult", "tool"):
                 call = calls.get(str(message.get("toolCallId", message.get("tool_call_id", ""))), {})
@@ -718,6 +772,7 @@ def _session(output: Path, spec: Mapping[str, Any]) -> dict[str, Any]:
     return {
         "task_id": spec["task_id"],
         "prompt_text": spec["prompt"],
+        "task_prompt_text": spec.get("task_prompt", spec["prompt"]),
         "messages": entries,
         "read_skills": sorted(reads),
         "actual_used_skill_refs": sorted(reads),
@@ -738,6 +793,7 @@ def _gateway_main_records(config: Mapping[str, Any], run_id: str, started_unix: 
         if record.get("started_unix", 0) < started_unix:
             continue
         if record.get("role") == "main":
+            record["evidence_directory"] = str(file.parent)
             records.append(record)
     return records
 
@@ -752,6 +808,85 @@ def _gateway_main_failures(
     if records is None:
         records = _gateway_main_records(config, run_id, started_unix)
     return [r for r in records if r.get("status") == "error" or (r.get("http_status") or 200) >= 400]
+
+
+def _tool_input_errors(
+    failures: list[dict[str, Any]], messages: list[dict[str, Any]]
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Separate client 400s proven to belong to recovered task-tool requests."""
+    calls, windows, continued = {}, [], []
+    for index, entry in enumerate(messages):
+        message = entry.get("message", {})
+        content = message.get("content", [])
+        if not isinstance(content, list):
+            continue
+        try:
+            timestamp = datetime.fromisoformat(entry["timestamp"]).timestamp()
+        except (KeyError, TypeError, ValueError):
+            continue
+        if message.get("role") == "assistant" and message.get("stopReason") not in ("error", "aborted"):
+            for part in content:
+                if not isinstance(part, dict):
+                    continue
+                if part.get("type") in ("toolCall", "tool_use", "tool_call"):
+                    continued.append(index)
+                    if part.get("name") in ("exec", "bash", "image") and part.get("id"):
+                        calls[part["id"]] = (timestamp, part["name"])
+                elif part.get("type") == "text" and str(part.get("text", "")).strip():
+                    continued.append(index)
+        elif message.get("role") in ("toolResult", "tool"):
+            call_id = message.get("toolCallId", message.get("tool_call_id"))
+            if call_id in calls:
+                text = "\n".join(str(p.get("text", "")) for p in content if isinstance(p, dict))
+                windows.append(
+                    (index, calls[call_id][0], timestamp, call_id, calls[call_id][1], text, message.get("details", {}))
+                )
+    remaining, client_errors = [], []
+    for failure in failures:
+        attributed = None
+        if failure.get("http_status") == 400 and failure.get("evidence_directory"):
+            try:
+                directory = Path(failure["evidence_directory"])
+                request = json.loads((directory / "request.json").read_bytes())
+                response = json.loads((directory / "response.bin").read_bytes())
+                error = response["error"]["message"]
+                started, finished = failure["started_unix"], failure["finished_unix"]
+                if (
+                    isinstance(request, dict)
+                    and not request.get("tools")
+                    and isinstance(error, str)
+                    and error
+                ):
+                    for index, begin, end, call_id, tool_name, text, details in windows:
+                        if tool_name == "image":
+                            # Native image tools use streaming internally. Require
+                            # their explicit structured error and linked result.
+                            if (
+                                not isinstance(details, dict)
+                                or details.get("tool") != "image"
+                                or details.get("status") != "error"
+                            ):
+                                continue
+                        elif request.get("stream") is True:
+                            continue
+                        if begin <= started <= finished <= end and error in text and "400" in text:
+                            if any(later > index for later in continued):
+                                attributed = {
+                                    **failure,
+                                    "classification": "recovered_tool_client_input_error",
+                                    "client_error_message_sha256": hashlib.sha256(error.encode()).hexdigest(),
+                                    "tool_call_id": call_id,
+                                    "tool_name": tool_name,
+                                    "tool_result_timestamp_unix": end,
+                                }
+                                break
+            except (OSError, ValueError, KeyError, TypeError):
+                pass  # Missing/ambiguous provenance remains an infrastructure failure.
+        if attributed is None:
+            remaining.append(failure)
+        else:
+            client_errors.append(attributed)
+    return remaining, client_errors
 
 
 def _task_deadline_evidence(
@@ -817,7 +952,7 @@ def _execute_child(
     spec = task_spec(task_id, config)
     run_id = "wcb-" + hashlib.sha256(str(output.resolve()).encode()).hexdigest()[:20]
     api_url = environment.container_api_url(config, run_id=run_id)
-    spec = _variants(spec, config, output, api_url)
+    spec = _variants(spec, config, output, api_url, rescore)
     name = "sharedskill-task-" + uuid.uuid4().hex[:16]
     timeout = int(spec["timeout_seconds"])
     result: dict[str, Any] = {
@@ -965,7 +1100,8 @@ def _execute_child(
                 raise RuntimeError("Missing shared skill snapshot: " + str(skill_dir))
         # Persist the local-only configuration; the pinned image supplies OpenClaw.
         conf = environment.openclaw_config(config, "/tmp_workspace", api_url=api_url)
-        conf_path = output / "openclaw-config.json"
+        evidence_prefix = "rescore-" if rescore else ""
+        conf_path = output / f"{evidence_prefix}openclaw-config.json"
         _save(conf_path, conf)
         _copy_in(conf_path, name, "/root/.openclaw/openclaw.json", config)
         # The image tool restricts media roots to the configured workspace.
@@ -979,12 +1115,15 @@ def _execute_child(
             ],
             config,
         )
-        tools_file = output / "local-tools.md"
-        tools_file.write_text(_local_tools(api_url, str(config.get("model_id", "qwen3.8-27b"))))
-        _copy_in(tools_file, name, "/tmp_workspace/TOOLS.md", config)
+        if not rescore:
+            tools_file = output / "local-tools.md"
+            tools_file.write_text(_local_tools(api_url, str(config.get("model_id", "qwen3.8-27b"))))
+            _copy_in(tools_file, name, "/tmp_workspace/TOOLS.md", config)
         if not live_rescore:
-            environment.apply_python_bootstrap(name, config, output / "python-bootstrap.json")
-            environment.apply_local_tool_adapters(name, config, api_url, output / "local-tool-adapters.json")
+            environment.apply_python_bootstrap(name, config, output / f"{evidence_prefix}python-bootstrap.json")
+            environment.apply_local_tool_adapters(
+                name, config, api_url, output / f"{evidence_prefix}local-tool-adapters.json"
+            )
         # Warmup services are backgrounded with detached stdin/stdout so the
         # parent docker-exec does not hang while mock servers stay alive.
         warmup = str(spec.get("warmup", ""))
@@ -1040,7 +1179,7 @@ def _execute_child(
             # failed attempt in this output directory.
             (output / "chat.jsonl").unlink(missing_ok=True)
             try:
-                proc = _docker(agent_args, config, timeout=timeout + 30, check=False)
+                proc = _docker(agent_args, config, timeout=timeout, check=False)
                 (output / "agent.stdout").write_text(proc.stdout)
                 (output / "agent.stderr").write_text(proc.stderr)
                 if proc.returncode:
@@ -1087,6 +1226,9 @@ def _execute_child(
             main_records = _gateway_main_records(config, run_id, begin_unix)
             main_errors = _gateway_main_failures(config, run_id, begin_unix, records=main_records)
             main_errors, cancelled = _deadline_stream_cancellations(main_errors, deadline)
+            main_errors, client_errors = _tool_input_errors(main_errors, session["messages"])
+            if client_errors:
+                result["task_tool_input_errors"] = client_errors
             deadline["cancelled_gateway_requests"] = cancelled
             _save(output / "agent-deadline.json", deadline)
             transcript_model_errors = [

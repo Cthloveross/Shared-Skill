@@ -1,6 +1,6 @@
 {
   "experiment_name": "wildclawbench-qwen3.8-27b-local-six-nights",
-  "protocol_version": 1,
+  "protocol_version": 2,
   "benchmark_revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
   "dataset_revision": "75f945578aa00cbdb8f46e4d42e4f4e98f704b4f",
   "model_revision": "1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0",
@@ -30,7 +30,6 @@
   "warmup_timeout_seconds": 1800,
   "grading_timeout_seconds": 1800,
   "infrastructure_retries": 1,
-  "validation_repeats": 1,
   "score_tolerance": 0.000001,
   "paid_api_budget_usd": 0,
   "ocr_local_variant": true,
