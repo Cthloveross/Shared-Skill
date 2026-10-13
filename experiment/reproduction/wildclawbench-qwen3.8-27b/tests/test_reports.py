@@ -69,10 +69,30 @@ class ReportTests(unittest.TestCase):
             self.assertEqual(summary["unchanged_prompt_pairs"], 58)
             self.assertAlmostEqual(summary["unchanged_prompt_delta"], 0.1)
             self.assertAlmostEqual(summary["ocr_variant"]["delta"], -0.2)
-            self.assertNotIn("终点 S6−S0：", (root / "report/REPORT.md").read_text())
+            self.assertNotIn("终点完成质量均分 S6−S0：", (root / "report/REPORT.md").read_text())
+            final_stage = next(s for s in summary["stages"] if s["arm"] == "S6")
+            self.assertAlmostEqual(final_stage["grading_coverage"], 59 / 60)
+            self.assertIsNone(final_stage["full_credit_rate"])
+            self.assertIn("（部分）", (root / "report/REPORT.md").read_text())
             self.assertEqual(summary["phase_totals"]["endpoint"]["usage"]["total_tokens"], 1680)
             with (root / "report/tasks.csv").open() as stream:
                 self.assertEqual(len(list(csv.DictReader(stream))), 120)
+
+    def test_completed_and_full_credit_are_different_from_task_success(self):
+        rows = [
+            {"status": "completed", "score": 0, "timed_out": True, "session": {"read_skills": []}},
+            {"status": "completed", "score": 1, "session": {"read_skills": ["alpha", "beta"]}},
+            {"status": "pending_score", "score": 1},
+        ]
+        result = reports.summarize(rows)
+        self.assertEqual(result["graded"], 2)
+        self.assertEqual(result["score"], 0.5)
+        self.assertEqual(result["mean_task_score_0_to_100"], 50)
+        self.assertEqual(result["zero_score_tasks"], 1)
+        self.assertEqual(result["full_credit_tasks"], 1)
+        self.assertEqual(result["timeouts"], 1)
+        self.assertEqual(result["shared_skill_tasks"], 1)
+        self.assertEqual(result["shared_skill_names"], ["alpha", "beta"])
 
     def test_backend_usage_handles_streams_subcalls_and_cancelled_requests(self):
         with tempfile.TemporaryDirectory() as temporary:
