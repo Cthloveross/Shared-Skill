@@ -204,6 +204,20 @@ class UnattendedControllerTests(unittest.TestCase):
         self.assertTrue(unattended.graded(result))
         self.assertEqual(list((self.directory / "operations/unattended/skips").glob("*.json")), [])
 
+    def test_existing_exhausted_failure_is_adopted_without_reexecuting(self):
+        failed = lambda *args: {"status": "infrastructure_error", "score": None, "error": "Still unavailable"}
+        with self.native_mocks(execute=failed) as (adapter, evolution):
+            first = run.run_one(self.tasks[0], self.bank, self.directory, self.config, "day", 1)
+            policy = unattended.Policy(self.directory, AUTHORIZED_AT)
+            path = policy.execution(self.tasks[0], self.bank, self.config, "day", 1)[1]
+            before = path.read_bytes()
+            with policy.install(evolution):
+                result = run.run_one(self.tasks[0], self.bank, self.directory, self.config, "day", 1)
+            self.assertEqual(adapter.execute_task.call_count, 2)
+            self.assertEqual(result, first)
+            self.assertEqual(path.read_bytes(), before)
+            self.assertTrue((policy.operations / "skips" / (first["execution_hash"] + ".json")).exists())
+
     def test_existing_pending_score_resumes_only_the_native_grader(self):
         pending = lambda *args: {"status": "pending_score", "score": None, "session": {"turns": []}}
         scored = lambda *args: {"status": "completed", "score": 0.4, "session": {"turns": []}}
