@@ -68,11 +68,21 @@ def wall_span(records: list[dict]) -> float | None:
 def summarize(records: list[dict]) -> dict:
     graded = [r for r in records if r.get("status") == "completed" and r.get("score") is not None]
     values = [r["score"] for r in graded]
+    mean_score = statistics.mean(values) if values else None
     usage = [r["usage"] for r in records if isinstance(r.get("usage"), dict)]
+    skill_reads = [
+        r["session"]["read_skills"] for r in records if isinstance((r.get("session") or {}).get("read_skills"), list)
+    ]
     return {
         "attempted": len(records),
         "graded": len(graded),
-        "score": statistics.mean(values) if values else None,
+        "score": mean_score,
+        "mean_task_score_0_to_100": mean_score * 100 if mean_score is not None else None,
+        "zero_score_tasks": sum(value == 0 for value in values),
+        "full_credit_tasks": sum(value == 1 for value in values),
+        "skill_read_records": len(skill_reads),
+        "shared_skill_tasks": sum(bool(reads) for reads in skill_reads) if skill_reads else None,
+        "shared_skill_names": sorted({name for reads in skill_reads for name in reads}) if skill_reads else None,
         "task_seconds": sum(r.get("wall_seconds", 0) for r in records),
         "timeouts": sum(r.get("timed_out", False) for r in records),
         "tool_errors": sum(r.get("tool_errors", 0) for r in records),
@@ -144,14 +154,31 @@ def generate(run_dir: Path, tasks: list[dict]) -> dict:
     stages = []
     for (phase, number, arm), rows in sorted(groups.items()):
         total = summarize(rows)
+        expected_tasks = [
+            task for task in tasks if phase != "pilot" or task["short_id"] in config.get("pilot_short_ids", [])
+        ]
+        expected = len(expected_tasks)
         by_category = {}
         for category in sorted({t["category"] for t in tasks}):
             category_rows = [r for r in rows if r["category"] == category]
             by_category[category] = {
                 **summarize(category_rows),
-                "expected": sum(t["category"] == category for t in tasks),
+                "expected": sum(t["category"] == category for t in expected_tasks),
             }
-        stages.append({"phase": phase, "round": number, "arm": arm, **total, "categories": by_category})
+        stages.append(
+            {
+                "phase": phase,
+                "round": number,
+                "arm": arm,
+                **total,
+                "expected": expected,
+                "grading_coverage": total["graded"] / expected if expected else None,
+                "full_credit_rate": total["full_credit_tasks"] / expected
+                if expected and total["graded"] == expected
+                else None,
+                "categories": by_category,
+            }
+        )
     paired = []
     control = {r["task_id"]: r for r in records if r["phase"] == "endpoint" and r.get("arm") == "S0"}
     final = {r["task_id"]: r for r in records if r["phase"] == "endpoint" and r.get("arm") == "S6"}
@@ -247,6 +274,8 @@ def generate(run_dir: Path, tasks: list[dict]) -> dict:
     bank_changed = tree_hash(initial_bank) != tree_hash(final_bank) if final_bank.is_dir() else None
     summary = {
         "reported_at": dt.datetime.now(dt.timezone.utc).isoformat(),
+        "primary_metric": "mean_task_score_0_to_100",
+        "binary_task_success_rate": None,
         "state": state,
         "stages": stages,
         "candidate_accepts": sum(d.get("accepted", False) for d in decisions),
@@ -271,16 +300,38 @@ def generate(run_dir: Path, tasks: list[dict]) -> dict:
         "",
         f"运行目录：`{run_dir.name}`；状态：**{state.get('status', 'not_started')}**。",
         "",
-        "成绩由实际有效评分生成，缺失评分保留为空；不把部分任务均值当成完整 60 题成绩。",
+        "主指标：任务完成质量均分，等于有效 overall_score 的均值 × 100，单位为分（0–100）。",
+        "status=completed 只表示执行和评分结束，包含零分失败与超时任务；评分覆盖率不等于任务成功率。",
+        "满分任务按 score=1 统计，作为辅助描述；基准没有统一二元成功阈值，整题成功率保持未定义。",
+        "缺失评分保留为空，不填零；未达到完整题数的均分标为部分结果，不作为完整阶段成绩。",
         "",
-        "| 阶段 | 库／轮次 | 已执行 | 有效评分 | 平均分 | 累计任务小时 | 超时 |",
-        "|---|---|---:|---:|---:|---:|---:|",
+        "| 阶段 | 库／轮次 | 已执行 | 评分覆盖 | 完成质量均分（0–100） | 满分／已评分 | 累计任务小时 | 超时 |",
+        "|---|---|---:|---:|---:|---:|---:|---:|",
     ]
     for stage in stages:
-        score = f"{stage['score'] * 100:.2f}%" if stage["score"] is not None else "待评分"
+        score = f"{stage['score'] * 100:.2f}" if stage["score"] is not None else "待评分"
+        if stage["graded"] != stage["expected"] and stage["score"] is not None:
+            score += "（部分）"
         lines.append(
             f"| {stage['phase']} | {stage['arm'] or stage['round']} | {stage['attempted']} | "
-            f"{stage['graded']} | {score} | {stage['task_seconds'] / 3600:.2f} | {stage['timeouts']} |"
+            f"{stage['graded']}/{stage['expected']} | {score} | "
+            f"{stage['full_credit_tasks']}/{stage['graded']} | "
+            f"{stage['task_seconds'] / 3600:.2f} | {stage['timeouts']} |"
+        )
+    lines += [
+        "",
+        "技能使用与候选决策用于解释任务成绩变化，不作为主成绩：",
+        "",
+        "| 阶段 | 库／轮次 | 有技能读取记录的执行 | 读取共享技能的任务 | 不同共享技能 |",
+        "|---|---|---:|---:|---|",
+    ]
+    for stage in stages:
+        names = stage["shared_skill_names"]
+        shared_tasks = stage["shared_skill_tasks"]
+        lines.append(
+            f"| {stage['phase']} | {stage['arm'] or stage['round']} | {stage['skill_read_records']} | "
+            f"{shared_tasks if shared_tasks is not None else '未记录'} | "
+            f"{(', '.join(names) or '无') if names is not None else '未记录'} |"
         )
     if pilot_calibration:
         lines += [
@@ -297,8 +348,8 @@ def generate(run_dir: Path, tasks: list[dict]) -> dict:
     ]
     if len(valid_pairs) == 60:
         lines.append(
-            f"终点 S6−S0：{summary['endpoint_delta'] * 100:+.2f} 个百分点；"
-            f"59 道保留原提示题：{summary['unchanged_prompt_delta'] * 100:+.2f} 个百分点。"
+            f"终点完成质量均分 S6−S0：{summary['endpoint_delta'] * 100:+.2f} 分（0–100）；"
+            f"59 道保留原提示题：{summary['unchanged_prompt_delta'] * 100:+.2f} 分。"
         )
         if bank_changed is False:
             lines.append("S6 与 S0 的文件 hash 相同；上述差值属于同库重复测量，不能归因于技能内容进化。")
@@ -341,7 +392,7 @@ def generate(run_dir: Path, tasks: list[dict]) -> dict:
             )
             axis.set_title(category.replace("_", " "), fontsize=10)
             axis.set_xlabel("Day (Day 6 uses S5)")
-            axis.set_ylabel("Score (%)")
+            axis.set_ylabel("Mean task score (0–100)")
             axis.set_ylim(0, 100)
             axis.set_xticks(range(1, 7))
             axis.grid(alpha=0.25)
