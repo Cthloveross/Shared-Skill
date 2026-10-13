@@ -465,11 +465,27 @@ v2 保持 Qwen3.8-27B、8 用户、初始 9 技能、任务输入、采样、六
 
 新目录从 S0 开始完成接口检查、8 题预跑，随后独立运行 Day 1–6／Night 1–6 和 S0／S6 终点对照；旧版任何结果均不复用。初始成绩与最终效果只依据新运行报告，不保证修复后成绩单调上升。原本获授权的无人值守错误处理继续作为独立操作策略记录，保持原科学接受规则并明确记录跳过项。
 
+2026-10-13 **18:53 UTC（纽约 14:53）** 启动新版 [20261013T185308Z](runtime/runs/20261013T185308Z/report/REPORT.md)，代码提交 `c7d50d7`。六个本地能力检查通过，8 题预跑均已实际启动；逐题保存的前缀与实际模型请求一致，见 [startup-entry-v2.json](runtime/runs/20261013T185308Z/audits/startup-entry-v2.json)。当前尚无完整 Day 1 成绩，预跑开始不等于预跑通过。
+
+- 协议版本：2；协议 hash：`4f542bd4e4c783e4c75c85fdaa8110e2ac9aec77d2016a5d9a553cb1f9d08307`；70 份源码冻结。
+- 初始 S0 hash：`083b44f303788aad687a6fdc4e85bfc3f47d049844f20782ba4d9c3b95aa5b01`，与旧初始库相同，未使用旧版进化结果。
+- [控制器身份](runtime/runs/20261013T185308Z/controller-process.json)：PID `1242896`；[独立监护身份](runtime/runs/20261013T185308Z/operations/unattended/supervisor-process.json)：PID `1248002`，均独立于当前终端。
+- [旧版可读分析](runtime/runs/20261012T230206Z/report/REGRESSION_ANALYSIS.md)；旧 428 份规范结果逐 hash 再次核验未变。
+
+新版唯一运行命令：
+
+```bash
+.venv/bin/python experiment/reproduction/wildclawbench-qwen3.8-27b/run.py run \
+  --run-dir experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/runs/20261013T185308Z
+```
+
+该控制器已在运行，不应重复启动；恢复应使用同一目录的 `resume`，并由监护先核验进程和运行锁。
+
 <!-- LIVE_STATUS -->
 ## 当前运行记录
 
-- 状态：`superseded_protocol_mismatch`。
-- 运行：`runtime/runs/20261012T230206Z/`。
-- 报告更新：`2026-10-13T18:36:04.412675+00:00`；阶段更新：`2026-10-13T18:35:34.365784+00:00`。
-- 已记录任务执行：428；终点有效配对：0/60。
-- [运行报告](runtime/runs/20261012T230206Z/report/REPORT.md)。
+- 状态：`pilot`。
+- 运行：`runtime/runs/20261013T185308Z/`。
+- 报告更新：`2026-10-13T18:54:47.478815+00:00`；阶段更新：`2026-10-13T18:53:19.127722+00:00`。
+- 已记录任务执行：0；终点有效配对：0/60。
+- [运行报告](runtime/runs/20261013T185308Z/report/REPORT.md)。
