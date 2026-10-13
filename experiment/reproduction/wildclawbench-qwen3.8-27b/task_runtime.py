@@ -21,6 +21,7 @@ import subprocess
 import sys
 import time
 import uuid
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -738,6 +739,7 @@ def _gateway_main_records(config: Mapping[str, Any], run_id: str, started_unix: 
         if record.get("started_unix", 0) < started_unix:
             continue
         if record.get("role") == "main":
+            record["evidence_directory"] = str(file.parent)
             records.append(record)
     return records
 
@@ -752,6 +754,79 @@ def _gateway_main_failures(
     if records is None:
         records = _gateway_main_records(config, run_id, started_unix)
     return [r for r in records if r.get("status") == "error" or (r.get("http_status") or 200) >= 400]
+
+
+def _tool_image_input_errors(
+    failures: list[dict[str, Any]], messages: list[dict[str, Any]]
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Separate only bad-image 400s proven to be recovered task-tool requests."""
+    calls, windows, continued = {}, [], []
+    for index, entry in enumerate(messages):
+        message = entry.get("message", {})
+        content = message.get("content", [])
+        if not isinstance(content, list):
+            continue
+        try:
+            timestamp = datetime.fromisoformat(entry["timestamp"]).timestamp()
+        except (KeyError, TypeError, ValueError):
+            continue
+        if message.get("role") == "assistant" and message.get("stopReason") not in ("error", "aborted"):
+            for part in content:
+                if not isinstance(part, dict):
+                    continue
+                if part.get("type") in ("toolCall", "tool_use", "tool_call"):
+                    continued.append(index)
+                    if part.get("name") in ("exec", "bash") and part.get("id"):
+                        calls[part["id"]] = (timestamp, part["name"])
+                elif part.get("type") == "text" and str(part.get("text", "")).strip():
+                    continued.append(index)
+        elif message.get("role") in ("toolResult", "tool"):
+            call_id = message.get("toolCallId", message.get("tool_call_id"))
+            if call_id in calls:
+                text = "\n".join(str(p.get("text", "")) for p in content if isinstance(p, dict))
+                windows.append((index, calls[call_id][0], timestamp, call_id, calls[call_id][1], text))
+    remaining, client_errors = [], []
+    for failure in failures:
+        attributed = None
+        if failure.get("http_status") == 400 and failure.get("evidence_directory"):
+            try:
+                directory = Path(failure["evidence_directory"])
+                request = json.loads((directory / "request.json").read_bytes())
+                response = json.loads((directory / "response.bin").read_bytes())
+                error = response["error"]["message"]
+                started, finished = failure["started_unix"], failure["finished_unix"]
+                if (
+                    isinstance(request, dict)
+                    and request.get("stream") is not True
+                    and not request.get("tools")
+                    and isinstance(error, str)
+                    and error.startswith("Failed to load image:")
+                    and "cannot identify image file" in error
+                    and any(
+                        isinstance(part, dict) and part.get("type") == "image_url"
+                        for message in request.get("messages", [])
+                        if isinstance(message, dict) and isinstance(message.get("content"), list)
+                        for part in message["content"]
+                    )
+                ):
+                    for index, begin, end, call_id, tool_name, text in windows:
+                        if begin <= started <= finished <= end and error in text and "400" in text:
+                            if any(later > index for later in continued):
+                                attributed = {
+                                    **failure,
+                                    "classification": "recovered_tool_image_input_error",
+                                    "tool_call_id": call_id,
+                                    "tool_name": tool_name,
+                                    "tool_result_timestamp_unix": end,
+                                }
+                                break
+            except (OSError, ValueError, KeyError, TypeError):
+                pass  # Missing/ambiguous provenance remains an infrastructure failure.
+        if attributed is None:
+            remaining.append(failure)
+        else:
+            client_errors.append(attributed)
+    return remaining, client_errors
 
 
 def _task_deadline_evidence(
@@ -1087,6 +1162,9 @@ def _execute_child(
             main_records = _gateway_main_records(config, run_id, begin_unix)
             main_errors = _gateway_main_failures(config, run_id, begin_unix, records=main_records)
             main_errors, cancelled = _deadline_stream_cancellations(main_errors, deadline)
+            main_errors, client_errors = _tool_image_input_errors(main_errors, session["messages"])
+            if client_errors:
+                result["task_client_input_errors"] = client_errors
             deadline["cancelled_gateway_requests"] = cancelled
             _save(output / "agent-deadline.json", deadline)
             transcript_model_errors = [

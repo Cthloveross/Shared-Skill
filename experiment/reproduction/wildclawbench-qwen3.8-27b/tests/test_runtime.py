@@ -893,6 +893,162 @@ class TaskDeadlineTests(unittest.TestCase):
             self.assertFalse(any(e[0] == "grade" for e in execution.events))
 
 
+class TaskClientInputErrorTests(unittest.TestCase):
+    """Reproduce the observed bad-image tool request using captured contract fields."""
+
+    ERROR = "Failed to load image: cannot identify image file <_io.BytesIO object>"
+
+    def execution(self, root):
+        execution = MockExecution(root)
+        directory = root / "gateway/test-run/bad-image"
+        directory.mkdir(parents=True)
+        request = {
+            "messages": [
+                {"role": "system", "content": "Summarize the frame analysis."},
+                {
+                    "role": "user",
+                    "content": [{"type": "image_url", "image_url": {"url": "data:image/jpeg;base64,None"}}],
+                },
+            ]
+        }
+        (directory / "request.json").write_text(json.dumps(request))
+        (directory / "response.bin").write_text(json.dumps({"error": {"message": self.ERROR}}))
+        failure = {
+            "request_id": "bad-image",
+            "role": "main",
+            "status": "error",
+            "http_status": 400,
+            "started_unix": 101.2,
+            "finished_unix": 101.3,
+            "evidence_directory": str(directory),
+        }
+        execution.gateway_errors = [failure]
+        execution.chat_entries = [
+            {
+                "timestamp": "1970-01-01T00:01:41Z",
+                "message": {
+                    "role": "assistant",
+                    "content": [{"type": "toolCall", "id": "exec-report", "name": "exec", "arguments": {}}],
+                },
+            },
+            {
+                "timestamp": "1970-01-01T00:01:42Z",
+                "message": {
+                    "role": "toolResult",
+                    "toolCallId": "exec-report",
+                    "isError": False,
+                    "content": [{"type": "text", "text": f"warning: Error code: 400 - {self.ERROR}; using heuristic"}],
+                },
+            },
+            {
+                "timestamp": "1970-01-01T00:01:43Z",
+                "message": {"role": "assistant", "content": [{"type": "text", "text": "Continue packaging output."}]},
+            },
+        ]
+        return execution
+
+    def test_bad_image_tool_request_followed_by_agent_activity_and_deadline_is_graded(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            execution = self.execution(Path(temporary))
+            failure = dict(execution.gateway_errors[0])
+            request = Path(failure["evidence_directory"]) / "request.json"
+            original = request.read_bytes()
+            execution.agent_elapsed = 5
+            execution.agent_stderr = TaskDeadlineTests.NATIVE_MARKER
+            execution.grade_scores = {"overall_score": 0.25}
+            result = execution.execute()
+            self.assertEqual((result["status"], result["score"], result["timed_out"]), ("completed", 0.25, True))
+            self.assertEqual(result["task_client_input_errors"][0]["tool_call_id"], "exec-report")
+            self.assertEqual(execution.gateway_errors, [failure])
+            self.assertEqual(request.read_bytes(), original)
+            self.assertEqual(result["task_deadline_evidence"]["cancelled_gateway_requests"], [])
+            self.assertTrue((execution.output / "execution.json").is_file())
+            self.assertTrue((execution.output / "workspace/output.txt").is_file())
+            self.assertEqual(sum(e[0] == "grade" for e in execution.events), 1)
+
+    def test_primary_agent_400_and_500_and_nonstream_500_remain_infrastructure(self):
+        for status, stream in ((400, True), (500, True), (500, False)):
+            with self.subTest(status=status, stream=stream), tempfile.TemporaryDirectory() as temporary:
+                execution = self.execution(Path(temporary))
+                failure = execution.gateway_errors[0]
+                failure["http_status"] = status
+                request = Path(failure["evidence_directory"]) / "request.json"
+                body = json.loads(request.read_text())
+                body["stream"] = stream
+                request.write_text(json.dumps(body))
+                result = execution.execute()
+                self.assertEqual(result["status"], "infrastructure_error")
+                self.assertEqual(result["gateway_main_errors"], [failure])
+                self.assertIs(result["gateway_main_errors"][0], failure)
+                self.assertFalse(any(e[0] == "grade" for e in execution.events))
+
+    def test_missing_provenance_no_continuation_or_other_400_is_not_exempt(self):
+        for change in (
+            "no_tool",
+            "no_continuation",
+            "aborted_continuation",
+            "outside_tool",
+            "other_400",
+            "no_evidence",
+        ):
+            with self.subTest(change=change), tempfile.TemporaryDirectory() as temporary:
+                execution = self.execution(Path(temporary))
+                failure = execution.gateway_errors[0]
+                if change == "no_tool":
+                    execution.chat_entries = execution.chat_entries[-1:]
+                elif change == "no_continuation":
+                    execution.chat_entries.pop()
+                elif change == "aborted_continuation":
+                    execution.chat_entries[-1]["message"]["stopReason"] = "aborted"
+                elif change == "outside_tool":
+                    failure["started_unix"], failure["finished_unix"] = 104, 104.1
+                elif change == "other_400":
+                    (Path(failure["evidence_directory"]) / "response.bin").write_text(
+                        json.dumps({"error": {"message": "messages body validation failed"}})
+                    )
+                else:
+                    failure.pop("evidence_directory")
+                result = execution.execute()
+                self.assertEqual(result["status"], "infrastructure_error")
+                self.assertFalse(any(e[0] == "grade" for e in execution.events))
+
+    def test_bad_image_classification_never_masks_assistant_or_grading_failures(self):
+        for stage in ("assistant", "grading", "service"):
+            with self.subTest(stage=stage), tempfile.TemporaryDirectory() as temporary:
+                execution = self.execution(Path(temporary))
+                if stage == "assistant":
+                    execution.chat_entries[-1]["message"].update(stopReason="error", errorMessage="model failed")
+                elif stage == "grading":
+                    execution.grade_events = [{"kind": "model_api", "fingerprint": "judge", "status": 500}]
+                else:
+                    execution.gateway_errors.append({"role": "main", "status": "error", "http_status": 500})
+                result = execution.execute()
+                self.assertEqual(result["status"], "pending_score" if stage == "grading" else "infrastructure_error")
+                self.assertIsNone(result["score"])
+
+    def test_gateway_records_attach_serializable_evidence_without_changing_files(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            execution = self.execution(Path(temporary))
+            failure = dict(execution.gateway_errors[0])
+            directory = Path(failure.pop("evidence_directory"))
+            record = directory / "record.json"
+            original = json.dumps(failure)
+            record.write_text(original)
+            with patch.object(environment, "paths", return_value={"runtime": execution.root}):
+                actual = runtime._gateway_main_records(
+                    {"gateway_log_dir": str(execution.root / "gateway")}, "test-run", 100
+                )
+                self.assertEqual(actual, [{**failure, "evidence_directory": str(directory)}])
+                json.dumps(actual)
+                self.assertEqual(record.read_text(), original)
+                self.assertEqual(
+                    runtime._gateway_main_records(
+                        {"gateway_log_dir": str(execution.root / "gateway")}, "test-run", 102
+                    ),
+                    [],
+                )
+
+
 class TaskExecutionTests(unittest.TestCase):
     def test_failed_start_without_assistant_is_infrastructure_not_zero(self):
         with tempfile.TemporaryDirectory() as temporary:
