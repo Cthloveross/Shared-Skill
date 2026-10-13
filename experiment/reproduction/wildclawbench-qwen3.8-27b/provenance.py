@@ -13,6 +13,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Mapping
 
+import environment
 from protocol import canonical_hash, discover_tasks, load_config, write_json
 
 ROOT = Path(__file__).resolve().parent
@@ -22,8 +23,8 @@ _LOADED: dict[Path, tuple[tuple[int, int, int], dict]] = {}
 
 
 def _paths(config: Mapping[str, Any]) -> tuple[Path, Path, Path]:
-    runtime = Path(config.get("runtime_dir", ROOT / "runtime")).resolve()
-    return runtime, runtime / "upstream/WildClawBench", runtime / "prepared/input-files.json"
+    p = environment.paths(config)
+    return p["assets"].parent, p["upstream"], p["runtime"] / "prepared/input-files.json"
 
 
 def _fingerprint(value: os.stat_result) -> dict[str, int]:
@@ -167,7 +168,9 @@ def prepare_input_manifest(config: Mapping[str, Any], tasks: list[dict]) -> list
     missing = sorted(set(listed) - set(fingerprints))
     if missing:
         raise RuntimeError(f"Official inputs missing ({len(missing)}): {missing[:5]}")
-    previous = json.loads(destination.read_text()) if destination.exists() else {}
+    cache_path = runtime / "prepared/input-files.json"
+    previous_path = destination if destination.exists() else cache_path
+    previous = json.loads(previous_path.read_text()) if previous_path.exists() else {}
     compatible = (
         previous.get("version") == VERSION
         and previous.get("workspace_root") == str(workspace)

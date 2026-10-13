@@ -16,13 +16,93 @@ from unittest.mock import patch
 
 import protocol
 import run
-from protocol import accept_candidate, create_initial_bank, discover_tasks, load_config, tree_hash, write_json
+from protocol import accept_candidate, create_initial_bank, discover_tasks, fixed_execution_count, load_config, tree_hash, write_json
 
 sys.path.insert(0, str(protocol.REPOSITORY))
 from sharedskill.skill_bundle import read_skill_bundle_with_meta
 
 
 class DecisionTests(unittest.TestCase):
+    def test_thirty_task_manifest_preserves_official_inputs_and_balances_users(self):
+        config = load_config()
+        official = discover_tasks(config)
+        selected = official[:30]
+        with tempfile.TemporaryDirectory() as temporary:
+            manifest = Path(temporary) / "tasks.json"
+            write_json(manifest, {"selected_task_count": 30, "tasks": selected})
+            subset = {**config, "task_manifest": str(manifest), "expected_task_count": 30, "fixed_execution_count": 240}
+            tasks = discover_tasks(subset)
+            self.assertEqual([t["task_id"] for t in tasks], [t["task_id"] for t in selected])
+            self.assertEqual([t["source_sha256"] for t in tasks], [t["source_sha256"] for t in selected])
+            self.assertEqual([t["timeout_seconds"] for t in tasks], [t["timeout_seconds"] for t in selected])
+            self.assertEqual(sorted(collections.Counter(t["user_id"] for t in tasks).values()), [3, 3, 4, 4, 4, 4, 4, 4])
+            self.assertEqual(fixed_execution_count(tasks, subset), 240)
+            for change in ("duplicate", "unknown", "source", "timeout", "size", "fixed_count"):
+                with self.subTest(change=change):
+                    entries = [dict(task) for task in selected]
+                    altered = dict(subset)
+                    if change == "duplicate":
+                        entries[-1] = dict(entries[0])
+                    elif change == "unknown":
+                        entries[-1]["short_id"] = "99.99"
+                    elif change == "source":
+                        entries[-1]["source_sha256"] = "tampered"
+                    elif change == "timeout":
+                        entries[-1]["timeout_seconds"] = 3000
+                    elif change == "size":
+                        entries.pop()
+                    else:
+                        altered["fixed_execution_count"] = 480
+                    write_json(manifest, {"tasks": entries})
+                    with self.assertRaises(ValueError):
+                        discover_tasks(altered)
+
+    def test_external_judge_budget_is_explicit_and_local_runtime_root_is_independent(self):
+        original = json.loads((protocol.ROOT / "config.json").read_text())
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            new = root / "separate-experiment"
+            new.mkdir()
+            config_file = new / "config.json"
+            write_json(config_file, {**original, "paid_api_budget_usd": 10, "external_judge": True,
+                                     "judge_base_url": "https://api.deepseek.com/v1", "judge_model_id": "deepseek-flash"})
+            config = load_config(config_file)
+            self.assertEqual(config["experiment_root"], str(new))
+            self.assertEqual(config["runtime_dir"], str(new / "runtime"))
+            self.assertEqual(config["model_id"], original["model_id"])
+            config["external_judge"] = False
+            write_json(config_file, config)
+            with self.assertRaisesRegex(ValueError, "explicitly configured"):
+                load_config(config_file)
+        self.assertEqual(protocol.public_config({"judge_max_tokens": 256, "api_key": "dummy"}),
+                         {"judge_max_tokens": 256})
+
+    def test_external_entry_and_core_both_participate_in_resume_identity(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / "checkout/experiment/reproduction/core"
+            source.mkdir(parents=True)
+            (source / "run.py").write_text("# core controller")
+            prompt = source.parents[2] / "evolve_server/engines/EVOLVE_AGENTS.md"
+            prompt.parent.mkdir(parents=True)
+            prompt.write_text("Original native instructions")
+            entry = root / "external-folder"
+            entry.mkdir()
+            launcher = entry / "run.py"
+            launcher.write_text("# independent launcher")
+            directory = entry / "runtime/runs/example"
+            write_json(directory / "startup-inventory.json", {})
+            config = {"experiment_root": str(entry), "seed": 42}
+            with patch.object(run, "ROOT", source):
+                first = run.freeze(config, [], directory)
+                self.assertEqual(first, run.freeze(config, [], directory))
+                frozen = json.loads((directory / "frozen-protocol.json").read_text())
+                self.assertIn(str(launcher), frozen["source_hashes"])
+                self.assertIn("experiment/reproduction/core/run.py", frozen["source_hashes"])
+                launcher.write_text("# changed launcher")
+                with self.assertRaises(ValueError):
+                    run.freeze(config, [], directory)
+
     def row(self, score=0.5, status="completed", errors=0, timeout=False):
         return {"task_id": "task", "score": score, "status": status, "tool_errors": errors, "timed_out": timeout}
 
@@ -123,7 +203,7 @@ class ControllerTests(unittest.TestCase):
 
     def propose(self, proposal_dir, bank, sessions, config):
         number = sessions[0]["round"]
-        self.assertEqual(len(sessions), 60)
+        self.assertEqual(len(sessions), len(self.tasks))
         self.assertTrue(all(s["phase"] == "day" for s in sessions))
         bundle = Path(proposal_dir) / "skill"
         shutil.copytree(Path(bank) / "skill", bundle)
@@ -179,6 +259,23 @@ class ControllerTests(unittest.TestCase):
             run.run_experiment(self.tasks, self.bank, self.directory, self.config)
             self.assertEqual(len(self.calls), 492)
         self.assertEqual(json.loads((self.directory / "state.json").read_text())["status"], "complete")
+
+    def test_thirty_tasks_complete_six_updates_and_both_endpoint_arms(self):
+        self.tasks = self.tasks[:30]
+        self.config["all_tasks"] = self.tasks
+        write_json(self.directory / "pilot-gate.json", {"passed": True})
+        adapter = types.SimpleNamespace(execute_task=self.execute, rescore_task=self.execute)
+        evolver = types.SimpleNamespace(propose_candidates=self.propose)
+        with (
+            patch.dict(sys.modules, {"task_runtime": adapter, "evolution": evolver}),
+            patch.object(run, "check_services"), patch.object(run, "generate"),
+            patch.object(run, "outcome_preference", return_value="candidate"),
+            contextlib.redirect_stdout(io.StringIO()),
+        ):
+            run.run_experiment(self.tasks, self.bank, self.directory, self.config)
+        self.assertEqual(len(self.calls), 252)  # 240 fixed plus six related-task A/B pairs.
+        self.assertEqual(sum(c[0] == "day" for c in self.calls), 180)
+        self.assertEqual(collections.Counter(c[3] for c in self.calls if c[0] == "endpoint"), {0: 30, 6: 30})
 
     def test_resume_rejects_bank_change(self):
         adapter = types.SimpleNamespace(execute_task=self.execute, rescore_task=self.execute)

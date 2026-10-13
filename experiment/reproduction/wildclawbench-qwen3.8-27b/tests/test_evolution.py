@@ -26,6 +26,15 @@ e.AsyncLLMClient = FakeClient
 
 
 class EvolutionTests(unittest.TestCase):
+    def test_external_judge_budget_keeps_evolution_inference_on_loopback(self):
+        config = {"llm_model": "qwen3.8-27b", "llm_base_url": "http://127.0.0.1:19182/v1",
+                  "paid_api_budget_usd": 10, "external_judge": True}
+        self.assertEqual(e._configuration(config)["llm_base_url"], config["llm_base_url"])
+        with self.assertRaises(e.EvolutionError):
+            e._configuration({**config, "external_judge": False})
+        with self.assertRaises(e.EvolutionError):
+            e._configuration({**config, "llm_base_url": "https://api.deepseek.com/v1"})
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.root = pathlib.Path(self.temp.name)

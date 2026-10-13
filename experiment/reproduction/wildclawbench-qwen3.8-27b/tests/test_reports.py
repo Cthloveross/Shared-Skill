@@ -12,6 +12,46 @@ from protocol import write_json
 
 
 class ReportTests(unittest.TestCase):
+    def test_thirty_task_report_uses_complete_subset_denominators_and_own_document(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            experiment = root / "new-experiment"
+            unrelated = root / "code-root"
+            experiment.mkdir()
+            unrelated.mkdir()
+            (experiment / "EXPERIMENT.md").write_text("# New experiment\n")
+            (unrelated / "EXPERIMENT.md").write_text("# Untouched code documentation\n")
+            run_dir = experiment / "runtime/runs/test"
+            tasks = [
+                {"task_id": f"task-{i}", "short_id": f"01.{i:02d}",
+                 "category": f"category-{i // 5}", "local_variant": False}
+                for i in range(30)
+            ]
+            write_json(run_dir / "frozen-protocol.json", {"config": {"experiment_root": str(experiment), "days": 6}})
+            for phase, arm, score in (("endpoint", "S0", 0.4), ("endpoint", "S6", 0.5), ("day", "", 0.4)):
+                for task in tasks:
+                    record = {
+                        **task, "phase": phase, "round": 6 if phase == "endpoint" else 1, "arm": arm,
+                        "experiment_record": True, "score": score, "status": "completed", "wall_seconds": 2,
+                        "timed_out": False, "tool_errors": 0,
+                    }
+                    number = "06" if phase == "endpoint" else "01"
+                    write_json(run_dir / "executions" / phase / number / "main" / (arm or "shared") /
+                               task["short_id"] / "result.json", record)
+            with patch.object(reports, "ROOT", unrelated):
+                summary = reports.generate(run_dir, tasks)
+            self.assertEqual(summary["expected_tasks"], 30)
+            self.assertEqual(summary["fixed_execution_count"], 240)
+            self.assertEqual(summary["paired_graded"], 30)
+            self.assertAlmostEqual(summary["endpoint_delta"], 0.1)
+            text = (run_dir / "report/REPORT.md").read_text()
+            self.assertIn("有效评分 30/30", text)
+            self.assertIn("保留原题提示 30/30", text)
+            self.assertIn("终点完成质量均分 S6−S0：+10.00", text)
+            self.assertTrue((run_dir / "report/six-category-curves.png").is_file())
+            self.assertIn("终点有效配对：30/30", (experiment / "EXPERIMENT.md").read_text())
+            self.assertEqual((unrelated / "EXPERIMENT.md").read_text(), "# Untouched code documentation\n")
+
     def test_endpoint_pairs_ignore_pending_partial_grades(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

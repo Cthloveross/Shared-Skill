@@ -27,6 +27,7 @@ from protocol import (
     canonical_hash,
     create_initial_bank,
     discover_tasks,
+    fixed_execution_count,
     load_config,
     public_config,
     tree_hash,
@@ -76,13 +77,18 @@ def freeze(config: dict, tasks: list[dict], run_dir: Path):
     sources = {}
     source_paths = [p for p in ROOT.glob("*.py") if not p.name.startswith("test_") and p.name != "reports.py"]
     source_paths += list((ROOT / "services").glob("*.py"))
+    experiment_root = Path(config.get("experiment_root", ROOT)).resolve()
+    if experiment_root != ROOT.resolve():
+        source_paths += list(experiment_root.glob("*.py"))
+        source_paths += list((experiment_root / "services").glob("*.py"))
     for package in ("sharedskill", "evolve_server"):
         source_paths += list((ROOT.parents[2] / package).rglob("*.py"))
     # The native evolver reads this prompt at night; freezing only Python would
     # allow its instructions to change without invalidating a resumed trial.
     source_paths.append(ROOT.parents[2] / "evolve_server/engines/EVOLVE_AGENTS.md")
     for path in sorted(source_paths):
-        sources[path.relative_to(ROOT.parents[2]).as_posix()] = hashlib.sha256(path.read_bytes()).hexdigest()
+        name = path.relative_to(ROOT.parents[2]).as_posix() if path.is_relative_to(ROOT.parents[2]) else str(path.resolve())
+        sources[name] = hashlib.sha256(path.read_bytes()).hexdigest()
     document = {"config": public_config(config), "tasks": tasks, "source_hashes": sources}
     destination = run_dir / "frozen-protocol.json"
     if destination.exists():
@@ -94,7 +100,7 @@ def freeze(config: dict, tasks: list[dict], run_dir: Path):
     if not inventory.exists():
 
         def command(args):
-            process = subprocess.run(args, capture_output=True, text=True, check=False)
+            process = subprocess.run(args, cwd=ROOT.parents[2], capture_output=True, text=True, check=False)
             return {"exit_code": process.returncode, "stdout": process.stdout.strip(), "stderr": process.stderr.strip()}
 
         versions = {}
@@ -119,8 +125,8 @@ def freeze(config: dict, tasks: list[dict], run_dir: Path):
                         "--format=csv",
                     ]
                 ),
-                "fixed_execution_count": 480,
-                "pilot_execution_count": 8,
+                "fixed_execution_count": fixed_execution_count(tasks, config),
+                "pilot_execution_count": sum(t["short_id"] in config.get("pilot_short_ids", []) for t in tasks),
             },
         )
     return canonical_hash(document)
@@ -306,7 +312,7 @@ def run_stage(
 
 
 def outcome_preference(old: list[dict], new: list[dict], directory: Path, config: dict) -> str:
-    """Blind per-task Qwen comparison, using actual outputs and grading evidence."""
+    """Blind per-task comparison by the frozen judge, using real outcome evidence."""
     directory.mkdir(parents=True, exist_ok=True)
     old_by_id = {r["task_id"]: r for r in old}
     verdicts = []
@@ -339,7 +345,7 @@ def outcome_preference(old: list[dict], new: list[dict], directory: Path, config
             branches.reverse()
         prompt = {"task_id": candidate["task_id"], "A": branches[0], "B": branches[1]}
         body = {
-            "model": config["model_id"],
+            "model": config.get("judge_model_id") if config.get("external_judge") else config["model_id"],
             "max_tokens": 4096,
             "messages": [
                 {
@@ -354,7 +360,10 @@ def outcome_preference(old: list[dict], new: list[dict], directory: Path, config
         }
         comparison_id = "compare-" + hashlib.sha256(str(directory).encode()).hexdigest()[:24]
         response = httpx.post(
-            config["local_api_base_url"].removesuffix("/v1") + f"/runs/{comparison_id}/v1/chat/completions",
+            config["local_api_base_url"].removesuffix("/v1")
+            + f"/runs/{comparison_id}"
+            + ("/judge" if config.get("external_judge") else "")
+            + "/v1/chat/completions",
             json=body,
             headers={"Authorization": "Bearer " + config["local_api_key"]},
             timeout=1800,
@@ -535,6 +544,8 @@ def pilot(tasks: list[dict], bank: Path, run_dir: Path, config: dict):
     verify_interfaces(config, run_dir / "interfaces")
     update_state(run_dir, "pilot")
     selected = [t for t in tasks if t["short_id"] in config["pilot_short_ids"]]
+    if not selected:
+        raise ValueError("Pilot task IDs must include tasks from this experiment's selected manifest")
     # Pilot concurrency matches the main trial; its identities do not change the fixed main assignment.
     selected = [{**task, "user_id": f"user-{i + 1:02d}"} for i, task in enumerate(selected)]
     start = time.monotonic()
@@ -549,9 +560,9 @@ def pilot(tasks: list[dict], bank: Path, run_dir: Path, config: dict):
             "timestamp": now(),
             "wall_seconds": elapsed,
             "task_seconds": total_seconds,
-            "fixed_execution_count": 480,
-            "extrapolated_fixed_wall_hours": elapsed * 480 / len(result) / 3600,
-            "limitations": "Eight selected difficult tasks; excludes all night proposal/A-B overhead. "
+            "fixed_execution_count": fixed_execution_count(tasks, config),
+            "extrapolated_fixed_wall_hours": elapsed * fixed_execution_count(tasks, config) / len(result) / 3600,
+            "limitations": "Selected pilot tasks; excludes all night proposal/A-B overhead. "
             "GPU contention prevents linear scaling.",
         },
     )
@@ -560,7 +571,7 @@ def pilot(tasks: list[dict], bank: Path, run_dir: Path, config: dict):
         "pilot_finished",
         tasks=len(result),
         seconds=elapsed,
-        extrapolated_fixed_hours=elapsed * 480 / len(result) / 3600,
+        extrapolated_fixed_hours=elapsed * fixed_execution_count(tasks, config) / len(result) / 3600,
     )
     update_state(run_dir, "pilot_complete")
     generate(run_dir, tasks)
@@ -607,6 +618,7 @@ def main():
     parser.add_argument("--run-dir", type=Path)
     arguments = parser.parse_args()
     config = load_config(arguments.config)
+    runtime = Path(config["runtime_dir"])
     if arguments.command == "prepare":
         from environment import prepare_sources
 
@@ -615,26 +627,26 @@ def main():
     if arguments.command == "prepare":
         from environment import prepare
 
-        initial = ROOT / "runtime/prepared/S0"
+        initial = runtime / "prepared/S0"
         bank_hash = create_initial_bank(config, initial)
-        write_json(ROOT / "runtime/prepared/task-manifest.json", tasks)
+        write_json(runtime / "prepared/task-manifest.json", tasks)
         preparation = prepare(config)
         if preparation.get("status") == "ready":
             from provenance import prepare_input_manifest
 
             tasks = prepare_input_manifest(config, tasks)
-            write_json(ROOT / "runtime/prepared/task-manifest.json", tasks)
+            write_json(runtime / "prepared/task-manifest.json", tasks)
         preparation["initial_bank_sha256"] = bank_hash
-        write_json(ROOT / "runtime/prepared/readiness.json", preparation)
+        write_json(runtime / "prepared/readiness.json", preparation)
         print(json.dumps(preparation, ensure_ascii=False, indent=2))
         return
-    latest = ROOT / "runtime/latest-run.txt"
+    latest = runtime / "latest-run.txt"
     run_dir = arguments.run_dir
     if run_dir is None:
         if latest.exists():
             run_dir = Path(latest.read_text().strip())
         elif arguments.command in {"pilot", "run"}:
-            run_dir = ROOT / "runtime/runs" / dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+            run_dir = runtime / "runs" / dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
         else:
             raise RuntimeError("No run exists; prepare, then pilot/run")
     run_dir = run_dir.resolve()
@@ -653,7 +665,7 @@ def main():
             summary = counts.setdefault(phase, {"completed": 0, "pending_score": 0, "infrastructure_error": 0})
             key = result.get("status", "infrastructure_error")
             summary[key] = summary.get(key, 0) + 1
-        status.update(run_dir=str(run_dir), executions=counts, fixed_execution_count=480)
+        status.update(run_dir=str(run_dir), executions=counts, fixed_execution_count=fixed_execution_count(tasks, config))
         print(json.dumps(status, ensure_ascii=False, indent=2))
         return
     from provenance import prepare_input_manifest

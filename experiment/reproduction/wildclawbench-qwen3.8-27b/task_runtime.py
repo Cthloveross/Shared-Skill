@@ -162,10 +162,13 @@ def _variants(
     for field in ("prompt", "automated_checks", "warmup"):
         original = str(patched.get(field, ""))
         current = original
+        target_api_url = api_url
+        if field == "automated_checks" and config.get("external_judge"):
+            target_api_url = api_url.removesuffix("/v1") + "/judge/v1"
         for remote in () if field == "prompt" else ("https://openrouter.ai/api/v1", "https://api.openai.com/v1"):
             if remote in current:
-                current = current.replace(remote, api_url)
-                substitutions.append({"field": field, "before": remote, "after": api_url})
+                current = current.replace(remote, target_api_url)
+                substitutions.append({"field": field, "before": remote, "after": target_api_url})
         if "ocrbench" in spec["task_id"].lower():
             for requested in ("gpt-5-mini-2025-08-07",):
                 if requested in current:
@@ -216,7 +219,7 @@ def _variants(
         "execution_preamble": patched["execution_preamble"],
         "execution_preamble_source": "eval/run_batch.py:run_single_task",
         "timeout_seconds": spec["timeout_seconds"],
-        "judge_model": model,
+        "judge_model": config.get("judge_model_id") if config.get("external_judge") else model,
         "audio_judge_route": "local adapter via gateway",
         "shared_skill_bank": "complete supplied snapshot",
         "search": "free browser; Brave disabled",
@@ -613,7 +616,7 @@ def _grade(
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     source = environment.paths(config)["upstream"]
     api_url = environment.container_api_url(
-        config, run_id="wcb-" + hashlib.sha256(str(output.resolve()).encode()).hexdigest()[:20]
+        config, run_id="wcb-" + hashlib.sha256(str(output.resolve()).encode()).hexdigest()[:20], role="judge"
     )
     grading_timeout = int(config.get("grading_timeout_seconds", config.get("grade_timeout_seconds", 1800)))
     _copy_in(source / "src" / "utils" / "transcript_loader.py", name, "/tmp/_transcript_loader.py", config)
@@ -646,7 +649,9 @@ def _grade(
                 "--env",
                 "OPENROUTER_BASE_URL=" + api_url,
                 "--env",
-                "JUDGE_MODEL=" + str(config.get("model_id", "qwen3.8-27b")),
+                "OPENAI_BASE_URL=" + api_url,
+                "--env",
+                "JUDGE_MODEL=" + str(config.get("judge_model_id") if config.get("external_judge") else config.get("model_id", "qwen3.8-27b")),
                 name,
                 "python3",
                 "/tmp/_grade_runner.py",

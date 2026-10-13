@@ -26,3 +26,4 @@ experiment/reproduction/*/local.json
 reproduction/reference/*
 !reproduction/reference/source-manifest.json
 !reproduction/reference/wildclawbench-source-manifest.json
+/key.env

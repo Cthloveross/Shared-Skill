@@ -291,8 +291,10 @@ def _configuration(config: dict | Any) -> dict:
         or parsed.password
     ):
         raise EvolutionError("Zero-budget proposal inference requires a loopback HTTP endpoint")
-    if not values["llm_model"] or int(values.get("paid_api_budget_usd", 0)) != 0:
-        raise EvolutionError("An explicit local model and zero paid API budget are required")
+    if not values["llm_model"] or (
+        int(values.get("paid_api_budget_usd", 0)) != 0 and values.get("external_judge") is not True
+    ):
+        raise EvolutionError("An explicit local model is required; paid budget is allowed only for an external judge")
     return values
 
 

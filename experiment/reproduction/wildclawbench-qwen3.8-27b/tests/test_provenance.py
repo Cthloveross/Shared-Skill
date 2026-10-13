@@ -69,6 +69,25 @@ def test_streamed_manifest_checks_hf_and_hidden_history_and_cache(inputs, monkey
     assert cached["statistics"]["bytes_hashed"] == 0
 
 
+def test_new_experiment_reuses_readonly_input_hash_cache_but_writes_own_manifest(inputs, tmp_path, monkeypatch):
+    original, task, _ = inputs
+    first = provenance.prepare_input_manifest(original, [task])[0]
+    shared = Path(original["runtime_dir"])
+    cached_path = shared / "prepared/input-files.json"
+    before = cached_path.read_bytes()
+    new_root = tmp_path / "separate-experiment"
+    config = {**original, "experiment_root": str(new_root), "runtime_dir": str(new_root / "runtime"),
+              "shared_runtime_dir": str(shared)}
+    monkeypatch.setattr(provenance, "_hash_file", lambda *args: pytest.fail("Shared unchanged inputs were rehashed"))
+    augmented = provenance.prepare_input_manifest(config, [task])[0]
+    assert augmented["input_sha256"] == first["input_sha256"]
+    own = Path(config["runtime_dir"]) / "prepared/input-files.json"
+    assert own.is_file()
+    assert json.loads(own.read_text())["statistics"]["bytes_hashed"] == 0
+    assert provenance.validate_task_inputs(config, augmented)["validated"]
+    assert cached_path.read_bytes() == before
+
+
 @pytest.mark.parametrize("change", ["same_size_restored_mtime", "mode", "new_file", "removed_file", "directory_mode"])
 def test_task_start_rejects_changed_originals(inputs, change):
     config, task, base = inputs

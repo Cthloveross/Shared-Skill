@@ -42,18 +42,25 @@ def tree_hash(directory: Path) -> str:
 
 
 def load_config(path: Path | None = None) -> dict:
-    config = json.loads((path or ROOT / "config.json").read_text())
-    local = ROOT / "local.json"
+    config_path = (path or ROOT / "config.json").resolve()
+    config = json.loads(config_path.read_text())
+    local = config_path.parent / "local.json"
     if local.exists():
         config.update(json.loads(local.read_text()))
-    config["experiment_root"] = str(ROOT)
-    config["runtime_dir"] = str(ROOT / "runtime")
+    experiment_root = Path(config.get("experiment_root", config_path.parent))
+    experiment_root = (experiment_root if experiment_root.is_absolute() else config_path.parent / experiment_root).resolve()
+    config["experiment_root"] = str(experiment_root)
+    runtime = Path(config.get("runtime_dir", experiment_root / "runtime"))
+    config["runtime_dir"] = str((runtime if runtime.is_absolute() else experiment_root / runtime).resolve())
+    if config.get("shared_runtime_dir"):
+        cache = Path(config["shared_runtime_dir"])
+        config["shared_runtime_dir"] = str((cache if cache.is_absolute() else experiment_root / cache).resolve())
     config["llm_base_url"] = config["local_api_base_url"]
     config["llm_model"] = config["model_id"]
     config["llm_max_tokens"] = config["max_tokens"]
     config["llm_temperature"] = config["temperature"]
     config["agent_timeout"] = config["evolution_timeout_seconds"]
-    inventory = ROOT / "runtime/assets/image-skill-inventory.json"
+    inventory = Path(config.get("shared_runtime_dir", config["runtime_dir"])) / "assets/image-skill-inventory.json"
     if inventory.exists():
         image_skills = json.loads(inventory.read_text())
         config["environment_skill_names"] = sorted(
@@ -61,8 +68,13 @@ def load_config(path: Path | None = None) -> dict:
         )
         config["image_skill_inventory_sha256"] = hashlib.sha256(inventory.read_bytes()).hexdigest()
         config["task_image_id"] = image_skills["task_image_id"]
-    if config["paid_api_budget_usd"] != 0:
-        raise ValueError("This protocol requires zero paid API budget")
+    external_judge = config.get("external_judge") is True
+    if config["paid_api_budget_usd"] != 0 and not external_judge:
+        raise ValueError("A paid budget requires an explicitly configured external judge")
+    if external_judge:
+        judge_url = urlparse(config["judge_base_url"])
+        if judge_url.scheme != "https" or not judge_url.hostname or judge_url.username or judge_url.password:
+            raise ValueError("External judge URL must use HTTPS without embedded credentials")
     for key in ("model_base_url", "local_api_base_url", "audio_base_url", "image_base_url"):
         parsed = urlparse(config[key])
         if parsed.scheme != "http" or parsed.hostname not in {"localhost", "127.0.0.1", "::1"}:
@@ -74,17 +86,21 @@ def load_config(path: Path | None = None) -> dict:
     return config
 
 
+def fixed_execution_count(tasks: list[dict], config: dict) -> int:
+    return len(tasks) * (int(config.get("days", 6)) + 2)
+
+
 def public_config(config: dict) -> dict:
     return {
         k: v
         for k, v in config.items()
         if not any(token in k.lower() for token in ("api_key", "token", "password"))
-        or k in {"max_tokens", "llm_max_tokens"}
+        or k in {"max_tokens", "llm_max_tokens", "judge_max_tokens"}
     }
 
 
 def source_directory(config: dict) -> Path:
-    prepared = Path(config["runtime_dir"]) / "upstream/WildClawBench"
+    prepared = Path(config.get("shared_runtime_dir", config["runtime_dir"])) / "upstream/WildClawBench"
     if (prepared / "tasks").is_dir():
         return prepared
     reference = REPOSITORY / "reproduction/reference/wildclawbench/benchmark-code"
@@ -120,8 +136,33 @@ def discover_tasks(config: dict) -> list[dict]:
     entries.sort(key=lambda t: t["short_id"])
     if len(entries) != 60 or len({t["task_id"] for t in entries}) != 60:
         raise ValueError("All 60 distinct pinned tasks are required")
+    if config.get("task_manifest"):
+        manifest_path = Path(config["task_manifest"])
+        if not manifest_path.is_absolute():
+            manifest_path = Path(config["experiment_root"]) / manifest_path
+        raw = manifest_path.read_bytes()
+        manifest = json.loads(raw)
+        selected = manifest.get("tasks", manifest.get("task_short_ids", [])) if isinstance(manifest, dict) else manifest
+        short_ids = [item["short_id"] if isinstance(item, dict) else item for item in selected]
+        if len(short_ids) != len(set(short_ids)) or not short_ids:
+            raise ValueError("Task subset must contain distinct task identities")
+        official = {task["short_id"]: task for task in entries}
+        if set(short_ids) - set(official):
+            raise ValueError("Task subset contains identities outside the pinned official pool")
+        if len(short_ids) != int(config.get("expected_task_count", 30)):
+            raise ValueError("Task subset size does not match expected_task_count")
+        for item in selected:
+            if isinstance(item, dict):
+                for key in ("task_id", "source_sha256", "timeout_seconds", "category"):
+                    if key in item and item[key] != official[item["short_id"]][key]:
+                        raise ValueError(f"Task subset differs from official {key}: {item['short_id']}")
+        entries = [task for task in entries if task["short_id"] in set(short_ids)]
+        config["task_manifest_sha256"] = hashlib.sha256(raw).hexdigest()
     for index, task in enumerate(entries):
         task["user_id"] = f"user-{index % config['users'] + 1:02d}"
+    expected_fixed = fixed_execution_count(entries, config)
+    if config.get("fixed_execution_count", expected_fixed) != expected_fixed:
+        raise ValueError("Fixed execution count does not match tasks, days and endpoint arms")
     return entries
 
 

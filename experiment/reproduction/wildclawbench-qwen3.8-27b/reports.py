@@ -9,7 +9,7 @@ import statistics
 from collections import defaultdict
 from pathlib import Path
 
-from protocol import ROOT, tree_hash, write_json
+from protocol import ROOT, fixed_execution_count, tree_hash, write_json
 
 
 def backend_usage(directory: Path) -> dict | None:
@@ -109,6 +109,8 @@ def generate(run_dir: Path, tasks: list[dict]) -> dict:
     output.mkdir(parents=True, exist_ok=True)
     frozen_path = run_dir / "frozen-protocol.json"
     config = json.loads(frozen_path.read_text())["config"] if frozen_path.exists() else {}
+    task_count = len(tasks)
+    unchanged_count = sum(not task.get("local_variant", False) for task in tasks)
     evidence = Path(config.get("gateway_log_dir") or Path(config.get("runtime_dir", ROOT / "runtime")) / "api-evidence")
     records = []
     for path in sorted((run_dir / "executions").glob("*/*/*/*/*/result.json")):
@@ -212,6 +214,8 @@ def generate(run_dir: Path, tasks: list[dict]) -> dict:
     valid_pairs = [p for p in paired if p["delta"] is not None]
     unchanged = [p for p in valid_pairs if not p["local_variant"]]
     state = json.loads((run_dir / "state.json").read_text()) if (run_dir / "state.json").exists() else {}
+    paid_ledger_path = Path(config.get("runtime_dir", ROOT / "runtime")) / "paid-api/budget.json"
+    paid_api = json.loads(paid_ledger_path.read_text()) if config.get("external_judge") and paid_ledger_path.exists() else None
     phase_totals = {
         phase: summarize([r for r in records if r["phase"] == phase]) for phase in sorted({r["phase"] for r in records})
     }
@@ -273,8 +277,13 @@ def generate(run_dir: Path, tasks: list[dict]) -> dict:
     initial_bank, final_bank = run_dir / "banks/S0", run_dir / "banks/S6"
     bank_changed = tree_hash(initial_bank) != tree_hash(final_bank) if final_bank.is_dir() else None
     summary = {
+        "paid_api": paid_api,
         "reported_at": dt.datetime.now(dt.timezone.utc).isoformat(),
         "primary_metric": "mean_task_score_0_to_100",
+        "experiment_root": config.get("experiment_root", str(ROOT)),
+        "expected_tasks": task_count,
+        "expected_unchanged_prompt_tasks": unchanged_count,
+        "fixed_execution_count": fixed_execution_count(tasks, config),
         "binary_task_success_rate": None,
         "state": state,
         "stages": stages,
@@ -337,20 +346,22 @@ def generate(run_dir: Path, tasks: list[dict]) -> dict:
         lines += [
             "",
             f"预跑实际墙钟 {pilot_calibration['wall_seconds'] / 60:.1f} 分钟；"
-            f"按这 8 题外推固定 480 次为 {pilot_calibration['extrapolated_fixed_wall_hours']:.1f} 小时。",
-            "这 8 题是特选的困难样本，外推只供排期。待 Day 1 全 60 题和首个夜晚完成后更新；不作为总实验完成时间。",
+            f"按这 {pilot_calibration.get('tasks', len(config.get('pilot_short_ids', [])))} 题外推固定 "
+            f"{summary['fixed_execution_count']} 次为 {pilot_calibration['extrapolated_fixed_wall_hours']:.1f} 小时。",
+            f"预跑样本外推只供排期。待 Day 1 全 {task_count} 题和首个夜晚完成后更新；不作为总实验完成时间。",
         ]
     lines += [
         "",
         f"候选接受 {summary['candidate_accepts']} 个，拒绝 {summary['candidate_rejects']} 个。",
-        f"终点配对有效评分 {len(valid_pairs)}/60；其中保留原题提示 {len(unchanged)}/59。",
+        f"终点配对有效评分 {len(valid_pairs)}/{task_count}；其中保留原题提示 {len(unchanged)}/{unchanged_count}。",
         "",
     ]
-    if len(valid_pairs) == 60:
+    if task_count and len(valid_pairs) == task_count:
         lines.append(
-            f"终点完成质量均分 S6−S0：{summary['endpoint_delta'] * 100:+.2f} 分（0–100）；"
-            f"59 道保留原提示题：{summary['unchanged_prompt_delta'] * 100:+.2f} 分。"
+            f"终点完成质量均分 S6−S0：{summary['endpoint_delta'] * 100:+.2f} 分（0–100）。"
         )
+        if unchanged:
+            lines.append(f"{unchanged_count} 道保留原提示题：{summary['unchanged_prompt_delta'] * 100:+.2f} 分。")
         if bank_changed is False:
             lines.append("S6 与 S0 的文件 hash 相同；上述差值属于同库重复测量，不能归因于技能内容进化。")
     else:
@@ -366,7 +377,7 @@ def generate(run_dir: Path, tasks: list[dict]) -> dict:
         lines.append(f"| {phase} | {totals['attempted']} | {totals['task_seconds'] / 3600:.2f} | {span} | {tokens} |")
     lines += [
         "",
-        "Token 使用本地后端 usage：包含任务 Agent、同任务 OCR/PDF 子调用和评分；reasoning 只计一次。",
+        "Token 使用路由后端 main 角色的 usage；reasoning 只计一次。",
         "中断请求可能没有最终 usage，计量缺口见 missing_usage_requests；已计量 token 不能当成全部消耗。",
         "此表不含夜间摘要／提案／比较或音频、图片辅助模型；原始 OpenClaw usage 保留在执行记录，未经改写。",
         "夜间摘要／提案耗时和接受技能见 summary.json 的 nights；版本 hash 与父版本另见 skill-lineage.csv。",
@@ -375,8 +386,18 @@ def generate(run_dir: Path, tasks: list[dict]) -> dict:
         "[逐题记录](tasks.csv) · [终点配对](endpoint-paired.csv) · [技能版本](skill-lineage.csv) · "
         "[OCR 变体](ocr-variant.json) · [机器可读汇总](summary.json)",
     ]
+    if paid_api:
+        reserved = sum(paid_api["pending"].values())
+        lines += ["", f"DeepSeek 已结算请求 {paid_api['requests_settled']} 次；"
+                  f"峰时费用上界 ${paid_api['cost_upper_bound_usd']:.4f}，"
+                  f"未结算预留 ${reserved:.4f}，预算 ${paid_api['budget_usd']:.2f}。",
+                  f"缺失有效 usage 的请求 {paid_api['missing_usage_requests']} 次，按最坏费用计入；"
+                  "这是实验 router 全生命周期的保守账本，含接口预检、重试与比较，不是供应商实际账单。"]
     # Standalone figure, not a Mermaid chart or screenshot.
-    day_stages = sorted((s for s in stages if s["phase"] == "day" and s["graded"] == 60), key=lambda s: s["round"])
+    day_stages = sorted(
+        (s for s in stages if s["phase"] == "day" and s["expected"] and s["graded"] == s["expected"]),
+        key=lambda s: s["round"],
+    )
     if day_stages:
         import matplotlib
 
@@ -407,7 +428,7 @@ def generate(run_dir: Path, tasks: list[dict]) -> dict:
 
 
 def update_experiment_status(run_dir: Path, summary: dict):
-    document = ROOT / "EXPERIMENT.md"
+    document = Path(summary.get("experiment_root", ROOT)) / "EXPERIMENT.md"
     if not document.exists():
         return
     marker = "<!-- LIVE_STATUS -->"
@@ -422,7 +443,7 @@ def update_experiment_status(run_dir: Path, summary: dict):
         f"- 状态：`{state.get('status', 'not_started')}`。",
         f"- 运行：`runtime/runs/{run_dir.name}/`。",
         f"- 报告更新：`{summary['reported_at']}`；阶段更新：`{state.get('updated_at', '')}`。",
-        f"- 已记录任务执行：{summary['records']}；终点有效配对：{summary['paired_graded']}/60。",
+        f"- 已记录任务执行：{summary['records']}；终点有效配对：{summary['paired_graded']}/{summary['expected_tasks']}。",
         f"- [运行报告](runtime/runs/{run_dir.name}/report/REPORT.md)。",
     ]
     if state.get("error"):

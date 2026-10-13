@@ -31,6 +31,7 @@ ROOT = Path(__file__).resolve().parent
 PYTHON_BOOTSTRAP_SOURCE = "import random\nrandom.seed(42)\n"
 PYTHON_BOOTSTRAP_DIRECTORY = "/opt/sharedskill-bootstrap"
 BLOCKED_MODEL_HOSTS = (
+    "api.deepseek.com",
     "api.openai.com",
     "openrouter.ai",
     "www.openrouter.ai",
@@ -53,7 +54,8 @@ def provider_network_args() -> list[str]:
 
 def python_bootstrap_source(config: Mapping[str, Any]) -> Path:
     """Generate the exact stdlib-only bootstrap once, with a process-safe lock."""
-    directory = paths(config)["assets"] / "python-bootstrap"
+    p = paths(config)
+    directory = (p["runtime"] if config.get("shared_runtime_dir") else p["assets"]) / "python-bootstrap"
     directory.mkdir(parents=True, exist_ok=True)
     source = directory / "sitecustomize.py"
     with (directory / ".write.lock").open("a") as lock:
@@ -135,11 +137,12 @@ print(json.dumps({'adapters':entries,'original_image_unchanged':True}))
 def paths(config: Mapping[str, Any]) -> dict[str, Path]:
     root = Path(config.get("experiment_root", config.get("root", ROOT))).resolve()
     runtime = Path(config.get("runtime_dir", root / "runtime")).resolve()
+    cache = Path(config.get("shared_runtime_dir", runtime)).resolve()
     return {
         "root": root,
         "runtime": runtime,
-        "upstream": runtime / "upstream" / "WildClawBench",
-        "assets": runtime / "assets",
+        "upstream": cache / "upstream" / "WildClawBench",
+        "assets": cache / "assets",
         "docker": runtime / "docker",
     }
 
@@ -162,9 +165,9 @@ def docker_host(config: Mapping[str, Any]) -> str:
     if explicit:
         value = str(explicit)
         if value.startswith("unix:///") and len(value[7:].encode()) >= 108:
-            return "unix://" + str(Path(value[7:]).relative_to(paths(config)["root"]))
+            return "unix://" + os.path.relpath(value[7:], paths(config)["root"])
         return value
-    return "unix://" + str((paths(config)["docker"] / "run" / "docker.sock").relative_to(paths(config)["root"]))
+    return "unix://" + os.path.relpath(paths(config)["docker"] / "run" / "docker.sock", paths(config)["root"])
 
 
 def _json_get(url: str) -> tuple[Any, str]:
@@ -224,10 +227,12 @@ def _write_json(path: Path, obj: Any) -> None:
 
 def prepare_sources(config: Mapping[str, Any]) -> dict[str, Any]:
     p = paths(config)
-    for key in ("runtime", "assets", "docker"):
+    for key in ("runtime",) if config.get("shared_runtime_dir") else ("runtime", "assets", "docker"):
         p[key].mkdir(parents=True, exist_ok=True)
     source = p["upstream"]
     if not (source / ".git").exists():
+        if config.get("shared_runtime_dir"):
+            raise RuntimeError("Shared benchmark cache is missing; prepare its owning experiment first")
         source.parent.mkdir(parents=True, exist_ok=True)
         _run(
             ["git", "clone", "--filter=blob:none", "https://github.com/InternLM/WildClawBench.git", str(source)],
@@ -237,6 +242,8 @@ def prepare_sources(config: Mapping[str, Any]) -> dict[str, Any]:
     if _run(["git", "-C", str(source), "diff", "--name-only", "HEAD"]).stdout.strip():
         raise RuntimeError("Pinned benchmark source has tracked modifications")
     if revision != BENCHMARK_REVISION:
+        if config.get("shared_runtime_dir"):
+            raise RuntimeError("Shared benchmark cache is at a different revision; refusing to modify it")
         if _run(["git", "-C", str(source), "status", "--porcelain"]).stdout.strip():
             raise RuntimeError("Refusing to overwrite modified benchmark source")
         _run(["git", "-C", str(source), "checkout", "--quiet", BENCHMARK_REVISION])
@@ -246,6 +253,27 @@ def prepare_sources(config: Mapping[str, Any]) -> dict[str, Any]:
 def prepare_assets(config: Mapping[str, Any], workspace_only: bool = False) -> dict[str, Any]:
     p = paths(config)
     listing_file = p["assets"] / "workspace-file-manifest.json"
+    if config.get("shared_runtime_dir"):
+        if not listing_file.is_file():
+            raise RuntimeError("Shared dataset listing is missing")
+        listing = json.loads(listing_file.read_text())
+        for entry in listing:
+            rel = Path(entry["path"])
+            if rel.is_absolute() or ".." in rel.parts or rel.parts[:1] != ("workspace",):
+                raise RuntimeError("Unsafe shared dataset path")
+            file = p["assets"] / entry["path"]
+            if not file.is_file() or file.stat().st_size != int(entry["size"]):
+                raise RuntimeError("Shared dataset cache is incomplete: " + entry["path"])
+        archive = p["assets"] / "wildclawbench-ubuntu_v1.3.tar"
+        if not workspace_only and (not archive.is_file() or archive.stat().st_size != IMAGE_BYTES):
+            raise RuntimeError("Shared task image archive is missing or incomplete")
+        if (p["upstream"] / "workspace").resolve() != (p["assets"] / "workspace").resolve():
+            raise RuntimeError("Shared benchmark workspace points to a different dataset")
+        return {
+            "workspace_files": len(listing), "workspace_bytes": sum(x["size"] for x in listing),
+            "image_archive": str(archive), "image_archive_bytes": archive.stat().st_size if archive.exists() else None,
+            "workspace_only": workspace_only, "cached": True,
+        }
     listing = json.loads(listing_file.read_text()) if listing_file.exists() else _hf_listing("workspace")
     _write_json(listing_file, listing)
 
@@ -319,6 +347,10 @@ def prepare_docker(config: Mapping[str, Any], load_image: bool = True) -> dict[s
                 f"type=bind,src={p['docker'] / 'run'},dst=/run/sharedskill",
                 "--mount",
                 f"type=bind,src={p['root']},dst={p['root']}",
+                *(
+                    ["--mount", f"type=bind,src={config['shared_runtime_dir']},dst={config['shared_runtime_dir']},readonly"]
+                    if config.get("shared_runtime_dir") else []
+                ),
                 "--entrypoint",
                 "dockerd",
                 DIND_IMAGE,
@@ -356,10 +388,13 @@ def prepare_docker(config: Mapping[str, Any], load_image: bool = True) -> dict[s
             ),
             "",
         )
-        _write_json(
-            p["assets"] / "task-image-python-environment.json",
-            {"task_image_id": image_info["Id"], "PYTHONPATH": original_pythonpath},
-        )
+        python_environment = {"task_image_id": image_info["Id"], "PYTHONPATH": original_pythonpath}
+        python_environment_file = p["assets"] / "task-image-python-environment.json"
+        if config.get("shared_runtime_dir"):
+            if not python_environment_file.exists() or json.loads(python_environment_file.read_text()) != python_environment:
+                raise RuntimeError("Shared task image environment does not match the loaded image")
+        else:
+            _write_json(python_environment_file, python_environment)
     outer = json.loads(_run(["docker", "inspect", name]).stdout)[0]
     gateways = [n.get("Gateway") for n in outer["NetworkSettings"]["Networks"].values() if n.get("Gateway")]
     return {
@@ -381,6 +416,11 @@ def prepare_supplemental_assets(config: Mapping[str, Any], videos_only: bool = F
     repositories. Missing assets remain explicit blockers, never dummy files.
     """
     p = paths(config)
+    if config.get("shared_runtime_dir"):
+        cached = p["assets"] / ("video-assets.json" if videos_only else "supplemental-assets.json")
+        if not cached.is_file():
+            raise RuntimeError("Shared supplemental asset preparation is missing")
+        return json.loads(cached.read_text())
     workspace = p["assets"] / "workspace"
     creative = workspace / "05_Creative_Synthesis"
     jobs = [
@@ -488,7 +528,9 @@ def prepare_supplemental_assets(config: Mapping[str, Any], videos_only: bool = F
     return statuses
 
 
-def container_api_url(config: Mapping[str, Any], *, run_id: str | None = None) -> str:
+def container_api_url(config: Mapping[str, Any], *, run_id: str | None = None, role: str = "main") -> str:
+    if role not in {"main", "judge"}:
+        raise ValueError("Unknown model request role")
     url = str(config.get("local_api_base_url", config.get("model_base_url", "http://127.0.0.1:18182/v1")))
     parts = urllib.parse.urlsplit(url)
     if parts.hostname in ("127.0.0.1", "localhost", "host.docker.internal", "HOSTGATEWAY"):
@@ -503,7 +545,10 @@ def container_api_url(config: Mapping[str, Any], *, run_id: str | None = None) -
         parts = parts._replace(netloc=str(gateway) + (":" + str(parts.port) if parts.port else ""))
     if parts.hostname in ("openrouter.ai", "api.openai.com"):
         raise RuntimeError("A paid remote API endpoint is forbidden in this experiment")
-    if run_id and "/runs/" not in parts.path:
+    if role == "judge" and config.get("external_judge"):
+        prefix = "/runs/" + urllib.parse.quote(run_id, safe="-_.") if run_id else ""
+        parts = parts._replace(path=prefix + "/judge/v1")
+    elif run_id and "/runs/" not in parts.path:
         parts = parts._replace(path="/runs/" + urllib.parse.quote(run_id, safe="-_.") + "/v1")
     return urllib.parse.urlunsplit(parts)
 
@@ -751,6 +796,8 @@ def prepare_skill_inventory(config: Mapping[str, Any]) -> dict[str, Any]:
             "eligible_catalog_entries": len(existing["eligible_catalog_entries"]),
             "cached": True,
         }
+    if config.get("shared_runtime_dir"):
+        raise RuntimeError("Shared skill inventory is missing or does not match this experiment")
     name = "sharedskill-inventory-" + uuid_token()
     try:
         _run(

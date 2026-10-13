@@ -1,4 +1,4 @@
-"""Only-local OpenAI router with complete request/response evidence and error ledger."""
+"""Local execution router with an explicit, budgeted external judge route."""
 
 from __future__ import annotations
 
@@ -15,6 +15,7 @@ import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 from protocol import ROOT, load_config, public_config, write_json
+from paid_judge import BudgetExceeded, CostLedger, credential, judge_payload
 
 
 def has_audio(value: object) -> bool:
@@ -33,6 +34,9 @@ def create_app(config: dict) -> FastAPI:
     evidence = Path(config["runtime_dir"]) / "api-evidence"
     evidence.mkdir(parents=True, exist_ok=True)
     write_json(evidence / "router-config.json", public_config(config))
+    external_judge = config.get("external_judge") is True
+    ledger = CostLedger(config) if external_judge else None
+    judge_key = credential(config) if external_judge else None
 
     @app.get("/healthz")
     async def health():
@@ -52,7 +56,8 @@ def create_app(config: dict) -> FastAPI:
                 ),
             )
         )
-        return {"ready": all(item["ready"] for item in roles.values()), "roles": roles, "paid_api_budget_usd": 0}
+        return {"ready": all(item["ready"] for item in roles.values()), "roles": roles,
+                "external_judge": external_judge, "paid_api_budget_usd": config["paid_api_budget_usd"]}
 
     @app.get("/v1/models")
     @app.get("/runs/{run_id}/v1/models")
@@ -66,9 +71,7 @@ def create_app(config: dict) -> FastAPI:
             ],
         }
 
-    @app.api_route("/v1/{endpoint:path}", methods=["POST"])
-    @app.api_route("/runs/{run_id}/v1/{endpoint:path}", methods=["POST"])
-    async def proxy(request: Request, endpoint: str, run_id: str = "unassigned"):
+    async def proxy(request: Request, endpoint: str, run_id: str = "unassigned", judge: bool = False):
         if endpoint not in {
             "chat/completions",
             "completions",
@@ -109,14 +112,31 @@ def create_app(config: dict) -> FastAPI:
                 return JSONResponse({"error": {"message": "Invalid JSON"}}, status_code=400)
         audio = endpoint.startswith("audio/") or has_audio(body.get("messages") if body else None)
         image = endpoint.startswith("images/")
-        role = "audio" if audio else "image" if image else "main"
-        upstream = config[{"main": "model_base_url", "audio": "audio_base_url", "image": "image_base_url"}[role]]
+        if judge and body is None:
+            record.update(status="error", error="Judge requires a JSON object", http_status=400, finished_unix=time.time())
+            write_json(directory / "record.json", record)
+            return JSONResponse({"error": {"message": record["error"]}}, status_code=400)
+        role = "audio" if audio else "image" if image else "judge" if judge else "main"
+        upstream = config[{"main": "model_base_url", "audio": "audio_base_url", "image": "image_base_url",
+                           "judge": "judge_base_url"}[role]]
         record.update(
             role=role, requested_model=body.get("model") if body else None, upstream=upstream, status="running"
         )
         if body is not None:
-            # All model aliases in original grader code resolve to an explicitly local capability.
-            body["model"] = {"main": config["model_id"], "audio": "local-audio", "image": "local-image"}[role]
+            if role == "judge":
+                try:
+                    if endpoint != "chat/completions":
+                        raise ValueError("External judge only supports chat/completions")
+                    body = judge_payload(body, config)
+                    ledger.reserve(request_id)
+                except (ValueError, BudgetExceeded) as error:
+                    record.update(status="error", error=str(error), http_status=429 if isinstance(error, BudgetExceeded) else 400,
+                                  finished_unix=time.time())
+                    write_json(directory / "record.json", record)
+                    return JSONResponse({"error": {"message": str(error)}}, status_code=record["http_status"])
+            # Explicit judge requests use DeepSeek; execution aliases stay local.
+            body["model"] = {"main": config["model_id"], "audio": "local-audio", "image": "local-image",
+                             "judge": config.get("judge_model_id")}[role]
             if image:
                 # A backend loopback URL cannot be downloaded by nested task containers.
                 body["response_format"] = "b64_json"
@@ -145,7 +165,8 @@ def create_app(config: dict) -> FastAPI:
                 "POST",
                 upstream.rstrip("/") + "/" + endpoint,
                 content=raw,
-                headers={"Content-Type": content_type, "Authorization": "Bearer local-experiment"},
+                headers={"Content-Type": content_type,
+                         "Authorization": "Bearer " + (judge_key if role == "judge" else "local-experiment")},
             )
             response = await client.send(outgoing, stream=bool(body and body.get("stream")))
             record["http_status"] = response.status_code
@@ -179,6 +200,12 @@ def create_app(config: dict) -> FastAPI:
                 return StreamingResponse(relay(), media_type="text/event-stream")
             data = await response.aread()
             (directory / "response.bin").write_bytes(data)
+            if role == "judge":
+                try:
+                    usage = json.loads(data).get("usage")
+                except (ValueError, AttributeError):
+                    usage = None
+                record["paid_accounting"] = ledger.settle(request_id, usage)
             record["finished_unix"] = time.time()
             write_json(directory / "record.json", record)
             await response.aclose()
@@ -186,12 +213,30 @@ def create_app(config: dict) -> FastAPI:
             return Response(data, status_code=response.status_code, media_type=response.headers.get("content-type"))
         except Exception as error:
             await client.aclose()
-            record.update(status="error", error=f"{type(error).__name__}: {error}", finished_unix=time.time())
+            if role == "judge" and "paid_accounting" not in record:
+                record["paid_accounting"] = ledger.settle(request_id, None)
+            # Error messages must never include the host credential.
+            message = f"{type(error).__name__}: {error}"
+            if judge_key:
+                message = message.replace(judge_key, "[redacted]")
+            record.update(status="error", error=message, finished_unix=time.time())
             write_json(directory / "record.json", record)
             return JSONResponse(
                 {"error": {"message": record["error"], "type": "local_backend_error", "request_id": request_id}},
                 status_code=502,
             )
+
+    @app.post("/v1/{endpoint:path}")
+    @app.post("/runs/{run_id}/v1/{endpoint:path}")
+    async def main_proxy(request: Request, endpoint: str, run_id: str = "unassigned"):
+        return await proxy(request, endpoint, run_id)
+
+    @app.post("/judge/v1/{endpoint:path}")
+    @app.post("/runs/{run_id}/judge/v1/{endpoint:path}")
+    async def judge_proxy(request: Request, endpoint: str, run_id: str = "unassigned"):
+        if not external_judge:
+            return JSONResponse({"error": {"message": "External judge is disabled"}}, status_code=404)
+        return await proxy(request, endpoint, run_id, judge=True)
 
     return app
 
