@@ -22,6 +22,8 @@ class ReportTests(unittest.TestCase):
             (experiment / "EXPERIMENT.md").write_text("# New experiment\n")
             (unrelated / "EXPERIMENT.md").write_text("# Untouched code documentation\n")
             run_dir = experiment / "runtime/runs/test"
+            run_dir.parent.mkdir(parents=True)
+            (experiment / "runtime/latest-run.txt").write_text(str(run_dir))
             tasks = [
                 {"task_id": f"task-{i}", "short_id": f"01.{i:02d}",
                  "category": f"category-{i // 5}", "local_variant": False}

@@ -104,14 +104,31 @@ def summarize(records: list[dict]) -> dict:
     }
 
 
+def report_owner(run_dir: Path, config: dict) -> Path | None:
+    """An experiment document belongs to its data folder, never its engine checkout."""
+    directory = run_dir.resolve()
+    if directory.parent.name != "runs" or directory.parent.parent.name != "runtime":
+        if config.get("experiment_root"):
+            raise ValueError("Experiment reports require <experiment>/runtime/runs/<run_id>")
+        return None  # Standalone diagnostic reports cannot update an experiment document.
+    owner = directory.parent.parent.parent
+    if config.get("experiment_root") and Path(config["experiment_root"]).resolve() != owner:
+        raise ValueError("Report run belongs to a different experiment_root")
+    if config.get("runtime_dir") and Path(config["runtime_dir"]).resolve() != owner / "runtime":
+        raise ValueError("Report runtime belongs to a different experiment folder")
+    return owner
+
+
 def generate(run_dir: Path, tasks: list[dict]) -> dict:
     output = run_dir / "report"
-    output.mkdir(parents=True, exist_ok=True)
     frozen_path = run_dir / "frozen-protocol.json"
     config = json.loads(frozen_path.read_text())["config"] if frozen_path.exists() else {}
+    owner = report_owner(run_dir, config)
+    output.mkdir(parents=True, exist_ok=True)
     task_count = len(tasks)
     unchanged_count = sum(not task.get("local_variant", False) for task in tasks)
-    evidence = Path(config.get("gateway_log_dir") or Path(config.get("runtime_dir", ROOT / "runtime")) / "api-evidence")
+    runtime_dir = Path(config.get("runtime_dir") or (owner / "runtime" if owner else run_dir))
+    evidence = Path(config.get("gateway_log_dir") or runtime_dir / "api-evidence")
     records = []
     for path in sorted((run_dir / "executions").glob("*/*/*/*/*/result.json")):
         result = json.loads(path.read_text())
@@ -214,7 +231,7 @@ def generate(run_dir: Path, tasks: list[dict]) -> dict:
     valid_pairs = [p for p in paired if p["delta"] is not None]
     unchanged = [p for p in valid_pairs if not p["local_variant"]]
     state = json.loads((run_dir / "state.json").read_text()) if (run_dir / "state.json").exists() else {}
-    paid_ledger_path = Path(config.get("runtime_dir", ROOT / "runtime")) / "paid-api/budget.json"
+    paid_ledger_path = runtime_dir / "paid-api/budget.json"
     paid_api = json.loads(paid_ledger_path.read_text()) if config.get("external_judge") and paid_ledger_path.exists() else None
     phase_totals = {
         phase: summarize([r for r in records if r["phase"] == phase]) for phase in sorted({r["phase"] for r in records})
@@ -280,7 +297,7 @@ def generate(run_dir: Path, tasks: list[dict]) -> dict:
         "paid_api": paid_api,
         "reported_at": dt.datetime.now(dt.timezone.utc).isoformat(),
         "primary_metric": "mean_task_score_0_to_100",
-        "experiment_root": config.get("experiment_root", str(ROOT)),
+        "experiment_root": str(owner) if owner else None,
         "expected_tasks": task_count,
         "expected_unchanged_prompt_tasks": unchanged_count,
         "fixed_execution_count": fixed_execution_count(tasks, config),
@@ -428,9 +445,18 @@ def generate(run_dir: Path, tasks: list[dict]) -> dict:
 
 
 def update_experiment_status(run_dir: Path, summary: dict):
-    document = Path(summary.get("experiment_root", ROOT)) / "EXPERIMENT.md"
+    root = summary.get("experiment_root")
+    if not root:
+        return
+    owner = report_owner(run_dir, {"experiment_root": root})
+    document = owner / "EXPERIMENT.md"
     if not document.exists():
         return
+    if document.resolve().parent != owner:
+        raise ValueError("Experiment document must stay in its owning folder")
+    latest_run = owner / "runtime/latest-run.txt"
+    if not latest_run.exists() or Path(latest_run.read_text().strip()).resolve() != run_dir.resolve():
+        return  # Historical reports stay under their own run; they cannot replace current status.
     marker = "<!-- LIVE_STATUS -->"
     text = document.read_text().split(marker)[0].rstrip()
     state = summary["state"]
