@@ -32,7 +32,7 @@ from .transforms import PAPER_CANARY_BEHAVIORS, canonical_session_bytes
 from .usage import ledger_from_config, ledger_path_from_config
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-DEFAULT_CONFIG = REPO_ROOT / "experiments/poisoned_evolution/canary/config-05.json"
+DEFAULT_CONFIG = REPO_ROOT / "experiments/poisoned_evolution/canary/config-06.json"
 DRIVER_ROOT = Path(__file__).resolve().parent
 _SOURCE_IDENTITY_KEYS = (
     "config_sha256",
@@ -1405,6 +1405,17 @@ async def _run_formal(config_path: Path, config: Mapping[str, Any], *, resume: b
             if manifests[-1] != gate.get("smoke_manifest"):
                 raise RuntimeError("full-batch smoke input differs from its preregistered batch")
             manifests = manifests[:-1]
+        if config.get("continuation"):
+            from .continuation import prepare_continuation
+
+            prepare_continuation(
+                config,
+                artifact_root=artifact_root,
+                output_root=output_root,
+                manifests=manifests,
+                corpus_sessions=sessions,
+                s0_path=artifact_root / "s0/xlsx",
+            )
         matrix = await run_matrix(
             config,
             corpus_sessions=sessions,

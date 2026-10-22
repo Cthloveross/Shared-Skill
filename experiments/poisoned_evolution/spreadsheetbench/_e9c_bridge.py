@@ -97,6 +97,20 @@ def _parse_json_object(raw: str) -> dict[str, Any] | None:
     return value if isinstance(value, dict) else None
 
 
+def _json_object_error(raw: str) -> str:
+    """Describe the received bytes without repairing or reinterpreting them."""
+
+    if not str(raw or "").strip():
+        return "empty model response"
+    try:
+        value = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        return f"JSONDecodeError: {exc.msg}; line {exc.lineno}, column {exc.colno}, character {exc.pos}"
+    if not isinstance(value, dict):
+        return f"expected a JSON object, received {type(value).__name__}"
+    return "native JSON-object parsing failed after its existing normalization"
+
+
 def _materialized_skills(storage: Path, group_id: str) -> dict[str, str]:
     root = storage / group_id / "skills"
     if not root.is_dir():
@@ -282,27 +296,45 @@ async def _run(request: Mapping[str, Any]) -> dict[str, Any]:
     error_type: str | None = None
     error_message: str | None = None
     decision = "unknown"
-    if (
+    failed_calls = sorted(
+        (record for record in recorder.records if record.error_type),
+        key=lambda record: record.call_index,
+    )
+    if failed_calls:
+        # Native summarization may swallow a transport exception and leave an
+        # empty summary. Preserve the actual request failure for the breaker.
+        failed = failed_calls[0]
+        error_type = "ProviderRequestError"
+        error_message = f"{failed.stage}: {failed.error_type}: {failed.error_message}"
+    elif (
         len(ordered_summaries) != expected_count
         or not summary_artifacts_valid
         or len(summaries) != expected_count
-        or any(not text.strip() for text in summaries.values())
     ):
+        error_type = "SummaryArtifactError"
+        error_message = "native session summary artifacts are incomplete or mismatched"
+    elif any(not text.strip() for text in summaries.values()):
         error_type = "EmptySummary"
-        error_message = "native session summary artifacts are incomplete, mismatched, or empty"
+        error_message = "model returned an empty session summary without a request failure"
+    elif evolver is None or evolver.response_text is None:
+        error_type = "NativeProcessingError" if summary.get("had_processing_error") else "MissingEvolverResponse"
+        error_message = "native run produced no received evolver response"
+    elif parsed is None:
+        error_type = "InvalidEvolverOutput"
+        error_message = _json_object_error(evolver.response_text)
+    elif action not in {"skip", "improve_skill", "optimize_description", "create_skill"}:
+        error_type = "InvalidEvolverSchema"
+        error_message = f"unsupported or missing native action: {action!r}"
+    elif action != "skip" and not isinstance(parsed.get("skill"), dict):
+        error_type = "InvalidEvolverSchema"
+        error_message = f"native action {action!r} omitted the skill object"
     elif bool(summary.get("had_processing_error")):
         error_type = "NativeProcessingError"
         error_message = "EvolveServer.run_once reported had_processing_error"
-    elif not parsed:
-        error_type = "InvalidEvolverOutput"
-        error_message = "native evolver output was not a JSON object"
     elif action == "skip":
         decision = "skip"
     elif action in {"improve_skill", "optimize_description", "create_skill"}:
-        if not isinstance(parsed.get("skill"), dict):
-            error_type = "InvalidEvolverSchema"
-            error_message = f"native action {action!r} omitted the skill object"
-        elif not summary.get("evolutions") or not any(
+        if not summary.get("evolutions") or not any(
             bool(record.get("uploaded")) for record in summary.get("evolutions") or [] if isinstance(record, Mapping)
         ):
             error_type = "MaterializationError"
@@ -312,9 +344,6 @@ async def _run(request: Mapping[str, Any]) -> dict[str, Any]:
             error_message = "native materialized skill set is empty or invalid"
         else:
             decision = "materialized"
-    else:
-        error_type = "InvalidEvolverSchema"
-        error_message = f"unsupported or missing native action: {action!r}"
 
     return {
         "engine_commit": actual_commit,

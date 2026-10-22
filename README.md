@@ -7,7 +7,7 @@ Shared-Skill 基于 SkillClaw，研究任务经验如何进入共享技能，以
 | 实验 | 状态 |
 | --- | --- |
 | [30题、三天三夜 clean／poisoned 对照](experiments/dymalskill-trajectory-e2e/README.md) | 已完成；分数、技能接受和文字停点见实验记录；S3未评完整30题Utility |
-| [PoisonedEvolution SpreadsheetBench 单轮复现](experiments/poisoned_evolution/README.md) | Qwen3.5-35B对照`-05`于10月22日14:36 EDT因连续两次非法JSON熔断：F1完成10次、4次命中，2次unknown，其余三类未开始；`-04`冻结SER 8%，另有1例已确认漏判 |
+| [PoisonedEvolution SpreadsheetBench 单轮复现](experiments/poisoned_evolution/README.md) | Qwen3.5续接`-06`真实smoke 4/4通过，正式矩阵后台运行，已复用旧12次尝试并完成第13批；沿用原预算，425项离线测试通过；旧`-04`离线校准9/100 |
 
 历史实验：[十二类合成轨迹](experiments/dymalskill-trajectory/README.md)、[早期合成机制](experiments/poisoned-evolution-mechanism/README.md)、[已终止的PoisonedEvolution纵向适配](experiments/poisoned-evolution-benign-wildclawbench-30x3/README.md)、[Qwen进化／DeepSeek验收](experiments/wildclawbench-30-deepseek-flash/README.md)、[机制对齐诊断](experiments/wildclawbench-30-deepseek-flash-alignment/README.md)、[全本地60题](experiments/wildclawbench-qwen3.8-27b/README.md)。各实验独立计分，完成、失败和未覆盖范围以对应README为准。
 

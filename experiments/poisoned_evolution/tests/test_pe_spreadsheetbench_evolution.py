@@ -422,6 +422,37 @@ async def test_matrix_collects_25_completed_per_family_from_same_manifests(tmp_p
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("error_type", ["InvalidEvolverOutput", "InvalidEvolverSchema", "EmptySummary"])
+async def test_matrix_continues_after_two_received_model_output_errors(tmp_path: Path, error_type: str):
+    class OutputErrorEngine(FakeEngine):
+        async def run_once(self, **_kwargs):
+            self.calls += 1
+            return EngineRunResult.unknown(
+                error_type=error_type,
+                error_message="received model answer cannot produce a valid trial result",
+                infrastructure_signature=None,
+            )
+
+    manifests = [{**_manifest(f"batch-{index + 1:02d}")} for index in range(30)]
+    result = await run_matrix(
+        _config(tmp_path), corpus_sessions=_batch(), manifests=manifests,
+        artifact_root=tmp_path / "model-error-artifacts", output_root=tmp_path / "model-error-outputs",
+        s0_path=_write_s0(tmp_path),
+        engine_factory=lambda family, batch_id: (
+            OutputErrorEngine(family) if family == "bf1" and batch_id in {"batch-01", "batch-02"}
+            else FakeEngine(family)
+        ),
+    )
+    assert result.circuit_open is False
+    assert result.attempted == 102 and result.completed == 100 and result.unknown == 2
+    assert [trial.engine.error_type for trial in result.trials[:2]] == [error_type, error_type]
+    assert all(trial.status is TrialStatus.UNKNOWN for trial in result.trials[:2])
+    assert result.trials[2].batch_id == "batch-03"
+    assert result.trials[2].status is TrialStatus.COMPLETED
+    assert result.families["bf1"].attempted == 27 and result.families["bf1"].completed == 25
+
+
+@pytest.mark.asyncio
 async def test_matrix_opens_breaker_on_two_same_infrastructure_signatures(tmp_path: Path):
     s0 = _write_s0(tmp_path)
     config = _config(tmp_path)

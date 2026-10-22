@@ -15,6 +15,7 @@ from experiments.poisoned_evolution.spreadsheetbench.corpus import build_session
 from experiments.poisoned_evolution.spreadsheetbench.engine import (
     E9C_COMMIT,
     E9cSubprocessEngine,
+    is_model_output_error,
 )
 from experiments.poisoned_evolution.spreadsheetbench.models import TrialDecision
 from experiments.poisoned_evolution.spreadsheetbench.runtime import SpreadsheetCase, SpreadsheetTask
@@ -204,6 +205,10 @@ class _FakeOpenAIHandler(BaseHTTPRequestHandler):
         size = int(self.headers.get("Content-Length", "0"))
         request = json.loads(self.rfile.read(size))
         self.server.requests.append(request)  # type: ignore[attr-defined]
+        mode = self.server.response_mode  # type: ignore[attr-defined]
+        if mode == "provider_error":
+            self.send_error(503, "provider temporarily unavailable")
+            return
         temperature = float(request.get("temperature", 0.4))
         if temperature == 0.2:
             summary_payload = json.loads(request["messages"][-1]["content"])
@@ -213,6 +218,8 @@ class _FakeOpenAIHandler(BaseHTTPRequestHandler):
             elif session_id.endswith("-1"):
                 time.sleep(0.05)
             content = f"SUMMARY_FOR_{session_id}: xlsx was used successfully."
+            if mode == "empty_summary" and session_id.endswith("-0"):
+                content = ""
         elif temperature == 0.3:
             content = json.dumps(
                 {
@@ -225,7 +232,13 @@ class _FakeOpenAIHandler(BaseHTTPRequestHandler):
                     ),
                 }
             )
-        elif self.server.response_mode == "materialize":  # type: ignore[attr-defined]
+        elif mode == "invalid_json":
+            content = '{"action":"improve_skill","skill":{"content":"Use Range("A1")"}}'
+        elif mode == "invalid_schema":
+            content = json.dumps({"action": "improve_skill", "rationale": "Missing skill object."})
+        elif mode == "unknown_action":
+            content = json.dumps({"action": "unsupported_action", "skill": {"name": "xlsx"}})
+        elif mode == "materialize":
             content = json.dumps(
                 {
                     "action": "improve_skill",
@@ -297,6 +310,65 @@ def _fake_openai_server(
         server.shutdown()
         server.server_close()
         thread.join(timeout=5)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("mode,error_type", [
+    ("invalid_json", "InvalidEvolverOutput"),
+    ("invalid_schema", "InvalidEvolverSchema"),
+    ("unknown_action", "InvalidEvolverSchema"),
+    ("empty_summary", "EmptySummary"),
+    ("provider_error", "ProviderRequestError"),
+    ("native_processing_error", "NativeProcessingError"),
+])
+async def test_native_unknown_distinguishes_received_output_from_provider_failures(
+    tmp_path: Path, mode: str, error_type: str,
+) -> None:
+    _require_frozen_e9c()
+    s0 = tmp_path / "s0"
+    s0.mkdir()
+    (s0 / "SKILL.md").write_text("---\nname: xlsx\ndescription: Edit workbooks.\n---\n# XLSX\nSave output.\n")
+    sessions = [_session(index) for index in range(3)]
+    if mode == "native_processing_error":
+        # Summarization accepts this JSON value; native evolution's numeric
+        # formatter raises before dispatching an evolver request.
+        sessions[0]["aggregate"] = {"mean_score": "invalid-numeric-metadata"}
+    with _fake_openai_server(mode) as (base_url, requests):
+        result = await E9cSubprocessEngine(
+            engine_checkout=E9C_CHECKOUT,
+            engine_python=E9C_PYTHON,
+            llm_base_url=base_url,
+            llm_model="fake-e9c",
+            llm_max_tokens=321,
+            llm_chat_template_kwargs={"enable_thinking": False},
+            infrastructure_retries=0,
+            request_hard_cap=5,
+            trial_timeout_seconds=30,
+        ).run_once(
+            sessions=sessions, s0_path=s0,
+            trial_dir=tmp_path / "artifacts", output_dir=tmp_path / "outputs", expected_session_count=3,
+        )
+    assert result.decision is TrialDecision.UNKNOWN
+    assert result.error_type == error_type
+    infrastructure_error = mode in {"provider_error", "native_processing_error"}
+    assert bool(result.infrastructure_signature) is infrastructure_error
+    assert is_model_output_error(result.error_type) is not infrastructure_error
+    assert all("response_format" not in request for request in requests)
+    assert all(request["max_completion_tokens"] == 321 for request in requests)
+    if mode == "invalid_json":
+        assert "JSONDecodeError:" in result.error_message
+        assert "line 1, column" in result.error_message
+        raw = '{"action":"improve_skill","skill":{"content":"Use Range("A1")"}}'
+        assert result.raw_candidates == (raw,)
+        assert next(call for call in result.llm_calls if call["stage"] == "evolver")["response_text"] == raw
+        assert len(requests) == 4  # No repair/retry model request for malformed content.
+    if mode == "provider_error":
+        assert "InternalServerError" in result.error_message
+        assert all(call["error_type"] for call in result.llm_calls)
+    if mode == "native_processing_error":
+        assert result.summary["had_processing_error"] is True
+        assert len(requests) == 3 and all(request["temperature"] == 0.2 for request in requests)
+        assert result.raw_candidates == ()
 
 
 @pytest.mark.asyncio

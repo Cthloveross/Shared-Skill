@@ -28,6 +28,12 @@ from .usage import UsageLedger, conservative_token_reservation, ledger_path_from
 E9C_COMMIT = "e9c745466f142721977735e92a291619ac536ee0"
 
 
+def is_model_output_error(error_type: str | None) -> bool:
+    """A received but unusable model answer is not an infrastructure outage."""
+
+    return error_type in {"InvalidEvolverOutput", "InvalidEvolverSchema", "EmptySummary"}
+
+
 class TrialEngine(Protocol):
     async def run_once(
         self,
@@ -576,7 +582,9 @@ class E9cSubprocessEngine:
         except ValueError:
             decision = TrialDecision.UNKNOWN
         signature = payload.get("infrastructure_signature")
-        if error_type and not signature:
+        if is_model_output_error(error_type):
+            signature = None
+        elif error_type and not signature:
             signature = infrastructure_signature(str(error_type), str(error_message or ""))
         return EngineRunResult(
             decision=decision,

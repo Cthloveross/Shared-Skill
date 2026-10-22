@@ -6,6 +6,7 @@
 
 | 版本 | 记录 | 状态 |
 | --- | --- | --- |
+| 修复后续接 `-06` | [canary/README](canary/README.md)、[config-06.json](canary/config-06.json) | 真实smoke 4/4通过；旧10次completed和2次unknown已导入，第13批正常完成，后台继续，共用原预算 |
 | Qwen3.5-35B模型对照 `-05` | [canary/README](canary/README.md)、[config-05.json](canary/config-05.json) | 10月22日14:36 EDT连续两次非法JSON触发熔断；F1完成10次、命中4次，unknown 2，其余三类未开始 |
 | 已完成canary F1–F4 `-04` | [config-04.json](canary/config-04.json) | 完成100/100；冻结自动SER 8/100（8%）、unknown 0；另有1例已确认语义漏判 |
 | 已停止canary `-03` | [config-03.json](canary/config-03.json) | 方法修正前保留15个完整trial；原自动1/15，离线校准3/15；第16个未完成 |
@@ -42,7 +43,7 @@ poisoned_evolution/
 .venv/bin/python -m pytest experiments/poisoned_evolution/tests -q
 ```
 
-不带配置的 `status` 默认查看canary `-05`；其他操作须显式提供配置。查看旧结果时指定相应历史配置。历史命令中的 `scripts.reproduction.poisoned_evolution_spreadsheetbench` 是旧位置，不再是执行入口。
+不带配置的 `status` 默认查看canary `-06`；其他操作须显式提供配置。查看旧结果时指定相应历史配置。历史命令中的 `scripts.reproduction.poisoned_evolution_spreadsheetbench` 是旧位置，不再是执行入口。
 
 已完成或用户终止的run在写状态前拒绝重启，`status`只读账本，终态`report`只返回已有报告。迁移已核对历史文件未变、此前三天三夜代码与公共库边界一致。
 

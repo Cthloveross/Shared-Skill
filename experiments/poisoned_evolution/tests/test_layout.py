@@ -36,5 +36,5 @@ def test_native_venv_interpreter_preserves_environment_identity(tmp_path):
 
 def test_default_status_points_at_current_canary():
     path, config = _load_config(DEFAULT_CONFIG)
-    assert path == REPO_ROOT / "experiments/poisoned_evolution/canary/config-05.json"
-    assert config["run_ids"]["formal"] == "pe-canary-sb-qwen35-4x25-20261022-05"
+    assert path == REPO_ROOT / "experiments/poisoned_evolution/canary/config-06.json"
+    assert config["run_ids"]["formal"] == "pe-canary-sb-qwen35-4x25-20261022-06"
