@@ -9,7 +9,7 @@ PoisonedEvolution 的攻击设计、SpreadsheetBench 数据、30/3 批次与 600
 1. [实验范围](#1-实验范围)
 2. [WildClawBench 来源](#2-wildclawbench-来源)
 3. [原始 SkillClaw：正常进化实验](#3-原始-skillclaw正常进化实验)
-4. [本地正常闭环的验证结果](#4-本地正常闭环的验证结果)
+4. [本地验证与论文结果的区分](#4-本地验证与论文结果的区分)
 5. [论文没有明确给出的参数](#5-论文没有明确给出的参数)
 6. [当前代码与原始论文的差异](#6-当前代码与原始论文的差异)
 
@@ -106,7 +106,9 @@ Benchmark 自身的评测协议给出单题 300–1200 秒预算和 GPT-5.4 评�
 
 ### 3.3 论文报告的 6 天结果
 
-下表是论文表 3 的百分制评分，不能直接当作整题全通过率。第 1 天为初始库基线，第 2–6 天使用前一夜验证后保留的技能库。
+下表是论文表 3 的百分制评分，不能直接当作整题全通过率。表题明确为 **best-skill deployment view**：Day 1 是初始库基线，Day 2–6 展示前夜 validator 决策后保留的最佳已验证技能库，gain 比较 Day 6 与 Day 1。论文没有定义对原始日测分取 running max，不能把历史峰值直接当最终值。来源：[§3.2、表 3](https://arxiv.org/html/2604.08377v2#S3.SS2)。
+
+[表 5、表 7](https://arxiv.org/html/2604.08377v2#S3.T5)另有同库复测读数更高、确认 best-so-far 的记录；论文未给出原始日测／夜测读数或完整选分细则，不能确认每列都是独立、同题全量的新测量。固定官方历史 runner 则明确令 `final.mean_score` 等于最后完成轮的分数，逐题比较 baseline 与 last round，不取跨轮最大值；这是另一时期的实现，不能冒充表 3 的实际产出代码。[历史源码 `61983b0`，第 379–455 行](https://github.com/AMAP-ML/SkillClaw/blob/61983b0788010b3ab0f69899b3e22360758bf55d/skillclaw/experiments/wildclawbench_iterative_evolve.py#L379-L455)。
 
 #### 评价口径：看任务完成效果，技能更新解释改进过程
 
@@ -120,7 +122,7 @@ WildClawBench 每题按多个评分条件得到 `overall_score`（0–1），官
 | 二元整题成功率 | 缺少统一成功条件，当前不报告；不临时设 0.5／0.8 阈值 |
 | 技能进化过程 | 表 4–7 有候选、改动摘要、接受／拒绝与后续部署记录；“5 个不同技能”是据表去重统计，并非作者给出的全库覆盖率 |
 
-论文没有完整报告技能库初末数量、逐轮实际使用覆盖率或逐技能前后得分。我们在本地复现中补充真实技能读取、候选决策和版本记录，用来解释任务成绩变化；这些统计不冒称论文原有指标。独立实验流程与实际报告见 [EXPERIMENT.md](../experiment/reproduction/wildclawbench-qwen3.8-27b/EXPERIMENT.md)。
+论文没有完整报告技能库初末数量、逐轮实际使用覆盖率或逐技能前后得分。我们在本地复现中补充真实技能读取、候选决策和版本记录，用来解释任务成绩变化；这些统计不冒称论文原有指标。独立实验流程与实际报告见 [各实验README](../README.md#实验索引)。
 
 | 类别 | Day 1 | Day 2 | Day 3 | Day 4 | Day 5 | Day 6 |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -245,31 +247,11 @@ WildClawBench 每题按多个评分条件得到 `overall_score`（0–1），官
 
 公开技能 bundle、任务 Markdown 与历史实验源码已下载供核查，固定提交、路径和逐文件 SHA256 见 [WildClawBench 来源清单](../reproduction/reference/wildclawbench-source-manifest.json)。大型任务素材和 Docker 镜像未在这次来源核查中下载；这些材料尚未用于运行 Benchmark 或复现论文成绩。
 
-## 4. 本地正常闭环的验证结果
+## 4. 本地验证与论文结果的区分
 
-| 项目 | 本地已验证内容 |
-| --- | --- |
-| 模型 | `gpt-5.6-sol`，通过 Codex CLI 桥接访问 |
-| 初始 skill | 验收脚本的 `SEED_SKILL` 自建一个 `xlsx`；未使用论文初始库或下载的 Anthropic 参考 skill |
-| 输入 | 本项目生成的 Sales、Expenses、Inventory 三个真实 XLSX 工作簿 |
-| 旧版执行 | 前两题各出现 1 次冻结表头验证错误，修复后通过 |
-| 进化输入 | 前两题真实执行和工具反馈记录 |
-| 进化输出 | 增加提前设置 `freeze_panes=A2` 的步骤，版本 v1 → v2 |
-| 启用阶段 | 摘要、session judge、evolver、merge、skill verifier、版本登记与发布 |
-| 验证与发布 | LLM skill verifier 接受，分数 0.92；local 存储、direct 发布 |
-| 后续复用 | 第三题实际读取发布版本，内容 hash 一致；第一次验证通过，0 次验证错误 |
-| 模型调用数 | 29 次 |
-| 实际进化轮数 | 1 轮 |
+正常工作流smoke、自建工作簿闭环、固定Benchmark任务实验是不同证据层级。自建任务证明执行、收集、进化、发布与复用链路可运行；只有可比任务评分才支持Utility变化。配置、具体模型、有效分母、成本及当前状态集中在[根README的实验索引](../README.md#实验索引)及各实验README。
 
-证据见 [良性验收说明](../benign_validation/README.md)；本地详细证据位于 `benign_validation/results/gpt56-e2e-20261011-v2/` 下的 `run.json`、`verification.json`、工作簿和执行日志。
-
-初始技能直接定义在 [验收脚本](../benign_validation/run_benign_e2e.py)，任务数据与验收条件定义在 [工作簿工具](../benign_validation/workbook_tools.py)。这里复用的是公开 SkillClaw 的客户端与进化服务代码，初始技能、工具和三个任务是本项目构造的流程验收输入；历史 WildClawBench runner 与公开技能资源不是这次成功运行的依据。
-
-这个实验验证了“执行 → 收集 → 进化 → 发布 → 后续复用”，没有完成论文的 8 用户、6 轮实验。三个工作簿是自建验收样例；没有在固定任务集上对新旧版本进行完整对照，也没有测量 WildClawBench 分数。公式检查仅验证保存的字符串和数据／样式保留，没有重算公式。桥接将消息角色转换为文本，不等价于原生 Chat Completions 消息处理。
-
-### 尚未完成的正常实验
-
-论文的 8 用户、6 轮 WildClawBench 实验，以及在相关任务上完整执行新旧技能的验证对照，尚未完成。此次验证限定到一个 xlsx skill 的三个自建任务，不能据此确认全部 benign skill 都可用。投毒机制实验与参考数据准备情况分别见 [PoisonedEvolution 专篇](poisoned-evolution-experiments.md#10-本地数据与复现进度)。
+公开历史runner、服务默认值和论文实际参数分别记录。导入源码、下载技能资源或完成smoke，均不代表对齐原论文当次配置或复现论文成绩。
 
 ## 5. 论文没有明确给出的参数
 
@@ -297,6 +279,6 @@ WildClawBench 每题按多个评分条件得到 `overall_score`（0–1），官
 | replay 接受条件 | 候选优于当前版本 | 当前代码允许候选均分等于 baseline，且达到分数门槛 |
 | 持续服务停止 | 论文实验固定 6 轮 | 周期服务持续处理新记录，没有自动收敛停止条件 |
 
-来源：[演化服务配置](../evolve_server/core/config.py)、[客户端验证实现](../sharedskill/validation_worker.py)、[周期运行逻辑](../evolve_server/engines/workflow.py)。当前默认分数门槛 0.75 是代码配置，不能写成论文验证门槛。我们的良性运行主动启用了 skill verifier，但没有运行论文描述的真实新旧任务执行对照。
+来源：[演化服务配置](../evolve_server/core/config.py)、[客户端验证实现](../sharedskill/validation_worker.py)、[周期运行逻辑](../evolve_server/engines/workflow.py)。当前默认分数门槛 0.75 是代码配置，不能写成论文验证门槛。良性工作流smoke与独立实验引擎的真实新旧任务执行对照属于不同验证层，具体启用项由所属配置与证据确认。
 
 组件与部署路径见 [系统架构](architecture.md)；历史项目来源、固定上游 revision 与许可见 [上游说明](upstream.md)。

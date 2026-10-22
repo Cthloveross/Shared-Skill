@@ -25,7 +25,7 @@ from typing import Any, Optional
 
 import uvicorn
 from fastapi import FastAPI, Header, HTTPException, Request
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse, Response, StreamingResponse
 
 from .config import SharedSkillConfig
 from .prm_scorer import PRMScorer
@@ -50,6 +50,16 @@ _NON_STANDARD_BODY_KEYS = {
 }
 _PROTOCOL_ANTHROPIC_MESSAGES = "anthropic_messages"
 _PROTOCOL_RESPONSES_COMPAT = "responses_compat"
+
+
+class UpstreamClientError(Exception):
+    """Preserve a deterministic provider error so native recovery can classify it."""
+
+    def __init__(self, response):
+        self.status_code = response.status_code
+        self.content = response.content
+        self.content_type = response.headers.get("content-type", "application/json")
+        super().__init__(f"Upstream rejected request with HTTP {self.status_code}")
 
 
 # ------------------------------------------------------------------ #
@@ -1529,6 +1539,11 @@ class SharedSkillAPIServer:
         app = FastAPI(title="sharedskill Proxy", lifespan=lifespan)
         app.state.owner = self
 
+        @app.exception_handler(UpstreamClientError)
+        async def upstream_client_error(_request: Request, error: UpstreamClientError):
+            return Response(content=error.content, status_code=error.status_code,
+                            headers={"content-type": error.content_type})
+
         @app.get("/healthz")
         async def healthz():
             return {"ok": True}
@@ -2938,6 +2953,10 @@ class SharedSkillAPIServer:
                                 json=stream_body,
                                 headers=headers,
                             ) as stream_resp:
+                                if stream_resp.is_error:
+                                    # Consume before leaving the stream context so
+                                    # native recovery receives the original error body.
+                                    await stream_resp.aread()
                                 stream_resp.raise_for_status()
                                 events = await _collect_sse_chat_events(stream_resp)
                         return _assemble_streaming_chat_completion(
@@ -2950,6 +2969,9 @@ class SharedSkillAPIServer:
                             stream_error.response.status_code,
                             stream_error.response.text[:200],
                         )
+                        if (400 <= stream_error.response.status_code < 500
+                                and stream_error.response.status_code not in {408, 409, 425, 429}):
+                            raise UpstreamClientError(stream_error.response) from stream_error
                         raise HTTPException(
                             status_code=502,
                             detail=f"Upstream LLM SSE retry error: {stream_error}",
@@ -2960,6 +2982,11 @@ class SharedSkillAPIServer:
                             status_code=502,
                             detail=f"Upstream LLM SSE retry failed: {stream_error}",
                         ) from stream_error
+                # Preserve non-retryable 4xx bodies. In particular, changing a
+                # context_length_exceeded error into a 502 hides the overflow
+                # from OpenClaw's native compact-and-retry mechanism.
+                if 400 <= e.response.status_code < 500 and e.response.status_code not in {408, 409, 425, 429}:
+                    raise UpstreamClientError(e.response) from e
                 # Retryable upstream error — retry if attempts remain
                 if attempt < max_retries - 1:
                     wait = min(2**attempt + random.uniform(0, 1), 30)

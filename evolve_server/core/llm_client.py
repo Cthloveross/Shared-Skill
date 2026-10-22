@@ -30,18 +30,33 @@ class AsyncLLMClient:
         model: str = "gpt-4o",
         max_tokens: int = 100000,
         temperature: float = 0.4,
+        max_retries: int = 5,
+        request_timeout_seconds: float = 600.0,
+        retry_transient_only: bool = False,
     ) -> None:
         import httpx
         from openai import OpenAI
 
-        self._client = OpenAI(
+        if (isinstance(request_timeout_seconds, bool)
+                or not isinstance(request_timeout_seconds, (int, float))
+                or request_timeout_seconds <= 0):
+            raise ValueError("request_timeout_seconds must be positive")
+        self.request_timeout_seconds = float(request_timeout_seconds)
+        client_options = dict(
             api_key=api_key or os.environ.get("OPENAI_API_KEY", ""),
             base_url=base_url or os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1"),
-            timeout=httpx.Timeout(600.0, connect=30.0),  # 10 min max per request
+            timeout=httpx.Timeout(self.request_timeout_seconds, connect=min(30.0, self.request_timeout_seconds)),
         )
+        if retry_transient_only:
+            client_options["max_retries"] = 0
+        self._client = OpenAI(**client_options)
         self.model = model or os.environ.get("EVOLVE_MODEL", "gpt-4o")
         self.max_tokens = max_tokens
         self.temperature = temperature
+        if isinstance(max_retries, bool) or not isinstance(max_retries, int) or max_retries < 0:
+            raise ValueError("max_retries must be a nonnegative integer")
+        self.max_retries = max_retries
+        self.retry_transient_only = bool(retry_transient_only)
 
     async def chat(self, messages: list[dict[str, str]], **kwargs: Any) -> str:
         """Send a chat completion request and return the assistant content."""
@@ -54,8 +69,8 @@ class AsyncLLMClient:
             **kwargs,
         }
 
-        max_retries = 6
-        for attempt in range(max_retries):
+        attempts = self.max_retries + 1
+        for attempt in range(attempts):
             try:
                 resp = await asyncio.to_thread(
                     self._client.chat.completions.create,
@@ -70,7 +85,14 @@ class AsyncLLMClient:
                     continue
                 if status_code == 400 and "Stream must be set to true" in body_text:
                     return await self._chat_via_stream(merged)
-                if attempt < max_retries - 1:
+                retryable = (
+                    status_code in {408, 409, 429}
+                    or isinstance(status_code, int) and status_code >= 500
+                    or any(marker in type(exc).__name__.lower() for marker in ("connection", "timeout", "transport"))
+                )
+                if self.retry_transient_only and not retryable:
+                    raise
+                if attempt < attempts - 1:
                     import random
 
                     wait = min(2**attempt + random.uniform(0, 1), 30)
@@ -93,7 +115,8 @@ class AsyncLLMClient:
         base_url = str(getattr(self._client, "base_url", "")).rstrip("/")
 
         content_parts: list[str] = []
-        async with httpx.AsyncClient(timeout=120.0) as client:
+        stream_timeout = self.request_timeout_seconds if self.retry_transient_only else 120.0
+        async with httpx.AsyncClient(timeout=stream_timeout) as client:
             async with client.stream(
                 "POST",
                 f"{base_url}/chat/completions",

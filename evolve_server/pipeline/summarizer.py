@@ -271,6 +271,10 @@ def _build_session_payload(session: dict) -> dict[str, Any]:
     included; subsequent turns with the same prompt get ``prompt: "(same)"``.
     """
     turns = session.get("turns", [])
+    content_max_chars = session.get("_tool_observation_content_max_chars", 240)
+    if (not isinstance(content_max_chars, int) or isinstance(content_max_chars, bool)
+            or not 240 <= content_max_chars <= 4096):
+        raise ValueError("Invalid frozen tool-observation content budget")
     first_prompt = (turns[0].get("prompt_text") or "")[:_SUMMARY_PROMPT_MAX_CHARS] if turns else ""
     interactions: list[dict[str, Any]] = []
 
@@ -312,10 +316,12 @@ def _build_session_payload(session: dict) -> dict[str, Any]:
         tc = compact_tool_calls(t.get("tool_calls"), max_items=6)
         if tc:
             interaction["tool_calls"] = tc
-        tr = compact_tool_observations(t.get("tool_results"), max_items=6)
+        tr = compact_tool_observations(t.get("tool_results"), max_items=6,
+                                       content_max_chars=content_max_chars)
         if tr:
             interaction["tool_results"] = tr
-        to = compact_tool_observations(t.get("tool_observations"), max_items=4)
+        to = compact_tool_observations(t.get("tool_observations"), max_items=4,
+                                       content_max_chars=content_max_chars)
         if to:
             interaction["tool_observations"] = to
         te = t.get("tool_errors") or []

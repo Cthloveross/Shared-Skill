@@ -45,6 +45,18 @@ sharedskill dashboard serve --host 127.0.0.1 --port 3788
 
 客户端关闭会话时异步上传会话；演化服务轮询或接受 `/trigger` 请求。`sharing.session_upload_interval` 大于零时，还会按用户轮次上传快照并尝试触发演化。为便于精确归属，自己的客户端可以提供 `X-Session-Id`，并用 `X-Session-Done: true` 或请求字段 `session_done: true` 明确关闭会话。
 
+## 独立实验服务生命周期
+
+实验CLI显式接收`--config`，不自动启动共享服务。当前依赖位于`runtime/wildclawbench/`；模型、音频、图像和router的生命周期由操作者分别管理，单个case结束不停止其他case可能共享的服务。
+
+```bash
+.venv/bin/python -m scripts.wildclawbench.services.auxiliary_control stop audio --config experiments/dymalskill-trajectory-e2e/config.json
+.venv/bin/python -m scripts.wildclawbench.services.auxiliary_control stop image --config experiments/dymalskill-trajectory-e2e/config.json
+.venv/bin/python -m scripts.wildclawbench.services.router_control stop --config experiments/dymalskill-trajectory-e2e/config.json
+```
+
+`services.main_qwen`只停止自身登记并核验身份的新进程，不接管外部vLLM。各服务的`start|stop`参数以`python -m scripts.wildclawbench.services.<module> --help`为准。真实启动前先检查所属实验的预算和smoke；只读历史配置不授权发起新科学运行。
+
 ## 本地良性验收
 
 验收驱动会启动独立的 loopback 模型桥接、客户端代理和演化服务，创建三个 XLSX 测试样例，执行真实工具调用，检查发布版本与后续读取。需要已有可用的 Codex CLI 登录；运行会发起模型请求。
@@ -56,10 +68,13 @@ sharedskill dashboard serve --host 127.0.0.1 --port 3788
 
 输出目录必须新建或为空。结果包括 `run.json`、任务请求和工具结果、上传会话、演化周期、版本 manifest、发布后的技能和模型调用日志。大体积运行证据保存在本地，不作为安装依赖或仓库必备文件。
 
-## 实验与参考数据
+## 方法、实验与来源
 
-- [Qwen3.8 全本地六轮复现实验](../experiment/reproduction/wildclawbench-qwen3.8-27b/EXPERIMENT.md)：完整 60 题、9 个初始共享技能、真实候选 A/B 和终点 S0/S6 对照，包含运行入口、参数、耗时与当前状态。
-- [原始 SkillClaw 实验设置](paper-experiments.md)：正常进化流程、8 用户和 6 轮参数、WildClawBench 来源与本地正常闭环验证。
-- [PoisonedEvolution 实验设计](poisoned-evolution-experiments.md)：轨迹采集与投毒流程、模型角色、30/3 批次、600 次主实验、消融参数和两篇论文的设置区别。
+- [INSTRUCTION](INSTRUCTION.md)：论文级研究问题、目的、threat model、实验链路和指标边界。
+- [根README实验索引](../README.md#实验索引)：各实验状态、配置、具体参数和结果入口。
+- [PoisonedEvolution独立复现](../experiments/poisoned_evolution/README.md)：该实验专属代码、测试、配置与记录。
+- [轨迹注入接口](trajectory-injection.md)：payload格式、纯适配CLI与精确输入要求。
+- [SkillClaw论文实验材料](paper-experiments.md)、[PoisonedEvolution方法综述](poisoned-evolution-experiments.md)：论文来源、公开参数及缺口。
+- [上游来源](upstream.md)：固定revision、许可和项目命名。
 
-[reproduction](../reproduction/README.md) 使用合成轨迹演示证据被写入技能的机制；它与真实良性任务验收分别记录。公开 benchmark 文件的来源由 [source-manifest.json](../reproduction/reference/source-manifest.json) 记录，大体积工作簿和下载档案需单独准备。参考数据下载完成不等于已生成模型执行日志，也不等于复现论文的数据划分。
+`reproduction/reference/`保存第三方静态参考材料，下载素材不能代替真实执行日志；新运行的可复现证据使用`artifacts/<ID>/`和`outputs/<ID>/`。历史绝对引用通过对应`archive.json`解析，冻结JSON和旧digest不改写。

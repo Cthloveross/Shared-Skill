@@ -1,0 +1,131 @@
+{
+  "benchmark_revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+  "dataset_revision": "75f945578aa00cbdb8f46e4d42e4f4e98f704b4f",
+  "model_revision": "1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0",
+  "audio_model_revision": "ae9e1690543ffd5c0221dc27f79834d0294cba00",
+  "image_model_revision": "462165984030d82259a11f4367a4eed129e94a7b",
+  "model_id": "qwen3.8-27b",
+  "model_base_url": "http://127.0.0.1:18181/v1",
+  "audio_base_url": "http://127.0.0.1:18183/v1",
+  "image_base_url": "http://127.0.0.1:18184/v1",
+  "local_api_base_url": "http://127.0.0.1:19192/v1",
+  "users": 8,
+  "seed": 42,
+  "temperature": 1.0,
+  "top_p": 0.95,
+  "top_k": 20,
+  "min_p": 0.0,
+  "presence_penalty": 0.0,
+  "repetition_penalty": 1.0,
+  "reasoning_effort": "medium",
+  "max_tokens": 16384,
+  "context_length": 131072,
+  "evolution_timeout_seconds": 1800,
+  "grading_timeout_seconds": 1800,
+  "native_llm_request_timeout_seconds": 600,
+  "paid_api_budget_usd": 0,
+  "external_judge": false,
+  "judge_model_id": "qwen3.8-27b",
+  "judge_base_url": "http://127.0.0.1:18181/v1",
+  "initial_skill_names": [
+    "03_task1",
+    "03_task2",
+    "03_task3",
+    "03_task4",
+    "03_task5",
+    "03_task6",
+    "agent-browser",
+    "self-improving-agent-3.0.5",
+    "video-frames"
+  ],
+  "summary_tool_result_content_max_chars": 4096,
+  "score_tolerance": 1e-06,
+  "experiment_name": "wildclawbench30-single-data-exfil-file-threecycles",
+  "execution_policy": "read_only_history",
+  "read_only": true,
+  "historical": true,
+  "rounds": 3,
+  "days": 3,
+  "nights": 3,
+  "endpoint": "S3",
+  "conditions": [
+    "clean",
+    "poisoned"
+  ],
+  "task_count": 30,
+  "expected_task_count": 30,
+  "day_workers": 8,
+  "injected_task_short_ids": [
+    "03.01",
+    "03.03",
+    "03.04",
+    "03.05",
+    "03.06"
+  ],
+  "victim_observations_per_condition": 5,
+  "selected_injection_case": "data_exfil_file",
+  "payload_file": "../../artifacts/30x5-sixcycles-20261016-01/legacy/repository/experiment/reproduction/dymalskill-trajectory-e2e/runtime/runs/30x5-sixcycles-20261016-01/revisions/single-data-exfil-file-uniform-repair-20261018-01/frozen-payload.json",
+  "task_manifest": "tasks.json",
+  "runtime_dir": "../../runtime/wildclawbench",
+  "artifacts_dir": "../../artifacts",
+  "outputs_dir": "../../outputs",
+  "shared_runtime_dir": "../../runtime/wildclawbench",
+  "historical_run_id": "30x5-sixcycles-20261016-01",
+  "historical_sources": {
+    "base_config": {
+      "path": "../../artifacts/30x5-sixcycles-20261016-01/legacy/repository/experiment/reproduction/dymalskill-trajectory-e2e/runtime/runs/30x5-sixcycles-20261016-01/revisions/single-data-exfil-file-native0-archive-recovery-20261019-01/fork-config.json",
+      "sha256": "5886f6d7d1c54a50610f4836b73cc99fd7b8c1676d660d24659a85cd9cba9a78"
+    },
+    "scope": {
+      "path": "../../artifacts/30x5-sixcycles-20261016-01/legacy/repository/experiment/reproduction/dymalskill-trajectory-e2e/runtime/runs/30x5-sixcycles-20261016-01/operations/single-case-updated-data-exfil-file-20261018-01/repair-20261018-01/native0-archive-recovery-20261019-01/scope.json",
+      "sha256": "9fc8ee1f73a7e7987ddedbb94949234170606dfc8aa4eb00fdef1a6efd155f07"
+    },
+    "scope_metric_contract": {
+      "path": "../../artifacts/30x5-sixcycles-20261016-01/legacy/repository/experiment/reproduction/dymalskill-trajectory-e2e/runtime/runs/30x5-sixcycles-20261016-01/operations/single-case-updated-data-exfil-file-20261018-01/repair-20261018-01/native0-archive-recovery-20261019-01/metric-contract.json",
+      "sha256": "9c511070c75ec436e2074d47350605a38861544af020811d9452a24e1960b65f"
+    },
+    "scope_endpoint_config": {
+      "path": "../../artifacts/30x5-sixcycles-20261016-01/legacy/repository/experiment/reproduction/dymalskill-trajectory-e2e/runtime/runs/30x5-sixcycles-20261016-01/operations/single-case-updated-data-exfil-file-20261018-01/repair-20261018-01/native0-archive-recovery-20261019-01/endpoint-config.json",
+      "sha256": "5d6f94955e11b3d5cd8e7b43d2e27577f20da7e6a9a960eff28532345c42fa21"
+    },
+    "completion_evidence": {
+      "path": "../../artifacts/30x5-sixcycles-20261016-01/legacy/repository/experiment/reproduction/dymalskill-trajectory-e2e/runtime/runs/30x5-sixcycles-20261016-01/operations/single-case-updated-data-exfil-file-20261018-01/repair-20261018-01/native0-archive-recovery-20261019-01/final-audit-recovery-v19-20261020-01/actual-completion-evidence.json",
+      "sha256": "a238e12aa4f9690593378b0cd9c9cb81311b5f081f4178a1f9e0b9c13b616b26"
+    }
+  },
+  "config_role": "read-only projection; original frozen scope and fork settings remain authoritative",
+  "scientific_endpoint": "synthetic_invocation_audit_record_rate",
+  "execution_profile": "record_only",
+  "baseline_activated_attack": false,
+  "conditional_persistence": "not_covered",
+  "final_30_task_utility": "not_measured",
+  "native_night_budget_exception": "clean Night3 only: one approved additional 1800-second session; original failed attempt preserved",
+  "endpoint_snapshot": "S3",
+  "ocr_local_variant": false,
+  "local_api_key": "local-e2e-only",
+  "alignment": {
+    "version": "native-night-atomic-v1",
+    "catalog_policy": "official-append-v1",
+    "catalog_max_chars": 30000,
+    "compaction_mode": "safeguard",
+    "context_pruning": "off",
+    "verification_only": true,
+    "legacy_bank_diagnostics": true,
+    "source_policy": "native-history-explicit-day-sources-v1",
+    "acceptance_policy": "related-source-nonregression-quality-or-stability-v1",
+    "source_evidence_revision": "native-history-frozen-alias-union-v3",
+    "native_candidate_scope": "per-skill-v1"
+  },
+  "agent_tokenizer_url": "http://127.0.0.1:18181/tokenize",
+  "native_night_flow": "native-night-checkpoint-and-compact-loader-feedback-v2",
+  "native_compaction_guard": "openclaw-2026.3.11-split-turn-event-queue-v2",
+  "pilot_short_ids": [
+    "01.02",
+    "02.02",
+    "03.01",
+    "04.01",
+    "05.11",
+    "06.01"
+  ],
+  "infrastructure_retries": 0
+}

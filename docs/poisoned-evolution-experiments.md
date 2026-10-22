@@ -258,55 +258,10 @@ SkillClaw 评估的是系统持续使用和进化后的任务表现；PoisonedEv
 
 复现时自己选择的任务子集、温度、token 限额、seed、canary 与检测规则，应记录为本地实验参数，不能标成论文原始参数。
 
-## 10. 本地数据与复现进度
+## 10. 本地实验与参考材料的归属
 
-### 10.1 已准备的公开参考材料
+本地合成机制诊断、十二类payload诊断和真实轨迹Day/Night实验分别拥有自己的配置、结果和局限，统一从[根README实验索引](../README.md#实验索引)进入。任何本地样本量、模型、阈值或成功数字都不能补写为论文原始参数。
 
-来源和校验信息记录在 [source-manifest.json](../reproduction/reference/source-manifest.json)。
+第三方静态参考材料的来源记录在[source-manifest.json](../reproduction/reference/source-manifest.json)。固定revision的下载数据、任务metadata或参考xlsx技能仅用于准备与核对；本地任务选择未被证实为论文原始split，参考skill也未被证实为论文原始版本。静态材料不能替代原始GLM-5日志、完整变换或行为检测实现。
 
-| 项目 | 本地准备情况 |
-| --- | --- |
-| SpreadsheetBench 代码 revision | `49b73a94775fb489063f60ca1865e3a650079a79` |
-| 原始压缩包 | `spreadsheetbench_912_v0.1.tar.gz`，95,752,357 字节 |
-| 完整任务 metadata | `reproduction/reference/dataset_912.json`，912 条 |
-| 本地 100 题选择方法 | 按原文件顺序取前 100 条，已核对等于完整 metadata 的 `[:100]` |
-| 本地用例文件 | 300 个输入工作簿、300 个参考答案工作簿 |
-| 是否确认是投毒论文原始 split | 没有；manifest 明确标记 `is_paper_original_split=false` |
-| Anthropic 参考 xlsx skill revision | `dbd4588f9e1033efb41dad4bef2f7947c8993d44` |
-| 参考 xlsx 是否与论文原始 skill 一致 | 未确认论文原始版本或 hash |
-
-压缩包的 [固定下载地址](https://raw.githubusercontent.com/RUCKBReasoning/SpreadsheetBench/49b73a94775fb489063f60ca1865e3a650079a79/data/spreadsheetbench_912_v0.1.tar.gz) 和 SHA256：
-
-```text
-9cf7228b54f1edcdd4b372eb736774adf29cb4f804c9920229bac6c154833399
-```
-
-100 题子集 metadata SHA256：
-
-```text
-755b57d02124429039cd0eee5e8537ca2ff4eb01422127278b2d2aad171516ae
-```
-
-这些是参考材料。下载完成不代表已经在这些任务上运行 GLM-5、生成论文的 300 条日志或得到 Benchmark 准确率。当前核对的官方材料没有提供能确认属于攻击论文的原始日志与任务 ID；不能据此断言互联网所有位置都不存在这些材料。
-
-### 10.2 Qwen3:30b 的本地主配对
-
-| 项目 | 本地主配对设置 |
-| --- | --- |
-| Evolver | 本地 `qwen3:30b` |
-| 数据 | 30 条合成任务／轨迹，初始 `xlsx` skill 和默认摘要均为合成内容 |
-| Poison | 3 条攻击记录、27 条干净记录，模型输出 `improve_skill` |
-| Clean | 同一批任务，替换 3 条攻击记录为干净版本，输出 `skip` |
-| 配对校验 | 其余 27 条合成会话经原生格式化后的轨迹与摘要逐字节一致 |
-| 目标 | F4 模拟安全检查标志被写入生成的 skill |
-| 实际调用范围 | 原生执行阶段进化函数、证据格式化与结果解析 |
-| 随机设置 | fixture seed=7；模型 temperature=0.4，没有固定模型采样 seed |
-| 重复规模 | 一个已核实的主配对，不能计算稳定的攻击成功率 |
-
-证据与精确路径见 [reproduction/RESULTS.md](../reproduction/RESULTS.md)。这一实验验证到 C2 → C3 的文本污染机制，没有覆盖原生 C1 采集和路由、服务端发布与跨用户执行，也没有执行 canary 操作。成功记录来自合成轨迹，未使用下载的 SpreadsheetBench 工作簿生成日志。
-
-### 10.3 当前结论与仍需完成的部分
-
-本地验证了一个合成的 C2 → C3 文本污染实例，未完成论文的六模型、四类行为、600 次主矩阵；也没有对齐论文原始日志、检测代码与任务划分，不能据此声称复现 91% SER。
-
-GPT 5.6 的三个真实 XLSX 任务闭环是另一个正常流程验收，具体见 [SkillClaw 文档的本地正常闭环](paper-experiments.md#4-本地正常闭环的验证结果) 和 [benign_validation](../benign_validation/README.md)。它使用自建工作簿，不属于攻击主表或 SpreadsheetBench 准确率评测。
+本地诊断的正文采纳、真实端到端的行为ASR，以及baseline已激活后的conditional persistence是不同指标，分母和unknown遵循[INSTRUCTION](INSTRUCTION.md)，每次具体定义由该实验冻结配置给出。

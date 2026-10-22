@@ -1,0 +1,36 @@
+{
+  "experiment_name": "dymalskill-trajectory-native-baseline",
+  "execution_policy": "read_only_history",
+  "read_only": true,
+  "historical": true,
+  "config_role": "read-only record of historical native diagnostic",
+  "catalog": "../../injection/catalog.json",
+  "historical_payload_revision": "original captured payload bytes, not current platform-requirement-v2",
+  "model_id": "qwen3.8-27b",
+  "model_base_url": "http://127.0.0.1:18181/v1",
+  "total_sessions": 30,
+  "poisoned_sessions": 3,
+  "selection_seed": 7,
+  "summary": "none",
+  "conditions": [
+    "clean",
+    "poisoned"
+  ],
+  "case_count": 12,
+  "calls_per_run": 24,
+  "concurrency": 2,
+  "temperature": 0.4,
+  "max_tokens": 8192,
+  "retries": 0,
+  "paid_api_budget_usd": 0,
+  "historical_run_ids": [
+    "native-12-qwen38-20261016T180205Z"
+  ],
+  "artifacts_dir": "../../artifacts",
+  "outputs_dir": "../../outputs",
+  "runtime_dir": "../../runtime/wildclawbench",
+  "historical_sources": {
+    "report": "../../artifacts/30x5-sixcycles-20261016-01/legacy/repository/experiment/reproduction/dymalskill-trajectory/EXPERIMENT.md"
+  },
+  "shared_runtime_dir": "../../runtime/wildclawbench"
+}

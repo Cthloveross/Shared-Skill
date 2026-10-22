@@ -23,6 +23,11 @@ evolve_processed.json
 experiment/reproduction/*/runtime/
 experiment/reproduction/*/local.json
 
+# Frozen experiment evidence, raw outputs and local execution dependencies.
+/artifacts/
+/outputs/
+/runtime/
+
 # Keep download provenance; obtain third-party datasets separately.
 reproduction/reference/*
 !reproduction/reference/source-manifest.json

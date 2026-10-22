@@ -1,52 +1,63 @@
 # Shared-Skill
 
-Shared-Skill 是一个 Agent 技能管理与演化项目。它在模型请求代理中记录实际会话、跟踪技能使用，将这些证据交给独立的演化服务，生成技能更新，再通过共享存储分发到客户端。
+Shared-Skill 基于 SkillClaw，研究任务经验如何进入共享技能，以及不可信轨迹如何影响技能进化和后续任务。公共 Python 包为 `sharedskill`；每项实验有自己的入口、配置和证据。
 
-Python 包和命令使用 `sharedskill`；仓库名称保持 `Shared-Skill`。
+## 实验索引
 
-## 快速启动
+| 实验 | 状态 |
+| --- | --- |
+| [30题、三天三夜 clean／poisoned 对照](experiments/dymalskill-trajectory-e2e/README.md) | 已完成；分数、技能接受和文字停点见实验记录；S3未评完整30题Utility |
+| [PoisonedEvolution SpreadsheetBench 单轮复现](experiments/poisoned_evolution/README.md) | Qwen3.5-35B模型对照`-05`真实smoke已通过，正式100次后台运行中；`-04`冻结SER 8%，另有1例已确认漏判，分开计分 |
 
-需要 Python 3.10+、uv，以及可用的模型后端。在仓库根目录执行：
+历史实验：[十二类合成轨迹](experiments/dymalskill-trajectory/README.md)、[早期合成机制](experiments/poisoned-evolution-mechanism/README.md)、[已终止的PoisonedEvolution纵向适配](experiments/poisoned-evolution-benign-wildclawbench-30x3/README.md)、[Qwen进化／DeepSeek验收](experiments/wildclawbench-30-deepseek-flash/README.md)、[机制对齐诊断](experiments/wildclawbench-30-deepseek-flash-alignment/README.md)、[全本地60题](experiments/wildclawbench-qwen3.8-27b/README.md)。各实验独立计分，完成、失败和未覆盖范围以对应README为准。
+
+## 目录分工
+
+| 目录 | 用途 |
+| --- | --- |
+| `sharedskill/`、`evolve_server/` | 正式客户端、共享技能与进化服务代码 |
+| `scripts/`、`tests/` | 现有通用驱动和测试，包括此前三天三夜管线 |
+| `experiments/` | 每项实验的入口；独立复现可在自己的目录内包含专用代码和测试 |
+| `docs/` | 总研究问题、方法、架构与论文来源 |
+| `injection/` | 轨迹注入配置 |
+| `reproduction/reference/` | 已有第三方数据、评分器和初始技能参考材料，供历史配置定位 |
+| `benign_validation/` | 公共客户端的安全工作流验收工具 |
+| `artifacts/<ID>/` | 冻结配置、源码、技能快照和证据 |
+| `outputs/<ID>/` | 原始日志、指标与报告 |
+| `runtime/` | 隔离引擎、虚拟环境及运行依赖；不是第二份实验定义 |
+
+**新实验只使用 `experiments/`。** 单数 `experiment/` 是迁移后保留的旧运行残留，包含权限受限的Docker数据目录，没有新的实验入口；[历史保留原因与归档映射](artifacts/30x5-sixcycles-20261016-01/archive.json)记录的是迁移时状态，当前模型服务以所属实验README为准。
+
+Git保存源码、测试、配置和说明。`artifacts/`、`outputs/`、`runtime/`及第三方数据不随push上传；指向这些目录的证据链接需要在保有对应本地产物的工作区打开。克隆仓库不等于取得完整运行环境或原始实验数据。
+
+根目录的两个 `*.egg-info` 已清理。它们是安装工具自动生成的包元数据，不是源码；后续执行构建或安装时可能重新出现。`.venv/` 是仓库自身的Python环境，与 `runtime/` 内各引擎的隔离环境用途不同。
+
+`runtime/wildclawbench/` 保留此前管线依赖、模型与历史请求证据；`runtime/poisoned-evolution/` 仅供单轮复现的原生SkillClaw引擎使用。模型权重、任务工作簿和Docker数据不按缓存删除。
+
+## 使用入口
+
+从仓库根目录运行。PoisonedEvolution的命令和专属测试见[该实验README](experiments/poisoned_evolution/README.md)。旧实验配置仅用于只读检查，不恢复已完成的final。
+
+```bash
+.venv/bin/python -m scripts.injection.e2e_cycles --config experiments/dymalskill-trajectory-e2e/config.json --run-id 30x5-sixcycles-20261016-01 --dry-run
+.venv/bin/python -m experiments.poisoned_evolution status
+.venv/bin/python -m scripts.archive resolve --run-id ID --path ORIGINAL_ABSOLUTE_PATH
+```
+
+旧路径通过归档映射读取，不改历史JSON或digest。原根目录的DyMalSkill下载包和早期进化日志已分别归入[历史输入](artifacts/30x5-sixcycles-20261016-01/legacy/repository/DyMalSkill_300x12.zip)与[原始日志](outputs/30x5-sixcycles-20261016-01/legacy/repository/evolve_history.jsonl)，原字节保留。
+
+## 安装与文档
+
+需要Python 3.10+、uv和可用模型后端：
 
 ```bash
 uv venv .venv
 uv pip install --python .venv/bin/python -e '.[server,validation]'
 source .venv/bin/activate
 sharedskill setup
-sharedskill config proxy.host 127.0.0.1
 sharedskill start --port 30000
 ```
 
-`setup` 配置模型地址、模型名称、技能目录、可选 PRM 评分和共享存储。首次使用可选择 `claw_type=none`，先接入自己的 OpenAI 兼容客户端。另一个终端可检查：
+客户端配置默认为 `~/.sharedskill/config.yaml`，可用 `SHAREDSKILL_CONFIG_FILE` 指定。操作入口见[文档索引](docs/README.md)；研究设计见[INSTRUCTION](docs/INSTRUCTION.md)，架构见[architecture](docs/architecture.md)。
 
-```bash
-curl http://127.0.0.1:30000/healthz
-```
-
-客户端配置默认保存到 `~/.sharedskill/config.yaml`；`SHAREDSKILL_CONFIG_FILE` 可以指定独立配置。通用技能目录为 `~/.sharedskill/skills`，选用外部 Agent 集成时可使用该 Agent 的原生技能目录。
-
-## 使用路径
-
-| 需求 | 入口 |
-| --- | --- |
-| 转发模型请求、注入技能、记录会话 | `sharedskill start` |
-| 检查或恢复外部 Agent 配置 | `sharedskill doctor`、`sharedskill restore` |
-| 显式推送、拉取与同步技能 | `sharedskill skills` |
-| 基于会话生成技能更新 | `sharedskill-evolve-server` |
-| 查看技能、会话、版本和验证任务 | `sharedskill dashboard` |
-| 本地真实 XLSX 任务闭环验收 | [benign_validation/run_benign_e2e.py](benign_validation/run_benign_e2e.py) |
-| PoisonedEvolution 合成证据实验 | [reproduction/README.md](reproduction/README.md) |
-
-代理提供 Chat Completions、Responses 和 Anthropic Messages 接口。自动演化需要客户端与演化服务访问同一个共享存储和 group；存储可以是本地目录、S3 兼容服务或阿里云 OSS，技能注册还可接入 Nacos。
-
-## 文档与证据
-
-- [部署与操作入口](docs/README.md)：本地共享存储配置、演化服务启动和验证命令。
-- [系统架构](docs/architecture.md)：任务执行、会话演化、存储结构、版本和发布路径。
-- [原始 SkillClaw 实验设置](docs/paper-experiments.md)：正常进化的流程、WildClawBench 来源与本地验证范围。
-- [PoisonedEvolution 实验设计](docs/poisoned-evolution-experiments.md)：投毒参数、SpreadsheetBench 轨迹、结果与两篇论文的设置对照。
-- [上游来源与项目边界](docs/upstream.md)：代码来源、MIT 许可、命名变化和实验范围。
-
-本地已完成一次 GPT 5.6 的良性闭环验收：两条真实工具执行会话生成技能 v2，第三个任务读取并复用该版本。工作簿是本项目生成的测试样例；模型通过 Codex CLI 桥接访问，消息角色被转换为文本。这验证流程能运行，不提供论文任务准确率或 API 等价结论。运行说明与局限见[架构文档的验收部分](docs/architecture.md#良性任务闭环验收)。
-
-项目基于 [AMAP-ML/SkillClaw](https://github.com/AMAP-ML/SkillClaw) 的公开代码发展，保留上游 [MIT 许可](LICENSE) 和来源说明。本仓库的合成投毒实验也不代表复现了 PoisonedEvolution 论文的 600 次实验或 91% 结果。
+基于 [AMAP-ML/SkillClaw](https://github.com/AMAP-ML/SkillClaw)，保留[MIT许可](LICENSE)；第三方边界见[upstream](docs/upstream.md)。本地实验不代表完成原论文全部数值复现。

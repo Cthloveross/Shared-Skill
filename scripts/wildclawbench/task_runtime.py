@@ -1,0 +1,1817 @@
+"""Execute genuine OpenClaw tasks and the pinned benchmark's Automated Checks.
+
+Each invocation gets a clean container and mock state. Raw agent output, inputs,
+check code, API outcomes and replayable mock responses are retained. A scoring
+transport failure is pending_score, never a measured zero. Rescoring restores
+the previous task output instead of running the Agent again.
+"""
+
+from __future__ import annotations
+
+import ast
+import csv
+import hashlib
+import json
+import math
+import posixpath
+import re
+import shlex
+import shutil
+import subprocess
+import sys
+import time
+import uuid
+from datetime import datetime
+from pathlib import Path
+from typing import Any, Mapping
+
+from scripts.wildclawbench import environment
+
+
+SUPERVISED_DAY_EXECUTION_VERSION = "agent-supervisor-frozen-output-v1"
+
+
+def supervised_day_execution(config: Mapping[str, Any]) -> dict[str, str] | None:
+    """Validate the opt-in Day guard without enabling alignment semantics."""
+    if "supervised_day_execution" not in config:
+        return None
+    value = config["supervised_day_execution"]
+    if (
+        not isinstance(value, Mapping)
+        or value.get("version") != SUPERVISED_DAY_EXECUTION_VERSION
+        or set(value) != {"version"}
+    ):
+        raise ValueError("Unknown supervised Day execution protocol")
+    if config.get("alignment") is not None:
+        raise ValueError("supervised_day_execution cannot be combined with alignment")
+    return {"version": SUPERVISED_DAY_EXECUTION_VERSION}
+
+
+def _save(path: Path, obj: Any) -> None:
+    environment._write_json(path, obj)
+
+
+_RAW_LOGS = ("chat.jsonl", "warmup.log", "agent.stdout", "agent.stderr", "grade.stdout", "grade.stderr", "judge-api.jsonl")
+
+
+def _log_directory(output: Path, config: Mapping[str, Any]) -> Path:
+    directory = Path(config.get("log_dir", output)).resolve()
+    directory.mkdir(parents=True, exist_ok=True)
+    return directory
+
+
+def _export_logs(output: Path, config: Mapping[str, Any]) -> dict[str, str]:
+    """Keep authenticated evidence in artifacts; expose only raw logs in outputs."""
+    directory = _log_directory(output, config)
+    exported = {}
+    for filename in _RAW_LOGS:
+        original = output / filename
+        if original.is_file():
+            destination = directory / filename
+            if original.resolve() != destination.resolve():
+                shutil.copy2(original, destination)
+            exported[filename] = str(destination)
+    return exported
+
+
+def _docker(args: list[str], config: Mapping[str, Any], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+    return environment._run(["docker", *args], config=config, **kwargs)
+
+
+def _copy_in(path: Path, name: str, destination: str, config: Mapping[str, Any]) -> None:
+    _docker(["cp", str(path), f"{name}:{destination}"], config, timeout=180)
+
+
+def _copy_out(name: str, source: str, path: Path, config: Mapping[str, Any], *, required: bool = True) -> bool:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    result = _docker(["cp", f"{name}:{source}", str(path)], config, timeout=300, check=False)
+    if result.returncode and required:
+        raise RuntimeError("Artifact collection failed: " + result.stderr)
+    return result.returncode == 0
+
+
+def _local_tools(api_url: str, model: str) -> str:
+    return f"""# Local execution tools
+
+This experiment uses local services only. No paid remote model or Brave API is
+available. OPENROUTER_BASE_URL and OPENAI_BASE_URL point to {api_url}; their API
+keys are local placeholders. Model: {model}. These environment names remain
+compatible with the original task specifications.
+Paid model provider hosts are blocked in this container; use the local endpoints.
+Cloud Edge TTS is also blocked. Speech uses the local Qwen Omni Chelsie/Ethan
+voices; a requested Microsoft Xiaoxiao voice is a separately recorded local
+environment substitution, not an available Microsoft voice.
+
+The OpenClaw browser can visit public pages and search-engine result pages for
+free web search. The browser remains available; paid web_search is disabled.
+All supplied shared skills are in /root/skills and in the OpenClaw skill catalog.
+
+Use the following OpenAI-compatible local interfaces when a task needs media.
+They create actual media through the configured local adapter. A service error
+means the service is unavailable; preserve the error and report it.
+The local image backend is SDXL with default seed 42. Repeating the same image
+prompt, size and seed produces the same image. To try a different image, change
+the prompt or explicitly change the seed; an unchanged retry is not a new sample.
+Each messages item must have role and content. Put image_url items inside the
+user message's content list, never directly as a top-level message.
+
+```python
+import os, base64
+from openai import OpenAI
+client = OpenAI(base_url=os.environ['OPENROUTER_BASE_URL'],
+                api_key=os.environ['OPENROUTER_API_KEY'])
+# Vision (put the real image in a data URL):
+# client.chat.completions.create(model='{model}', messages=[...])
+
+# Image generation; write the returned real image bytes to the required file.
+image = client.images.generate(model='local-image', prompt='YOUR IMAGE PROMPT',
+                               size='1024x1024', n=1, response_format='b64_json',
+                               extra_body={{'seed':43}})
+open('/tmp_workspace/output.png','wb').write(base64.b64decode(image.data[0].b64_json))
+
+# Speech synthesis, including Chinese text when the local backend supports it.
+audio = client.audio.speech.create(model='local-tts', voice='Chelsie',
+                                  input='实际中文文本', response_format='wav')
+audio.stream_to_file('/tmp_workspace/speech.wav')
+
+# Audio understanding / transcription: pass actual WAV bytes. The gateway
+# selects its local audio adapter from input_audio; no remote model is called.
+wav = base64.b64encode(open('/tmp_workspace/audio.wav','rb').read()).decode()
+answer = client.chat.completions.create(model='local-audio', messages=[{{
+    'role':'user','content':[{{'type':'text','text':'Transcribe the actual audio.'}},
+    {{'type':'input_audio','input_audio':{{'data':wav,'format':'wav'}}}}]}}])
+print(answer.choices[0].message.content)
+```
+
+ffmpeg/ffprobe can extract audio, frames, clips, merge tracks and render video.
+Image editing, layouts and diagrams can also be rendered using code and local
+tools; API generation is only needed when the requested artifact requires it.
+"""
+
+
+def task_spec(task_id: str, config: Mapping[str, Any]) -> dict[str, Any]:
+    source = environment.paths(config)["upstream"]
+    sys.path.insert(0, str(source))
+    from src.utils.task_parser import parse_task_md
+
+    requested = config.get("task", {}).get("source_path")
+    if requested and Path(requested).exists():
+        file = Path(requested)
+    else:
+        candidates = list((source / "tasks").glob("*/*task_*.md"))
+        file = next((p for p in candidates if p.stem == task_id), None)
+        if file is None:
+            match = re.fullmatch(r"(\d{2})\.(\d{1,2})", task_id)
+            if match:
+                prefix = match.group(1)
+                number = int(match.group(2))
+                file = next(
+                    (
+                        p
+                        for p in candidates
+                        if p.parent.name.startswith(prefix + "_") and re.search(r"_task_" + str(number) + r"_", p.name)
+                    ),
+                    None,
+                )
+        if file is None:
+            raise KeyError(f"Unknown benchmark task {task_id}")
+    spec = parse_task_md(file)
+    # Resolve a reference copy of a task against the actual pinned runtime.
+    raw = file.read_text()
+    match = re.search(r"## Workspace Path\s*\n\s*```[^\n]*\n([^\n]+)", raw)
+    if match:
+        spec["workspace_path"] = str((source / match.group(1).strip()).resolve())
+    spec["skills_path"] = str(source / "skills")
+    return spec
+
+
+def _execution_preamble(timeout_seconds: int) -> str:
+    # Keep byte-for-byte equivalent to the pinned eval/run_batch.py entrypoint.
+    return (
+        "You are an expert in a restricted, non-interactive environment. "
+        f"Solve the task efficiently before the timeout ({timeout_seconds}s). "
+        "Run all processes in the foreground without user input or background services. "
+        "Provide a complete, functional solution in a single pass with no placeholders. \n"
+    )
+
+
+def _variants(
+    spec: dict[str, Any], config: Mapping[str, Any], output: Path, api_url: str, rescore: bool = False
+) -> dict[str, Any]:
+    patched = dict(spec)
+    substitutions: list[dict[str, str]] = []
+    model = str(config.get("model_id", "qwen3.8-27b"))
+    for field in ("prompt", "automated_checks", "warmup"):
+        original = str(patched.get(field, ""))
+        current = original
+        target_api_url = api_url
+        if field == "automated_checks" and config.get("external_judge"):
+            target_api_url = api_url.removesuffix("/v1") + "/judge/v1"
+        for remote in () if field == "prompt" else ("https://openrouter.ai/api/v1", "https://api.openai.com/v1"):
+            if remote in current:
+                current = current.replace(remote, target_api_url)
+                substitutions.append({"field": field, "before": remote, "after": target_api_url})
+        if "ocrbench" in spec["task_id"].lower():
+            for requested in ("gpt-5-mini-2025-08-07",):
+                if requested in current:
+                    current = current.replace(requested, model)
+                    substitutions.append({"field": field, "before": requested, "after": model})
+        patched[field] = current
+    if "ocrbench" in spec["task_id"].lower():
+        patched["prompt"] += "\n\n" + _OCR_PROTOCOL
+        patched["automated_checks"] = _OCR_ENV_CHECKS
+        substitutions.append(
+            {
+                "field": "automated_checks",
+                "before": "GPT5-mini score range 810-835",
+                "after": "0.2 genuine VLMEvalKit environment + 0.8 complete auditable local-Qwen OCRBench evaluation",
+            }
+        )
+    patched["env"] = "\n".join(
+        sorted(
+            set(str(spec.get("env", "")).splitlines()) | {"OPENROUTER_API_KEY", "OPENROUTER_BASE_URL", "JUDGE_MODEL"}
+        )
+    )
+    patched["official_prompt"] = spec["prompt"]
+    patched["task_prompt"] = patched["prompt"]
+    patched["execution_preamble"] = _execution_preamble(spec["timeout_seconds"])
+    required_skill = config.get("required_shared_skill")
+    if required_skill is not None:
+        if (not isinstance(required_skill, str)
+                or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", required_skill)):
+            raise ValueError("required_shared_skill must be one safe skill name")
+        patched["execution_preamble"] += (
+            f"Before working on the task, read /root/skills/{required_skill}/SKILL.md. "
+            "Apply its relevant completion checks and keep the user-requested deliverable as the priority. "
+        )
+    patched["prompt"] = patched["execution_preamble"] + patched["task_prompt"]
+    if rescore:
+        # Scoring an existing execution must preserve the prompt/checks it used,
+        # including historical runs that omitted the official execution prefix.
+        manifest = json.loads((output / "task-variant.json").read_text())
+        patched["prompt"] = (output / "execution-prompt.txt").read_text()
+        patched["automated_checks"] = (output / "automated-checks.py").read_text()
+        for field, key in (("prompt", "modified_prompt_sha256"), ("automated_checks", "modified_checks_sha256")):
+            if hashlib.sha256(patched[field].encode()).hexdigest() != manifest[key]:
+                raise RuntimeError(f"Saved execution {field} does not match its recorded hash")
+        patched["execution_preamble"] = manifest.get("execution_preamble")
+        task_prompt_file = output / "task-prompt.txt"
+        patched["task_prompt"] = task_prompt_file.read_text() if task_prompt_file.exists() else patched["prompt"]
+        return patched
+    manifest = {
+        "task_id": spec["task_id"],
+        "source_path": spec["file_path"],
+        "source_sha256": hashlib.sha256(Path(spec["file_path"]).read_bytes()).hexdigest(),
+        "approved_variant": "local-Qwen OCR model"
+        if "ocrbench" in spec["task_id"].lower()
+        else "local execution and judge services",
+        "task_prompt_variant": "local-Qwen OCR model" if "ocrbench" in spec["task_id"].lower() else "none",
+        "required_shared_skill": required_skill,
+        "substitutions": substitutions,
+        "execution_preamble": patched["execution_preamble"],
+        "execution_preamble_source": "eval/run_batch.py:run_single_task",
+        "timeout_seconds": spec["timeout_seconds"],
+        "judge_model": config.get("judge_model_id") if config.get("external_judge") else model,
+        "audio_judge_route": "local adapter via gateway",
+        "shared_skill_bank": "complete supplied snapshot",
+        "search": "free browser; Brave disabled",
+        "local_image_generation": {
+            "backend": "SDXL",
+            "default_seed": 42,
+            "seed_control": "images.generate extra_body={'seed': integer}",
+            "repeat_semantics": "same prompt/size/seed produces the same image",
+        },
+        "official_prompt_sha256": hashlib.sha256(patched["official_prompt"].encode()).hexdigest(),
+        "task_prompt_sha256": hashlib.sha256(patched["task_prompt"].encode()).hexdigest(),
+        "execution_prompt_sha256": hashlib.sha256(patched["prompt"].encode()).hexdigest(),
+        "modified_prompt_sha256": hashlib.sha256(patched["prompt"].encode()).hexdigest(),
+        "modified_prompt_sha256_scope": "execution_prompt",
+        "modified_checks_sha256": hashlib.sha256(patched["automated_checks"].encode()).hexdigest(),
+    }
+    (output / "official-task.md").write_bytes(Path(spec["file_path"]).read_bytes())
+    (output / "official-task-prompt.txt").write_text(patched["official_prompt"])
+    (output / "task-prompt.txt").write_text(patched["task_prompt"])
+    (output / "execution-prompt.txt").write_text(patched["prompt"])
+    (output / "automated-checks.py").write_text(patched["automated_checks"])
+    if "ocrbench" in spec["task_id"].lower():
+        manifest["ocr_protocol"] = _OCR_PROTOCOL
+        manifest["ocr_rules_source"] = (
+            "https://github.com/open-compass/VLMEvalKit/blob/main/vlmeval/dataset/image_vqa.py#L485"
+        )
+        manifest["ocr_task_completion_is_not_model_accuracy"] = True
+    _save(output / "task-variant.json", manifest)
+    return patched
+
+
+_OCR_PROTOCOL = """【已批准的本地 Qwen 变体；覆盖原模型和原 810–835 评分区间】
+目标模型为 qwen3.8-27b。必须实际调用本地 API 完整评测 OCRBench v1 的全部 1000 个样本，不能猜分数。
+克隆并配置真实 VLMEvalKit，使用 /root/miniconda3/envs/eval 环境；环境可用计0.2分。
+完整、真实且可审计的1000样本评测和正确汇总计0.8分，不要求模型达到特定准确率。保持原1200秒任务限时。
+保存 /tmp_workspace/results/predictions.jsonl：每行含 index（TSV原index）、prediction（实际模型响应文本）、response_id。
+保存 /tmp_workspace/results/api_calls.jsonl：每行含 index、request（实际API payload）、response（完整OpenAI JSON响应）。
+每个样本使用非流式chat/completions，payload必须包含该样本原question和TSV原始base64图像，model为qwen3.8-27b。
+若真实响应content为null且finish_reason为length，预测记为空串、保留原响应并按无答案计0分。
+勿替换图像、勿用groundtruth生成prediction；每个response_id必须对应本次执行gateway实际成功响应。
+允许并发提高效率，但1000样本必须各自保留真实调用与prediction；服务失败或限时未完成应如实报告。
+按OCRBench官方规则重算：普通类别把answer和prediction转小写、strip、换行替换为空格，用answer substring匹配；
+Handwritten Mathematical Expression Recognition类别strip、换行替换为空格并删除全部空格，再substring匹配。
+每个样本任一候选answer匹配则得1，否则0。六类Text Recognition合计300；其他VQA200/文档200/KIE200/数学100，总分1000。
+按原结果JSON字段规范保存results/result.json，但model必须是qwen3.8-27b；
+Final Score及分类计数必须与全部逐样本重算完全一致。
+评分会校验本次gateway的真实调用记录，不根据GPT5-mini的810–835范围评分。
+"""
+
+_OCR_ENV_CHECKS = r"""
+def grade(**kwargs):
+    import os, subprocess
+    from pathlib import Path
+    usable=False
+    for directory, dirs, files in os.walk('/tmp_workspace'):
+        p=Path(directory)
+        if 'run.py' in files and (p/'vlmeval/dataset/image_vqa.py').is_file() and (p/'.git').is_dir():
+            remote=subprocess.run(['git','-C',str(p),'remote','get-url','origin'],capture_output=True,text=True)
+            if 'open-compass/VLMEvalKit' not in remote.stdout: continue
+            try:
+                check=subprocess.run(['/root/miniconda3/envs/eval/bin/python','-c',
+                    'import sys;sys.path.insert(0,'+repr(str(p))+');import vlmeval'],
+                    capture_output=True,text=True,timeout=45)
+                usable=check.returncode==0
+            except Exception: usable=False
+            if usable: break
+    return {'overall_score':0.2 if usable else 0.0,'environment_score':0.2 if usable else 0.0}
+"""
+
+
+def _ocr_grade(
+    output: Path, config: Mapping[str, Any], run_id: str, environment_score: float, input_workspace: Path
+) -> dict[str, Any]:
+    """Recompute OCRBench and authenticate all predictions against gateway logs."""
+    frozen_task = config.get("task", {})
+    if frozen_task.get("input_sha256"):
+        from scripts.wildclawbench.provenance import validate_task_inputs
+
+        validate_task_inputs(config, frozen_task)
+    workspace = output / "workspace"
+    result = {
+        "overall_score": environment_score,
+        "environment_score": environment_score,
+        "evaluation_completion_score": 0.0,
+        "verified_samples": 0,
+        "model_answer_failures": [],
+        "protocol": "local-Qwen OCRBench task completion, separate from OCR accuracy",
+    }
+    try:
+        source_tsv = input_workspace / "exec" / "OCRBench.tsv"
+        with source_tsv.open("rb") as stream:
+            source_sha256 = hashlib.file_digest(stream, "sha256").hexdigest()
+        result["input_tsv_sha256"] = source_sha256
+        with (workspace / "OCRBench.tsv").open("rb") as stream:
+            exported_sha256 = hashlib.file_digest(stream, "sha256").hexdigest()
+        if exported_sha256 != source_sha256:
+            raise ValueError("Exported OCRBench.tsv differs from immutable task input")
+        csv.field_size_limit(2**31 - 1)
+        with source_tsv.open(newline="") as stream:
+            rows = list(csv.DictReader(stream, delimiter="\t"))
+        if len(rows) != 1000:
+            raise ValueError("Pinned OCRBench v1 input does not have 1000 samples")
+        results_dir = workspace / "results"
+        predictions = [
+            json.loads(line) for line in (results_dir / "predictions.jsonl").read_text().splitlines() if line.strip()
+        ]
+        calls = [
+            json.loads(line) for line in (results_dir / "api_calls.jsonl").read_text().splitlines() if line.strip()
+        ]
+        if len(predictions) != 1000 or len(calls) != 1000:
+            raise ValueError(f"Incomplete evaluation: {len(predictions)} predictions, {len(calls)} calls")
+        by_index = {str(p["index"]): p for p in predictions}
+        calls_by_index = {str(p["index"]): p for p in calls}
+        if len(by_index) != 1000 or len(calls_by_index) != 1000:
+            raise ValueError("Duplicate sample indices")
+        evidence_root = (
+            Path(config.get("gateway_log_dir", environment.paths(config)["runtime"] / "api-evidence")) / run_id
+        )
+        actual = {}
+        for record_file in evidence_root.glob("*/record.json"):
+            record = json.loads(record_file.read_text())
+            if record.get("role") != "main" or record.get("status") != "completed" or record.get("http_status") != 200:
+                continue
+            folder = record_file.parent
+            if not (folder / "response.bin").exists():
+                continue
+            try:
+                response = json.loads((folder / "response.bin").read_bytes())
+                request = json.loads((folder / "request.json").read_text())
+                actual[response["id"]] = (request, response)
+            except (ValueError, KeyError):
+                continue
+        counts: dict[str, int] = {}
+        response_ids: set[str] = set()
+        model = str(config.get("model_id", "qwen3.8-27b"))
+        for row in rows:
+            index = str(row["index"])
+            prediction = by_index[index]
+            call = calls_by_index[index]
+            response_id = str(prediction["response_id"])
+            if response_id in response_ids or response_id not in actual:
+                raise ValueError(f"Sample {index}: missing/duplicate actual gateway response")
+            response_ids.add(response_id)
+            request, response = actual[response_id]
+            if request.get("model") != model:
+                raise ValueError(f"Sample {index}: wrong actual model")
+            choice = response["choices"][0]
+            actual_content = choice["message"].get("content", "")
+            text = actual_content
+            if actual_content is None and choice.get("finish_reason") == "length":
+                text = ""
+                result["model_answer_failures"].append(
+                    {
+                        "index": index,
+                        "response_id": response_id,
+                        "finish_reason": "length",
+                        "issue": "Output token limit exhausted without an answer",
+                        "usage": response.get("usage"),
+                    }
+                )
+            if not isinstance(text, str) or prediction["prediction"] != text:
+                raise ValueError(f"Sample {index}: prediction differs from actual model response")
+            if (
+                call["response"].get("id") != response_id
+                or call["response"]["choices"][0]["message"].get("content", "") != actual_content
+            ):
+                raise ValueError(f"Sample {index}: recorded response is inconsistent")
+            messages = request.get("messages", [])
+            text_parts = []
+            images = []
+            for message in messages:
+                content = message.get("content", [])
+                if isinstance(content, str):
+                    text_parts.append(content)
+                elif isinstance(content, list):
+                    for part in content:
+                        if part.get("type") == "text":
+                            text_parts.append(part.get("text", ""))
+                        if part.get("type") == "image_url":
+                            image = part.get("image_url", {}).get("url", "")
+                            if image.startswith("data:") and "," in image:
+                                images.append(image.split(",", 1)[1])
+            if row["question"] not in "\n".join(text_parts) or row["image"] not in images:
+                raise ValueError(f"Sample {index}: actual payload lacks the correct question/image")
+            answers = ast.literal_eval(row["answer"])
+            category = row["category"]
+            if category == "Handwritten Mathematical Expression Recognition":
+                normalize = lambda x: str(x).strip().replace("\n", " ").replace(" ", "")
+            else:
+                normalize = lambda x: str(x).lower().strip().replace("\n", " ")
+            hit = any(normalize(answer) in normalize(text) for answer in answers)
+            counts[category] = counts.get(category, 0) + int(hit)
+            result["verified_samples"] += 1
+        report = json.loads((results_dir / "result.json").read_text())
+        computed = {
+            "Text Recognition": sum(
+                counts.get(c, 0)
+                for c in [
+                    "Regular Text Recognition",
+                    "Irregular Text Recognition",
+                    "Artistic Text Recognition",
+                    "Handwriting Recognition",
+                    "Digit String Recognition",
+                    "Non-Semantic Text Recognition",
+                ]
+            ),
+            "Scene Text-centric VQA": counts.get("Scene Text-centric VQA", 0),
+            "Document-oriented VQA": counts.get("Doc-oriented VQA", 0),
+            "Key Information Extraction": counts.get("Key Information Extraction", 0),
+            "Handwritten Mathematical Expression Recognition": counts.get(
+                "Handwritten Mathematical Expression Recognition", 0
+            ),
+        }
+        computed["Final Score"] = sum(computed.values())
+        if report.get("model") != model or report.get("benchmark") != "OCRBench":
+            raise ValueError("Result metadata has wrong model/benchmark")
+        for key, value in computed.items():
+            alias = "Doc-oriented VQA" if key == "Document-oriented VQA" else key
+            if report.get(key, report.get(alias)) != value:
+                raise ValueError(f"Reported {key} differs from official-rule recomputation")
+        result.update(
+            overall_score=round(environment_score + 0.8, 6),
+            evaluation_completion_score=0.8,
+            ocr_model_results=computed,
+            ocr_accuracy=computed["Final Score"] / 1000,
+        )
+    except (OSError, ValueError, KeyError, TypeError, IndexError) as exc:
+        # An incomplete or inaccurate artifact is a task failure, not a missing
+        # scoring service. It legitimately earns only its environment points.
+        result["completion_failure"] = str(exc)
+    return result
+
+
+# Injected into the grader process, not into the Agent. It records API failures
+# even when an official check catches the exception and returns a default zero.
+_GRADE_MONITOR = r"""
+import hashlib as _hashlib, json as _json, pathlib as _pathlib, urllib.parse as _urlparse
+_api_log = _pathlib.Path('/tmp/sharedskill-judge-api.jsonl')
+_mock_log = _pathlib.Path('/tmp/sharedskill-mock-replay.json')
+_replay = _json.loads(_mock_log.read_text()) if _mock_log.exists() else {}
+def _audit(kind, url, status=None, error=None, body=b'', **details):
+    item={'kind':kind,'url':url,'status':status,'error':error,
+          'fingerprint':_hashlib.sha256(str(url).encode()+body).hexdigest()}
+    item.update(details)
+    with _api_log.open('a') as f: f.write(_json.dumps(item)+'\n')
+def _is_local_model_api(url):
+    base=_urlparse.urlsplit(globals().get('_sharedskill_model_api_base_url',''))
+    target=_urlparse.urlsplit(str(url))
+    prefix=base.path.rstrip('/')
+    return bool(base.scheme and base.netloc and prefix and
+                target.scheme.lower()==base.scheme.lower() and
+                target.netloc.lower()==base.netloc.lower() and
+                (target.path==prefix or target.path.startswith(prefix+'/')))
+def _timeout_evidence(value):
+    if isinstance(value,dict):return {str(k):_timeout_evidence(v) for k,v in value.items()}
+    if isinstance(value,(tuple,list)):return [_timeout_evidence(v) for v in value]
+    if value is None or isinstance(value,(str,int,float,bool)):return value
+    return repr(value)
+def _audit_timeout(client,url,before,after):
+    # A separate fingerprint keeps these observations from resolving API failures.
+    fingerprint='timeout_override:'+client+':'+_hashlib.sha256(str(url).encode()).hexdigest()
+    _audit('timeout_override',url,client=client,original_timeout=_timeout_evidence(before),
+           effective_timeout=_timeout_evidence(after),fingerprint=fingerprint)
+def _completion_issue(payload,require_choices=False):
+    if not isinstance(payload,dict) or not isinstance(payload.get('choices'),list) or not payload['choices']:
+        return 'Scoring completion API returned missing choices' if require_choices else None
+    choice=payload['choices'][0]
+    if not isinstance(choice,dict):return 'Scoring completion API returned an invalid choice'
+    if choice.get('finish_reason')=='length':return 'Scoring model exhausted its output budget'
+    message=choice.get('message',{})
+    content=message.get('content') if isinstance(message,dict) else None
+    if not str(content or choice.get('text') or '').strip():return 'Scoring model returned empty assistant content'
+    return None
+try:
+    import httpx as _httpx
+    _original_httpx_send = _httpx.Client.send
+    def _httpx_send(self, request, *args, **kwargs):
+        url=str(request.url);body=request.content
+        is_mock=(_urlparse.urlsplit(url).hostname in ['localhost','127.0.0.1']
+                 and getattr(request,'method','POST')=='GET' and not _is_local_model_api(url))
+        if is_mock and url in _replay:
+            item=_replay[url]
+            _audit('mock_api',url,status=item['status'],
+                   error='Mock API returned HTTP '+str(item['status']) if item['status']>=400 else None)
+            return _httpx.Response(item['status'],content=item['body'].encode(),request=request)
+        if is_mock and globals().get('_sharedskill_replay_only',False):
+            _audit('mock_api',url,error='Original mock state was not captured; cannot reconstruct it')
+            raise RuntimeError('Original mock state was not captured; cannot reconstruct it')
+        if any(x in url for x in ['openrouter.ai','api.openai.com']):
+            _audit('model_api',url,error='Forbidden remote model endpoint',body=body)
+            raise RuntimeError('Forbidden remote model endpoint')
+        if _is_local_model_api(url):
+            before=request.extensions.get('timeout','<library-default>')
+            after={key:_sharedskill_grading_timeout_seconds for key in ('connect','read','write','pool')}
+            _audit_timeout('httpx',url,before,after)
+            request.extensions['timeout']=after
+        try:
+            response=_original_httpx_send(self,request,*args,**kwargs)
+            if is_mock:
+                _replay[url]={'status':response.status_code,'body':response.text}
+                _mock_log.write_text(_json.dumps(_replay))
+                _audit('mock_api',url,status=response.status_code,
+                       error='Mock API returned HTTP '+str(response.status_code) if response.status_code>=400 else None)
+            elif '/v1/' in url:
+                issue=None
+                if response.status_code==200:
+                    required=url.endswith('/chat/completions') or url.endswith('/completions')
+                    try:issue=_completion_issue(response.json(),required)
+                    except Exception:
+                        if required:issue='Scoring completion API returned invalid JSON'
+                _audit('model_api',url,status=response.status_code,error=issue,body=body)
+            return response
+        except Exception as exc:
+            if is_mock:_audit('mock_api',url,error=str(exc),body=body)
+            elif '/v1/' in url:_audit('model_api',url,error=str(exc),body=body)
+            raise
+    _httpx.Client.send=_httpx_send
+except ImportError: pass
+try:
+    import requests as _requests
+    _original_requests_send=_requests.Session.send
+    def _requests_send(self, request, *args, **kwargs):
+        url=request.url;host=_urlparse.urlsplit(url).hostname
+        body=request.body or b''
+        if isinstance(body,str):body=body.encode()
+        is_model=_is_local_model_api(url)
+        is_mock=host in ['localhost','127.0.0.1'] and request.method=='GET' and not is_model
+        if is_mock and url in _replay:
+            response=_requests.Response();response.status_code=_replay[url]['status']
+            response._content=_replay[url]['body'].encode();response.url=url
+            _audit('mock_api',url,status=response.status_code,
+                   error='Mock API returned HTTP '+str(response.status_code) if response.status_code>=400 else None)
+            return response
+        if is_mock and globals().get('_sharedskill_replay_only',False):
+            _audit('mock_api',url,error='Original mock state was not captured; cannot reconstruct it')
+            raise RuntimeError('Original mock state was not captured; cannot reconstruct it')
+        if any(x in url for x in ['openrouter.ai','api.openai.com']):
+            _audit('model_api',url,error='Forbidden remote model endpoint',body=body)
+            raise RuntimeError('Forbidden remote model endpoint')
+        if is_model:
+            before=kwargs.get('timeout','<library-default>')
+            kwargs['timeout']=_sharedskill_grading_timeout_seconds
+            _audit_timeout('requests',url,before,kwargs['timeout'])
+        try:
+            response=_original_requests_send(self,request,*args,**kwargs)
+            if is_mock:
+                _replay[url]={'status':response.status_code,'body':response.text}
+                _mock_log.write_text(_json.dumps(_replay))
+                _audit('mock_api',url,status=response.status_code,
+                       error='Mock API returned HTTP '+str(response.status_code) if response.status_code>=400 else None)
+            elif '/v1/' in url:
+                issue=None
+                if response.status_code==200:
+                    required=url.endswith('/chat/completions') or url.endswith('/completions')
+                    try:issue=_completion_issue(response.json(),required)
+                    except Exception:
+                        if required:issue='Scoring completion API returned invalid JSON'
+                _audit('model_api',url,status=response.status_code,error=issue,body=body)
+            return response
+        except Exception as exc:
+            kind='mock_api' if is_mock else ('model_api' if '/v1/' in url else 'resource')
+            _audit(kind,url,error=str(exc),body=body);raise
+    _requests.Session.send=_requests_send
+except ImportError: pass
+try:
+    import urllib.request as _urllib_request, urllib.error as _urllib_error, io as _io
+    _original_urlopen=_urllib_request.urlopen
+    class _CachedResponse(_io.BytesIO):
+        def __init__(self, body, status=200, url=''):
+            super().__init__(body);self.status=status;self.url=url;self.headers={'Content-Type':'application/json'}
+        def getcode(self):return self.status
+        def info(self):return self.headers
+    def _urlopen(request, *args, **kwargs):
+        url=request.full_url if hasattr(request,'full_url') else str(request)
+        host=_urlparse.urlsplit(url).hostname
+        method=request.get_method() if hasattr(request,'get_method') else 'GET'
+        is_model=_is_local_model_api(url)
+        is_mock=host in ['localhost','127.0.0.1'] and method=='GET' and not is_model
+        if is_mock and url in _replay:
+            item=_replay[url]
+            _audit('mock_api',url,status=item['status'],
+                   error='Mock API returned HTTP '+str(item['status']) if item['status']>=400 else None)
+            return _CachedResponse(item['body'].encode(),item['status'],url)
+        if is_mock and globals().get('_sharedskill_replay_only',False):
+            _audit('mock_api',url,error='Original mock state was not captured; cannot reconstruct it')
+            raise RuntimeError('Original mock state was not captured; cannot reconstruct it')
+        if any(x in url for x in ['openrouter.ai','api.openai.com']):
+            _audit('model_api',url,error='Forbidden remote model endpoint')
+            raise RuntimeError('Forbidden remote model endpoint')
+        if is_model:
+            before=args[1] if len(args)>1 else kwargs.get('timeout','<library-default>')
+            if len(args)>1:
+                args=list(args);args[1]=_sharedskill_grading_timeout_seconds;args=tuple(args)
+                kwargs.pop('timeout',None)
+            else:kwargs['timeout']=_sharedskill_grading_timeout_seconds
+            _audit_timeout('urllib',url,before,_sharedskill_grading_timeout_seconds)
+        try:
+            response=_original_urlopen(request,*args,**kwargs)
+            if is_mock:
+                body=response.read();status=response.status;response.close()
+                _replay[url]={'status':status,'body':body.decode(errors='replace')}
+                _mock_log.write_text(_json.dumps(_replay))
+                _audit('mock_api',url,status=status,
+                       error='Mock API returned HTTP '+str(status) if status>=400 else None)
+                return _CachedResponse(body,status,url)
+            if '/v1/' in url:_audit('model_api',url,status=response.status)
+            return response
+        except Exception as exc:
+            if is_mock:_audit('mock_api',url,status=getattr(exc,'code',None),error=str(exc))
+            elif '/v1/' in url:_audit('model_api',url,error=str(exc))
+            raise
+    _urllib_request.urlopen=_urlopen
+except ImportError: pass
+"""
+
+
+def _grade(
+    name: str, spec: Mapping[str, Any], output: Path, config: Mapping[str, Any], *, replay_only: bool = False
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    source = environment.paths(config)["upstream"]
+    api_url = environment.container_api_url(
+        config, run_id="wcb-" + hashlib.sha256(str(output.resolve()).encode()).hexdigest()[:20], role="judge"
+    )
+    grading_timeout = int(config.get("grading_timeout_seconds", config.get("grade_timeout_seconds", 1800)))
+    _copy_in(source / "src" / "utils" / "transcript_loader.py", name, "/tmp/_transcript_loader.py", config)
+    runner = output / "grade-runner.py"
+    runner.write_text(
+        "_sharedskill_replay_only="
+        + repr(replay_only)
+        + "\n"
+        + "_sharedskill_model_api_base_url="
+        + repr(api_url)
+        + "\n_sharedskill_grading_timeout_seconds="
+        + repr(grading_timeout)
+        + "\n"
+        + _GRADE_MONITOR
+        + "\nfrom _transcript_loader import load_transcript\n"
+        "_transcript=load_transcript('/root/.openclaw/agents/main/sessions/chat.jsonl')\n"
+        + str(spec["automated_checks"])
+        + "\n"
+        "print(__import__('json').dumps(grade(transcript=_transcript,workspace_path='/tmp_workspace')))\n"
+    )
+    _copy_in(runner, name, "/tmp/_grade_runner.py", config)
+    _docker(["exec", name, "rm", "-f", "/tmp/sharedskill-judge-api.jsonl"], config)
+    replay = output / "mock-replay.json"
+    if replay.exists():
+        _copy_in(replay, name, "/tmp/sharedskill-mock-replay.json", config)
+    try:
+        result = _docker(
+            [
+                "exec",
+                "--env",
+                "OPENROUTER_BASE_URL=" + api_url,
+                "--env",
+                "OPENAI_BASE_URL=" + api_url,
+                "--env",
+                "JUDGE_MODEL=" + str(config.get("judge_model_id") if config.get("external_judge")
+                                     else config.get("model_id", "qwen3.8-27b")),
+                name,
+                "python3",
+                "/tmp/_grade_runner.py",
+            ],
+            config,
+            timeout=grading_timeout,
+            check=False,
+        )
+        (output / "grade.stdout").write_text(result.stdout)
+        (output / "grade.stderr").write_text(result.stderr)
+        if result.returncode:
+            scores: dict[str, Any] = {
+                "error": "Official Automated Checks process failed: " + result.stderr[-3000:],
+                "_grading_infrastructure_error": True,
+            }
+        else:
+            scores = {}
+            for line in reversed(result.stdout.splitlines()):
+                try:
+                    value = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if isinstance(value, dict):
+                    scores = value
+                    break
+            if not scores:
+                scores = {
+                    "error": "Official Automated Checks returned no JSON scores",
+                    "_grading_infrastructure_error": True,
+                }
+    except subprocess.TimeoutExpired:
+        scores = {"error": "Official Automated Checks timed out", "_grading_infrastructure_error": True}
+    finally:
+        _copy_out(name, "/tmp/sharedskill-mock-replay.json", replay, config, required=False)
+        _copy_out(name, "/tmp/sharedskill-judge-api.jsonl", output / "judge-api.jsonl", config, required=False)
+    events = []
+    log = output / "judge-api.jsonl"
+    if log.exists():
+        for line in log.read_text().splitlines():
+            try:
+                events.append(json.loads(line))
+            except json.JSONDecodeError:
+                pass
+    return scores, events
+
+
+def _judge_diagnostics(scores: Mapping[str, Any], events: list[dict[str, Any]]) -> list[str]:
+    """Only model-judge parsing failures; task artifacts still earn real failures."""
+    if not any(e.get("kind") == "model_api" for e in events):
+        return []
+    issues = []
+    for key, value in scores.items():
+        if not isinstance(value, str) or not ("judge" in key.lower() or "llm" in key.lower()):
+            continue
+        text = value.lower()
+        if ("method" in key.lower() and text in ("regex_fallback", "rule_fallback", "keyword_fallback")) or any(
+            marker in text
+            for marker in (
+                "did not contain a json",
+                "judge_failed",
+                "empty response",
+                "no json object",
+                "failed to parse judge",
+            )
+        ):
+            issues.append(key + ": " + value)
+    return issues
+
+
+def _session(output: Path, spec: Mapping[str, Any]) -> dict[str, Any]:
+    if (output / "execution-binding.json").exists():
+        from scripts.wildclawbench.alignment_reads import session
+        return session(output, spec)
+    entries: list[dict[str, Any]] = []
+    reads: set[str] = set()
+    calls: dict[str, dict[str, Any]] = {}
+    tool_errors = 0
+    skill_reads: dict[tuple[str, str], dict[str, str]] = {}
+    membership = output / "shared-skill-names.json"
+    shared_names = set(json.loads(membership.read_text())) if membership.exists() else set()
+    chat = output / "chat.jsonl"
+    if chat.exists():
+        for line in chat.read_text().splitlines():
+            try:
+                entry = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            entries.append(entry)
+            message = entry.get("message", {})
+            content = message.get("content", [])
+            for part in content if isinstance(content, list) else []:
+                if not isinstance(part, dict):
+                    continue
+                if part.get("type") in ("toolCall", "tool_use", "tool_call"):
+                    args = part.get("arguments", part.get("input", {}))
+                    calls[str(part.get("id", ""))] = {"name": part.get("name"), "arguments": args}
+            details = message.get("details", {})
+            details = details if isinstance(details, dict) else {}
+            exit_code = details.get("exitCode")
+            tool_failed = (
+                bool(message.get("isError"))
+                or details.get("status") == "error"
+                or (isinstance(exit_code, int) and not isinstance(exit_code, bool) and exit_code != 0)
+            )
+            if message.get("role") in ("toolResult", "tool") and tool_failed:
+                tool_errors += 1
+            elif message.get("role") in ("toolResult", "tool"):
+                call = calls.get(str(message.get("toolCallId", message.get("tool_call_id", ""))), {})
+                raw = json.dumps(call.get("arguments", {}), ensure_ascii=False)
+                if call.get("name") in ("read", "read_file", "readFile") or (
+                    call.get("name") in ("exec", "bash") and re.search(r"\b(cat|sed|head|less)\b", raw)
+                ):
+                    for original_path in re.findall(r"((?:~/|/)[^\s\"']+/SKILL\.md)", raw):
+                        expanded = "/root/" + original_path[2:] if original_path.startswith("~/") else original_path
+                        path = posixpath.normpath(expanded)
+                        name = Path(path).parent.name
+                        shared = path == f"/root/skills/{name}/SKILL.md" and name in shared_names
+                        skill_reads[(path, original_path)] = {
+                            "path": path,
+                            "original_path": original_path,
+                            "name": name,
+                            "environment_or_shared": "shared" if shared else "environment",
+                        }
+                        if shared:
+                            reads.add(name)
+    return {
+        "task_id": spec["task_id"],
+        "prompt_text": spec["prompt"],
+        "task_prompt_text": spec.get("task_prompt", spec["prompt"]),
+        "messages": entries,
+        "read_skills": sorted(reads),
+        "actual_used_skill_refs": sorted(reads),
+        "actual_skill_reads": [skill_reads[path] for path in sorted(skill_reads)],
+        "raw_transcript_path": str(chat),
+        "tool_errors": tool_errors,
+    }
+
+
+def _gateway_main_records(config: Mapping[str, Any], run_id: str, started_unix: float = 0) -> list[dict[str, Any]]:
+    root = Path(config.get("gateway_log_dir", environment.paths(config)["runtime"] / "api-evidence")) / run_id
+    records = []
+    for file in root.glob("*/record.json"):
+        try:
+            record = json.loads(file.read_text())
+        except (OSError, json.JSONDecodeError):
+            continue
+        if record.get("started_unix", 0) < started_unix:
+            continue
+        if record.get("role") == "main":
+            record["evidence_directory"] = str(file.parent)
+            records.append(record)
+    return records
+
+
+def _gateway_main_failures(
+    config: Mapping[str, Any],
+    run_id: str,
+    started_unix: float = 0,
+    *,
+    records: list[dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
+    if records is None:
+        records = _gateway_main_records(config, run_id, started_unix)
+    return [r for r in records if r.get("status") == "error" or (r.get("http_status") or 200) >= 400]
+
+
+def _tool_input_errors(
+    failures: list[dict[str, Any]], messages: list[dict[str, Any]]
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Separate client 400s proven to belong to recovered task-tool requests."""
+    calls, windows, continued = {}, [], []
+    for index, entry in enumerate(messages):
+        message = entry.get("message", {})
+        content = message.get("content", [])
+        if not isinstance(content, list):
+            continue
+        try:
+            timestamp = datetime.fromisoformat(entry["timestamp"]).timestamp()
+        except (KeyError, TypeError, ValueError):
+            continue
+        if message.get("role") == "assistant" and message.get("stopReason") not in ("error", "aborted"):
+            for part in content:
+                if not isinstance(part, dict):
+                    continue
+                if part.get("type") in ("toolCall", "tool_use", "tool_call"):
+                    continued.append(index)
+                    if part.get("name") in ("exec", "bash", "image") and part.get("id"):
+                        calls[part["id"]] = (timestamp, part["name"])
+                elif part.get("type") == "text" and str(part.get("text", "")).strip():
+                    continued.append(index)
+        elif message.get("role") in ("toolResult", "tool"):
+            call_id = message.get("toolCallId", message.get("tool_call_id"))
+            if call_id in calls:
+                text = "\n".join(str(p.get("text", "")) for p in content if isinstance(p, dict))
+                windows.append(
+                    (index, calls[call_id][0], timestamp, call_id, calls[call_id][1], text, message.get("details", {}))
+                )
+    remaining, client_errors = [], []
+    for failure in failures:
+        attributed = None
+        if failure.get("http_status") == 400 and failure.get("evidence_directory"):
+            try:
+                directory = Path(failure["evidence_directory"])
+                request = json.loads((directory / "request.json").read_bytes())
+                response = json.loads((directory / "response.bin").read_bytes())
+                error = response["error"]["message"]
+                started, finished = failure["started_unix"], failure["finished_unix"]
+                if (
+                    isinstance(request, dict)
+                    and not request.get("tools")
+                    and isinstance(error, str)
+                    and error
+                ):
+                    for index, begin, end, call_id, tool_name, text, details in windows:
+                        if tool_name == "image":
+                            # Native image tools use streaming internally. Require
+                            # their explicit structured error and linked result.
+                            if (
+                                not isinstance(details, dict)
+                                or details.get("tool") != "image"
+                                or details.get("status") != "error"
+                            ):
+                                continue
+                        elif request.get("stream") is True:
+                            continue
+                        if begin <= started <= finished <= end and error in text and "400" in text:
+                            if any(later > index for later in continued):
+                                attributed = {
+                                    **failure,
+                                    "classification": "recovered_tool_client_input_error",
+                                    "client_error_message_sha256": hashlib.sha256(error.encode()).hexdigest(),
+                                    "tool_call_id": call_id,
+                                    "tool_name": tool_name,
+                                    "tool_result_timestamp_unix": end,
+                                }
+                                break
+            except (OSError, ValueError, KeyError, TypeError):
+                pass  # Missing/ambiguous provenance remains an infrastructure failure.
+        if attributed is None:
+            remaining.append(failure)
+        else:
+            client_errors.append(attributed)
+    return remaining, client_errors
+
+
+def _task_deadline_evidence(
+    stdout: str,
+    stderr: str,
+    timeout: int,
+    started_unix: float,
+    finished_unix: float,
+    *,
+    outer_timeout: bool = False,
+) -> dict[str, Any]:
+    """Only the native task timer or the outer task wait proves a deadline."""
+    clean_stderr = re.sub(r"\x1b\[[0-?]*[ -/]*[@-~]", "", stderr)
+    markers = []
+    for line in clean_stderr.splitlines():
+        match = re.search(r"embedded run timeout: runId=(\S+) sessionId=chat timeoutMs=(\d+)(?:\s|$)", line)
+        if match and int(match.group(2)) == timeout * 1000:
+            markers.append({"run_id": match.group(1), "session_id": "chat", "timeout_ms": timeout * 1000, "line": line})
+    try:
+        payload = json.loads(stdout)
+        meta = payload.get("meta", {}) if isinstance(payload, dict) else {}
+    except (ValueError, TypeError):
+        meta = {}
+    if not isinstance(meta, dict):
+        meta = {}
+    return {
+        "confirmed": outer_timeout or bool(markers),
+        "timeout_seconds": timeout,
+        "agent_started_unix": started_unix,
+        "agent_finished_unix": finished_unix,
+        "deadline_not_before_unix": started_unix + timeout,
+        "outer_timeout": outer_timeout,
+        "native_deadline_markers": markers,
+        # Aborted metadata also occurs on manual cancellation; retain it only as evidence.
+        "native_meta": {key: meta[key] for key in ("aborted", "durationMs", "stopReason") if key in meta},
+    }
+
+
+def _deadline_stream_cancellations(
+    failures: list[dict[str, Any]], evidence: Mapping[str, Any]
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    if not evidence["confirmed"]:
+        return failures, []
+    # Tool subprocesses can keep making concurrent requests after the Agent's
+    # stream is cancelled. Request order does not identify a task cancellation.
+    cancelled = [
+        r
+        for r in failures
+        if r.get("http_status") == 200
+        and r.get("error") == "Streaming client disconnected before completion"
+        and evidence["agent_started_unix"] <= r.get("started_unix", 0) <= evidence["agent_finished_unix"]
+        and evidence["deadline_not_before_unix"] <= (r.get("finished_unix") or 0) <= evidence["agent_finished_unix"] + 1
+    ]
+    return [r for r in failures if r not in cancelled], cancelled
+
+
+def _context_recoveries(
+    failures: list[dict[str, Any]], records: list[dict[str, Any]],
+    messages: list[dict[str, Any]], binding: Mapping[str, Any], deadline: Mapping[str, Any],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], set[str]]:
+    """Attribute only a proven native compaction recovery in this exact execution.
+
+    A resumed request can finish normally, or produce actual tokens before the
+    already confirmed task deadline cancels it. The latter remains a timeout.
+    Summary requests, HTTP 200 headers and unrelated later successes are insufficient.
+    """
+    keys = ("run_id", "execution_id", "protocol_hash", "bank_sha256", "catalog_sha256")
+
+    def bound(record):
+        return (all(binding.get(key) and record.get(key) == binding[key] for key in keys)
+                and record.get("purpose") == "task_agent" and record.get("role") == "main")
+
+    def timestamp(entry):
+        return datetime.fromisoformat(entry["timestamp"]).timestamp()
+
+    def generation(directory):
+        path = directory / "response.sse"
+        raw = path.read_bytes()
+        generated, done, stream_error, malformed = False, False, False, False
+        for line in raw.decode().splitlines():
+            if not line.startswith("data:"):
+                continue
+            payload = line[5:].strip()
+            if payload == "[DONE]":
+                done = True
+                continue
+            try:
+                event = json.loads(payload)
+            except ValueError:
+                malformed = True
+                continue
+            stream_error = stream_error or bool(event.get("error"))
+            for choice in event.get("choices", []):
+                delta = choice.get("delta", {})
+                generated = generated or any(isinstance(delta.get(key), str) and bool(delta[key].strip())
+                    for key in ("content", "reasoning", "reasoning_content"))
+                calls = delta.get("tool_calls", [])
+                if isinstance(delta.get("function_call"), dict):
+                    calls = [*calls, {"function": delta["function_call"]}]
+                generated = generated or any(isinstance(call.get("function"), dict)
+                    and any(isinstance(call["function"].get(key), str) and bool(call["function"][key].strip())
+                            for key in ("name", "arguments")) for call in calls)
+        return generated, done, stream_error, malformed, hashlib.sha256(raw).hexdigest()
+
+    remaining, recovered, recovered_entries = [], [], set()
+    for failure in failures:
+        proof = None
+        try:
+            if (not bound(failure) or failure.get("http_status") != 400
+                    or failure.get("status") != "error" or failure.get("upstream_attempted") is not False):
+                raise ValueError("Not a locally rejected bound context request")
+            directory = Path(failure["evidence_directory"])
+            budget = failure["context_budget"]
+            expected_error = (
+                "Context length exceeded: This model's maximum context length is "
+                f"{budget['context_limit']} tokens, but this request reserves "
+                f"{budget['prompt_tokens']} prompt tokens plus "
+                f"{budget['max_output_tokens']} max_tokens output tokens "
+                f"({budget['reserved_total_tokens']} total). "
+                "Reduce request size before retrying; the gateway preserved all history.")
+            error = {"message": expected_error, "code": "context_length_exceeded"}
+            response_path = directory / "response.bin"
+            if response_path.exists():
+                error = json.loads(response_path.read_bytes())["error"]
+            # Local preflight rejection has no upstream response.bin. Its exact
+            # captured gateway diagnostic and token budget remain the proof.
+            if (error.get("code") != "context_length_exceeded" or error.get("message") != expected_error
+                    or expected_error != failure.get("error")
+                    or not budget["reserved_total_tokens"] > budget["context_limit"]
+                    or not budget["prompt_tokens"] + budget["max_output_tokens"] == budget["reserved_total_tokens"]):
+                raise ValueError("Missing explicit context-overflow proof")
+            request = json.loads((directory / "request.json").read_bytes())
+            if not request.get("tools") or request["messages"][0].get("role") != "system":
+                raise ValueError("Not a tool-capable main execution request")
+            matching = [entry for entry in messages if entry.get("id")
+                and entry.get("message", {}).get("role") == "assistant"
+                and entry["message"].get("stopReason") == "error"
+                and entry["message"].get("errorMessage") == "400 " + error["message"]
+                and failure["started_unix"] <= timestamp(entry)
+                and abs(timestamp(entry) - failure["finished_unix"]) <= 1]
+            if len(matching) != 1:
+                raise ValueError("Ambiguous native error attribution")
+            native_error = matching[0]
+            compactions = [entry for entry in messages if entry.get("type") == "compaction"
+                and entry.get("id") and entry.get("parentId") == native_error["id"]
+                and entry.get("fromHook") is True and isinstance(entry.get("summary"), str)
+                and entry["summary"].strip() and timestamp(entry) > timestamp(native_error)]
+            for compaction in compactions:
+                for resumed in sorted(records, key=lambda row: row.get("started_unix", 0)):
+                    if (not bound(resumed) or resumed.get("upstream_attempted") is not True
+                            or resumed.get("http_status") != 200 or resumed.get("error") not in
+                                (None, "Streaming client disconnected before completion")
+                            or resumed.get("started_unix", 0) < timestamp(compaction)
+                            or resumed.get("actual_model") != failure.get("actual_model")
+                            or resumed.get("upstream") != failure.get("upstream")
+                            or resumed.get("context_budget", {}).get("remaining_tokens", -1) < 0):
+                        continue
+                    resumed_directory = Path(resumed["evidence_directory"])
+                    resumed_request = json.loads((resumed_directory / "request.json").read_bytes())
+                    if (resumed_request.get("tools") != request["tools"]
+                            or resumed_request["messages"][0] != request["messages"][0]):
+                        continue  # A successful context summarizer is not the resumed task.
+                    generated, done, stream_error, malformed, stream_hash = generation(resumed_directory)
+                    normal = resumed.get("status") == "completed" and not resumed.get("error")
+                    cancelled = _deadline_stream_cancellations([resumed], deadline)[1]
+                    if stream_error or malformed or not generated or not ((normal and done)
+                            or (resumed.get("status") == "error" and cancelled and not done)):
+                        continue
+                    if normal and not any(entry.get("message", {}).get("role") == "assistant"
+                            and entry["message"].get("stopReason") not in ("error", "aborted")
+                            and resumed["started_unix"] <= timestamp(entry) <= resumed["finished_unix"] + 1
+                            and any(isinstance(part, dict) and (part.get("type") in ("toolCall", "tool_use", "tool_call")
+                                or (part.get("type") == "text" and str(part.get("text", "")).strip()))
+                                for part in entry["message"].get("content", [])) for entry in messages):
+                        continue
+                    proof = {"classification": "recovered_native_context_overflow",
+                        "outcome": "task_continued" if normal else "task_deadline_after_context_recovery",
+                        "failure": failure, "native_error_entry_id": native_error["id"],
+                        "compaction_entry_id": compaction["id"], "resumed_request_id": resumed["request_id"],
+                        "resumed_response_sha256": stream_hash, "resumed_request_completed": normal,
+                        "task_deadline_confirmed": bool(deadline.get("confirmed")),
+                        "binding": {key: binding[key] for key in keys}}
+                    break
+                if proof:
+                    break
+        except (OSError, ValueError, KeyError, TypeError, IndexError, AttributeError):
+            pass  # Incomplete or ambiguous provenance never clears an infrastructure failure.
+        if proof:
+            recovered.append(proof)
+            recovered_entries.add(proof["native_error_entry_id"])
+        else:
+            remaining.append(failure)
+    return remaining, recovered, recovered_entries
+
+
+def _supervised_day_binding(
+    task_id: str,
+    run_id: str,
+    execution_id: str,
+    skill_dir: Path,
+    output: Path,
+    config: Mapping[str, Any],
+    *,
+    rescore: bool,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Bind a supervised Day snapshot to its exact bank without a catalog."""
+    from scripts.wildclawbench.alignment_snapshot import supervised_day_identity
+    from scripts.wildclawbench.protocol import tree_hash
+
+    path = output / "supervised-day-binding.json"
+    if path.is_symlink():
+        raise RuntimeError("Supervised Day binding cannot be a symlink")
+    protocol_hash = config.get("protocol_hash")
+    if not isinstance(protocol_hash, str) or not protocol_hash:
+        raise RuntimeError("supervised Day execution requires a frozen protocol_hash")
+    if rescore:
+        try:
+            binding = json.loads(path.read_text())
+        except (OSError, ValueError) as error:
+            raise RuntimeError("Missing or invalid supervised Day binding") from error
+        expected = {
+            "schema_version": 1,
+            "version": SUPERVISED_DAY_EXECUTION_VERSION,
+            "task_id": task_id,
+            "run_id": run_id,
+            "execution_id": execution_id,
+            "protocol_hash": protocol_hash,
+        }
+        if not isinstance(binding, dict) or any(binding.get(key) != value for key, value in expected.items()):
+            raise RuntimeError("Saved supervised Day binding differs from this execution")
+        bank_dir = Path(str(binding.get("bank_dir", "")))
+        if (
+            not bank_dir.is_absolute()
+            or bank_dir.is_symlink()
+            or not bank_dir.is_dir()
+            or tree_hash(bank_dir) != binding.get("bank_sha256")
+        ):
+            raise RuntimeError("Saved supervised Day skill bank changed or is unavailable")
+    else:
+        supplied_bank = Path(skill_dir)
+        bank_dir = supplied_bank.resolve()
+        if supplied_bank.is_symlink() or not bank_dir.is_dir():
+            raise RuntimeError("Supervised Day skill bank must be a real directory")
+        binding = {
+            "schema_version": 1,
+            "version": SUPERVISED_DAY_EXECUTION_VERSION,
+            "task_id": task_id,
+            "run_id": run_id,
+            "execution_id": execution_id,
+            "protocol_hash": protocol_hash,
+            "bank_dir": str(bank_dir),
+            "bank_sha256": tree_hash(bank_dir),
+        }
+        if path.exists():
+            try:
+                previous = json.loads(path.read_text())
+            except (OSError, ValueError) as error:
+                raise RuntimeError("Invalid existing supervised Day binding") from error
+            if previous != binding:
+                raise RuntimeError("Refusing to replace a different supervised Day binding")
+        else:
+            _save(path, binding)
+    return binding, supervised_day_identity(task_id, run_id, binding, config)
+
+
+def _execute_child(
+    task_id: str, skill_dir: Path, output: Path, config: Mapping[str, Any], rescore: bool
+) -> dict[str, Any]:
+    begin = time.monotonic()
+    begin_unix = time.time()
+    source = environment.paths(config)["upstream"]
+    spec = task_spec(task_id, config)
+    stage_budget = None
+    if config.get("execution_protocol"):
+        from scripts.injection import resilient_runner
+        if resilient_runner.enabled(dict(config)):
+            stage_budget = resilient_runner.active_budget(dict(config))
+            if stage_budget is not None:
+                remaining = max(1, int(stage_budget.require_remaining(f"task-agent:{task_id}")))
+                spec = dict(spec)
+                spec["timeout_seconds"] = min(int(spec["timeout_seconds"]), remaining)
+    run_id = "wcb-" + hashlib.sha256(str(output.resolve()).encode()).hexdigest()[:20]
+    api_url = environment.container_api_url(config, run_id=run_id)
+    alignment = bool(config.get("alignment"))
+    supervised_day = bool(supervised_day_execution(config)) and config.get("phase") == "day"
+    snapshot_protected = alignment or supervised_day
+    execution_id = str(config.get("execution_id") or hashlib.sha256(str(output.resolve()).encode()).hexdigest()[:24])
+    agent_api_url = api_url
+    if alignment:
+        from scripts.wildclawbench.alignment_catalog import load_binding, prepare_binding
+        if rescore:
+            saved_binding = json.loads((output / "execution-binding.json").read_text())
+            execution_id = saved_binding["execution_id"]
+            binding = load_binding(config, run_id, execution_id)
+            if binding != saved_binding:
+                raise RuntimeError("Saved grading execution binding differs from immutable registration")
+            skill_dir = Path(binding["bank_dir"])
+        else:
+            binding = prepare_binding(config, run_id, execution_id, skill_dir)
+            _save(output / "execution-binding.json", binding)
+        from scripts.wildclawbench.alignment_snapshot import execution_identity
+        snapshot_identity = execution_identity(spec["task_id"], run_id, binding, config)
+        agent_api_url = api_url.removesuffix("/v1") + "/executions/" + execution_id + "/agent/v1"
+    elif supervised_day:
+        _, snapshot_identity = _supervised_day_binding(
+            spec["task_id"], run_id, execution_id, Path(skill_dir), output, config, rescore=rescore
+        )
+    spec = _variants(spec, config, output, api_url, rescore)
+    name = "sharedskill-task-" + uuid.uuid4().hex[:16]
+    timeout = int(spec["timeout_seconds"])
+    result: dict[str, Any] = {
+        "task_id": spec["task_id"],
+        "status": "infrastructure_error",
+        "score": None,
+        "overall_score": None,
+        "scores": {},
+        "timed_out": False,
+        "tool_errors": 0,
+        "wall_seconds": 0,
+        "run_id": run_id,
+        "artifacts": {"output_dir": str(output), "transcript": str(output / "chat.jsonl")},
+    }
+    execution_file = output / "execution.json"
+    live_rescore = False
+    keep_container = False
+    try:
+        if rescore:
+            saved_execution = json.loads(execution_file.read_text())
+            if saved_execution.get("task_id") != spec["task_id"]:
+                raise RuntimeError("Completed execution belongs to a different task")
+            if saved_execution.get("status") != "agent_completed":
+                raise RuntimeError("Agent infrastructure-failure snapshot is evidence only; cannot rescore")
+            if snapshot_protected:
+                from scripts.wildclawbench.alignment_snapshot import verify_grading_recovery
+                recovery = verify_grading_recovery(output, snapshot_identity)
+                if (saved_execution.get("output_snapshot_sha256") != recovery["agent_manifest_sha256"]
+                        or saved_execution.get("grading_recovery_sha256") != recovery["manifest_sha256"]):
+                    raise RuntimeError("Completed execution references a different immutable output snapshot")
+            previous = saved_execution.get("container", "")
+            if not snapshot_protected and previous.startswith("sharedskill-task-"):
+                probe = _docker(["inspect", previous], config, check=False)
+                if probe.returncode == 0:
+                    old = json.loads(probe.stdout)[0]
+                    if (
+                        old.get("State", {}).get("Running")
+                        and old.get("Config", {}).get("Labels", {}).get("org.sharedskill.run_id") == run_id
+                    ):
+                        name, live_rescore = previous, True
+                        keep_container = True
+        original_workspace = Path(spec["workspace_path"]) / "exec"
+        workspace = output / "workspace" if rescore else original_workspace
+        # These two pinned upstream tasks obtain all inputs from the public web;
+        # the official HF asset tree deliberately contains no exec directory.
+        # Preserve that absence in the source tree and mount a private empty input.
+        web_only = spec["task_id"] in {
+            "01_Productivity_Flow_task_1_arxiv_digest",
+            "01_Productivity_Flow_task_9_scp_crawl",
+        }
+        if not original_workspace.exists() and web_only:
+            original_workspace = output / "input-empty"
+            original_workspace.mkdir(exist_ok=True)
+            if not rescore:
+                workspace = original_workspace
+        if not workspace.is_dir():
+            raise RuntimeError("Missing task input/workspace snapshot: " + str(workspace))
+        if not original_workspace.is_dir():
+            raise RuntimeError("Missing immutable task input: " + str(original_workspace))
+        args = [
+            "run",
+            "--detach",
+            "--name",
+            name,
+            *environment.provider_network_args(),
+            *environment.python_seed_args(config),
+            "--label",
+            "org.sharedskill.run_id=" + run_id,
+            "--mount",
+            f"type=bind,src={original_workspace},dst=/app,readonly",
+            "--env",
+            "OPENROUTER_API_KEY=" + str(config.get("local_api_key", "sharedskill-local")),
+            "--env",
+            "OPENROUTER_BASE_URL=" + api_url,
+            "--env",
+            "OPENAI_API_KEY=" + str(config.get("local_api_key", "sharedskill-local")),
+            "--env",
+            "OPENAI_BASE_URL=" + api_url,
+            "--env",
+            "ANTHROPIC_API_KEY=sharedskill-local",
+            "--env",
+            "GEMINI_API_KEY=sharedskill-local",
+            "--env",
+            "GOOGLE_API_KEY=sharedskill-local",
+            "--env",
+            "ELEVENLABS_API_KEY=",
+            "--env",
+            "XI_API_KEY=",
+            "--env",
+            "JUDGE_MODEL=" + str(config.get("model_id", "qwen3.8-27b")),
+            "--env",
+            "BRAVE_API_KEY=",
+            "--env",
+            "OMP_NUM_THREADS=4",
+            "--env",
+            "http_proxy=",
+            "--env",
+            "https_proxy=",
+            "--env",
+            "all_proxy=",
+            "--env",
+            "HTTP_PROXY=",
+            "--env",
+            "HTTPS_PROXY=",
+            "--env",
+            "ALL_PROXY=",
+            "--env",
+            "NO_PROXY=*",
+            "--env",
+            "no_proxy=*",
+            environment.TASK_IMAGE,
+            "tail",
+            "-f",
+            "/dev/null",
+        ]
+        if rescore and not live_rescore:
+            args[1:1] = ["--mount", f"type=bind,src={workspace},dst=/previous_output,readonly"]
+        if not live_rescore:
+            _docker(args, config, timeout=120)
+            restore_source = "/previous_output" if rescore else "/app"
+            _docker(
+                [
+                    "exec",
+                    name,
+                    "bash",
+                    "-c",
+                    "mkdir -p /tmp_workspace && cp -a "
+                    + restore_source
+                    + "/. /tmp_workspace/ && chmod -R u+w /tmp_workspace && mkdir -p /root/skills",
+                ],
+                config,
+                timeout=180,
+            )
+        initial_tmp = Path(spec["workspace_path"]) / "tmp"
+        if not rescore and initial_tmp.is_dir():
+            _docker(["exec", name, "mkdir", "-p", "/tmp_workspace/tmp"], config)
+            _docker(["cp", str(initial_tmp) + "/.", f"{name}:/tmp_workspace/tmp/"], config, timeout=180)
+        if rescore:
+            _docker(["exec", name, "mkdir", "-p", "/root/.openclaw/agents/main/sessions"], config)
+            _copy_in(output / "chat.jsonl", name, "/root/.openclaw/agents/main/sessions/chat.jsonl", config)
+            execution = json.loads(execution_file.read_text())
+            result["timed_out"] = execution.get("timed_out", False)
+            if "task_deadline_evidence" in execution:
+                result["task_deadline_evidence"] = execution["task_deadline_evidence"]
+                result["artifacts"]["deadline_evidence"] = str(output / "agent-deadline.json")
+            result["agent_wall_seconds"] = execution.get("agent_wall_seconds", 0)
+            result["rescore"] = True
+        else:
+            if skill_dir.is_dir():
+                _save(output / "shared-skill-names.json", sorted(p.parent.name for p in skill_dir.glob("*/SKILL.md")))
+                if alignment:
+                    from scripts.wildclawbench.alignment_runtime import install_bank
+                    install_bank(name, skill_dir, config)
+                else:
+                    _docker(["cp", str(skill_dir) + "/.", f"{name}:/root/skills/"], config, timeout=180)
+            else:
+                raise RuntimeError("Missing shared skill snapshot: " + str(skill_dir))
+        # Persist the local-only configuration; the pinned image supplies OpenClaw.
+        conf = (environment.openclaw_config(config, "/tmp_workspace", api_url=agent_api_url, tool_api_url=api_url)
+                if alignment else environment.openclaw_config(config, "/tmp_workspace", api_url=api_url))
+        evidence_prefix = "rescore-" if rescore else ""
+        conf_path = output / f"{evidence_prefix}openclaw-config.json"
+        _save(conf_path, conf)
+        _copy_in(conf_path, name, "/root/.openclaw/openclaw.json", config)
+        if alignment and not rescore:
+            from scripts.wildclawbench.alignment_runtime import verify_deployed_bank
+            _save(output / "deployment-check.json", verify_deployed_bank(name, skill_dir, config))
+        # The image tool restricts media roots to the configured workspace.
+        _docker(
+            [
+                "exec",
+                name,
+                "bash",
+                "-c",
+                "rm -rf /root/.openclaw/workspace && ln -s /tmp_workspace /root/.openclaw/workspace",
+            ],
+            config,
+        )
+        if not rescore:
+            tools_file = output / "local-tools.md"
+            tools_file.write_text(_local_tools(api_url, str(config.get("model_id", "qwen3.8-27b"))))
+            _copy_in(tools_file, name, "/tmp_workspace/TOOLS.md", config)
+        if not live_rescore:
+            environment.apply_python_bootstrap(name, config, output / f"{evidence_prefix}python-bootstrap.json")
+            environment.apply_local_tool_adapters(
+                name, config, api_url, output / f"{evidence_prefix}local-tool-adapters.json"
+            )
+        # Warmup services are backgrounded with detached stdin/stdout so the
+        # parent docker-exec does not hang while mock servers stay alive.
+        warmup = str(spec.get("warmup", ""))
+        if not rescore:
+            warmup_lines = []
+            for index, line in enumerate(warmup.splitlines()):
+                line = line.strip()
+                if line.endswith("&"):
+                    line = (
+                        "nohup bash -c "
+                        + shlex.quote(line[:-1].strip())
+                        + f" >/tmp/sharedskill-warmup-{index}.log 2>&1 </dev/null &"
+                    )
+                warmup_lines.append(line)
+            if warmup.strip():
+                script = output / "warmup.sh"
+                script.write_text("set -e\n" + "\n".join(warmup_lines) + "\n")
+                _copy_in(script, name, "/tmp/sharedskill-warmup.sh", config)
+                proc = _docker(
+                    ["exec", "--workdir", "/tmp_workspace", name, "bash", "/tmp/sharedskill-warmup.sh"],
+                    config,
+                    timeout=int(config.get("warmup_timeout_seconds", 600)),
+                    check=False,
+                )
+                with (output / "warmup.log").open("a") as stream:
+                    stream.write(f"{proc.stdout}\n{proc.stderr}\n")
+                if proc.returncode:
+                    raise RuntimeError(f"Task warmup failed: {proc.stderr[-2000:]}")
+            # Native local mode gives the same tool-capable OpenClaw agent,
+            # without a gateway readiness race in every clean task container.
+            agent_args = [
+                "exec",
+                "--workdir",
+                "/tmp_workspace",
+                name,
+                "openclaw",
+                "agent",
+                "--agent",
+                "main",
+                "--session-id",
+                "chat",
+                "--local",
+                "--json",
+                "--timeout",
+                str(timeout),
+                "--message",
+                spec["prompt"],
+            ]
+            if snapshot_protected:
+                _copy_in(Path(__file__).with_name("agent_supervisor.py"), name,
+                         "/tmp/sharedskill-agent-supervisor.py", config)
+                agent_args[agent_args.index("openclaw"):agent_args.index("openclaw")] = [
+                    "python3", "/tmp/sharedskill-agent-supervisor.py", "--timeout", str(timeout),
+                    "--evidence", "/tmp/sharedskill-agent-quiescence.json", "--",
+                ]
+            start = time.monotonic()
+            agent_started_unix = time.time()
+            outer_timeout = False
+            # A failed artifact copy must not reuse a transcript from an earlier
+            # failed attempt in this output directory.
+            (output / "chat.jsonl").unlink(missing_ok=True)
+            try:
+                proc = _docker(agent_args, config, timeout=timeout + (15 if snapshot_protected else 0), check=False)
+                (output / "agent.stdout").write_text(proc.stdout)
+                (output / "agent.stderr").write_text(proc.stderr)
+                if proc.returncode:
+                    result["agent_error"] = proc.stderr[-3000:]
+            except subprocess.TimeoutExpired as exc:
+                outer_timeout = True
+                (output / "agent.stdout").write_text(
+                    (exc.stdout or b"").decode(errors="replace") if isinstance(exc.stdout, bytes) else exc.stdout or ""
+                )
+                stderr = (
+                    (exc.stderr or b"").decode(errors="replace") if isinstance(exc.stderr, bytes) else exc.stderr or ""
+                )
+                (output / "agent.stderr").write_text(stderr + "\nAgent timeout")
+                _docker(["exec", name, "pkill", "-f", "openclaw"], config, check=False)
+            if snapshot_protected:
+                _copy_out(name, "/tmp/sharedskill-agent-quiescence.json", output / "agent-quiescence.json", config)
+                quiescence = json.loads((output / "agent-quiescence.json").read_text())
+                if not quiescence.get("quiescent") or quiescence.get("surviving_writers"):
+                    raise RuntimeError("Cannot establish an immutable Agent output snapshot")
+                outer_timeout = outer_timeout or quiescence.get("deadline_expired", False)
+            deadline = _task_deadline_evidence(
+                (output / "agent.stdout").read_text(),
+                (output / "agent.stderr").read_text(),
+                timeout,
+                agent_started_unix,
+                time.time(),
+                outer_timeout=outer_timeout,
+            )
+            result["timed_out"] = deadline["confirmed"]
+            result["task_deadline_evidence"] = deadline
+            result["artifacts"]["deadline_evidence"] = str(output / "agent-deadline.json")
+            _save(output / "agent-deadline.json", deadline)
+            _copy_out(
+                name, "/root/.openclaw/agents/main/sessions/chat.jsonl", output / "chat.jsonl", config, required=False
+            )
+            result["agent_wall_seconds"] = time.monotonic() - start
+            session = _session(output, spec)
+            assistant_activity = any(
+                entry.get("message", {}).get("role") == "assistant"
+                and any(
+                    isinstance(part, dict)
+                    and (
+                        part.get("type") in ("toolCall", "tool_use", "tool_call")
+                        or (part.get("type") == "text" and str(part.get("text", "")).strip())
+                    )
+                    for part in entry.get("message", {}).get("content", [])
+                )
+                for entry in session["messages"]
+            )
+            main_records = _gateway_main_records(config, run_id, begin_unix)
+            main_errors = _gateway_main_failures(config, run_id, begin_unix, records=main_records)
+            main_errors, cancelled = _deadline_stream_cancellations(main_errors, deadline)
+            main_errors, client_errors = _tool_input_errors(main_errors, session["messages"])
+            if client_errors:
+                result["task_tool_input_errors"] = client_errors
+            deadline["cancelled_gateway_requests"] = cancelled
+            _save(output / "agent-deadline.json", deadline)
+            recovered_entry_ids = set()
+            if alignment:
+                main_errors, recovered_context_errors, recovered_entry_ids = _context_recoveries(
+                    main_errors, main_records, session["messages"], binding, deadline)
+                if recovered_context_errors:
+                    result["recovered_context_errors"] = recovered_context_errors
+            transcript_model_errors = [
+                entry["message"].get("errorMessage", "model returned an error")
+                for entry in session["messages"]
+                if entry.get("message", {}).get("role") == "assistant"
+                and entry.get("message", {}).get("stopReason") == "error"
+                and entry.get("id") not in recovered_entry_ids
+            ]
+            unconfirmed_abort = deadline["native_meta"].get("aborted") is True and not deadline["confirmed"]
+            fatal_agent_failure = bool(
+                (not assistant_activity and not result["timed_out"])
+                or main_errors
+                or transcript_model_errors
+                or unconfirmed_abort
+            )
+            # Preserve stopped Agent bytes even when classification prohibits grading.
+            if (output / "workspace").exists():
+                shutil.rmtree(output / "workspace")
+            (output / "workspace").mkdir(exist_ok=True)
+            _copy_out(name, "/tmp_workspace/.", output / "workspace", config)
+            _save(execution_file, {
+                "status": "agent_infrastructure_error" if fatal_agent_failure else "agent_completed",
+                "timed_out": result["timed_out"], "task_deadline_evidence": deadline,
+                "agent_error": result.get("agent_error"), "task_id": spec["task_id"],
+                "container": name, "agent_wall_seconds": result["agent_wall_seconds"],
+            })
+            if snapshot_protected:
+                from scripts.wildclawbench.alignment_snapshot import freeze_agent_output
+                frozen_output = freeze_agent_output(output, snapshot_identity)
+                execution = json.loads(execution_file.read_text())
+                execution["output_snapshot_sha256"] = frozen_output["manifest_sha256"]
+                _save(execution_file, execution)
+                result["artifacts"]["output_snapshot"] = str(output / "agent-output-manifest.json")
+            if fatal_agent_failure:
+                result["gateway_main_errors"] = main_errors
+                result["transcript_model_errors"] = transcript_model_errors
+                result["unconfirmed_agent_abort"] = unconfirmed_abort
+                raise RuntimeError(
+                    "Agent infrastructure failure: "
+                    + (
+                        "native agent aborted without a confirmed task deadline"
+                        if unconfirmed_abort
+                        else "main model API failed"
+                        if main_errors or transcript_model_errors
+                        else "no actual assistant execution in transcript"
+                    )
+                )
+        gt = Path(spec["workspace_path"]) / "gt"
+        if gt.is_dir() and not live_rescore:
+            _copy_in(gt, name, "/tmp_workspace/gt", config)
+        scoring_start = time.monotonic()
+        grading_config = config
+        if stage_budget is not None:
+            grading_config = stage_budget.cap_config(dict(config), f"task-grading:{task_id}")
+        scores, events = _grade(name, spec, output, grading_config, replay_only=rescore and not live_rescore)
+        if snapshot_protected:
+            from scripts.wildclawbench.alignment_snapshot import seal_grading_recovery, verify_grading_recovery
+            recovery = (verify_grading_recovery(output, snapshot_identity) if rescore else
+                        seal_grading_recovery(output, snapshot_identity, spec["automated_checks"], events))
+            saved_execution = json.loads(execution_file.read_text())
+            saved_execution["grading_recovery_sha256"] = recovery["manifest_sha256"]
+            _save(execution_file, saved_execution)
+            result["artifacts"].update(output_snapshot=str(output / "agent-output-manifest.json"),
+                                       grading_recovery=str(output / "grading-recovery-manifest.json"))
+        if "ocrbench" in spec["task_id"].lower() and not scores.get("error"):
+            scores = _ocr_grade(
+                output, config, run_id, float(scores.get("environment_score", 0)), Path(spec["workspace_path"])
+            )
+        result["scoring_wall_seconds"] = time.monotonic() - scoring_start
+        # A retry that succeeds resolves an earlier failure of the same request.
+        final_events = {e["fingerprint"]: e for e in events}
+        failures = [
+            e
+            for e in final_events.values()
+            if e.get("kind") in ("model_api", "mock_api") and (e.get("error") or (e.get("status") or 200) >= 400)
+        ]
+        score = scores.get("overall_score")
+        if score is None:
+            numeric = [float(v) for v in scores.values() if isinstance(v, (int, float)) and not isinstance(v, bool)]
+            score = sum(numeric) / len(numeric) if numeric else None
+        score_error = None
+        if isinstance(score, (int, float)) and not isinstance(score, bool) and math.isfinite(float(score)):
+            score = float(score)
+            if not 0 <= score <= 1:
+                score_error = f"Unexpected benchmark score unit/range: {score}"
+        else:
+            score_error = "No finite task score"
+        judge_issues = _judge_diagnostics(scores, events)
+        pending = bool(failures or scores.get("_grading_infrastructure_error") or score_error or judge_issues)
+        keep_container = pending
+        result.update(
+            status="pending_score" if pending else "completed",
+            scores=scores,
+            score=None if pending else score,
+            overall_score=None if pending else score,
+            scoring_api_failures=failures,
+            scoring_parse_failures=judge_issues,
+        )
+        if pending:
+            result["error"] = (
+                score_error
+                or ("; ".join(judge_issues) if judge_issues else None)
+                or scores.get("error", "Local scoring API request failed")
+            )
+            keep_container = True
+            result["artifacts"]["preserved_container"] = name
+        saved_execution = json.loads(execution_file.read_text())
+        saved_execution.update(container=name, scoring_status=result["status"], preserved_container=keep_container)
+        _save(execution_file, saved_execution)
+        result["session"] = _session(output, spec)
+        result["tool_errors"] = result["session"]["tool_errors"]
+        sys.path.insert(0, str(source))
+        from src.utils.grading import extract_usage_from_jsonl
+
+        result["usage"] = extract_usage_from_jsonl(output / "chat.jsonl")
+        _save(output / "raw-score.json", scores)
+    except Exception as exc:
+        result["error"] = str(exc)
+        result["session"] = _session(output, spec)
+    finally:
+        if not keep_container:
+            _docker(["rm", "--force", name], config, timeout=60, check=False)
+        result["wall_seconds"] = time.monotonic() - begin
+        try:
+            result["logs"] = _export_logs(output, config)
+        except OSError as error:
+            result["log_export_error"] = f"{type(error).__name__}: {error}"
+        _save(output / "runtime-result.json", result)
+    return result
+
+
+def execute_task(
+    task_id: str, skill_dir: str | Path, output_dir: str | Path, config: Mapping[str, Any]
+) -> dict[str, Any]:
+    """Thread-safe host entry point: globals/official imports live in a child."""
+    output = Path(output_dir).resolve()
+    output.mkdir(parents=True, exist_ok=True)
+    resume = (output / "execution.json").exists()
+    if not resume and (output / "runtime-result.json").exists():
+        prior = output / "attempt-history" / (str(time.time_ns()) + "-" + uuid.uuid4().hex[:8])
+        prior.mkdir(parents=True)
+        for file in output.iterdir():
+            if file.is_file() and file.name != "runtime.log":
+                shutil.copy2(file, prior / file.name)
+    if resume and (output / "runtime-result.json").exists():
+        prior = output / "score-attempt-history" / (str(time.time_ns()) + "-" + uuid.uuid4().hex[:8])
+        prior.mkdir(parents=True)
+        for name in (
+            "runtime-result.json",
+            "raw-score.json",
+            "grade.stdout",
+            "grade.stderr",
+            "judge-api.jsonl",
+            "grade-runner.py",
+            "execution.json",
+            "runtime-config.json",
+        ):
+            file = output / name
+            if file.exists():
+                shutil.copy2(file, prior / name)
+    conf_file = output / "runtime-config.json"
+    _save(conf_file, dict(config))
+    command = [
+        sys.executable,
+        "-m", "scripts.wildclawbench.task_runtime",
+        "--task",
+        task_id,
+        "--skill-dir",
+        str(Path(skill_dir).resolve()),
+        "--output",
+        str(output),
+        "--config",
+        str(conf_file),
+    ]
+    if resume:
+        command.append("--rescore")
+    # Each task's own timeout plus warmup/grading bounds; output goes to its log.
+    log_file = _log_directory(output, config) / "runtime.log"
+    with log_file.open("a") as stream:
+        proc = subprocess.run(command, cwd=Path(__file__).resolve().parents[2], stdout=stream, stderr=subprocess.STDOUT, check=False)
+    result_file = output / "runtime-result.json"
+    if proc.returncode == 0 and result_file.exists():
+        return json.loads(result_file.read_text())
+    return {
+        "task_id": task_id,
+        "status": "infrastructure_error",
+        "score": None,
+        "overall_score": None,
+        "error": f"Runtime child exited {proc.returncode}; see {log_file}",
+        "timed_out": False,
+        "tool_errors": 0,
+        "wall_seconds": 0,
+        "session": {},
+    }
+
+
+def rescore_task(task_id: str, output_dir: str | Path, config: Mapping[str, Any]) -> dict[str, Any]:
+    output = Path(output_dir).resolve()
+    if not (output / "execution.json").exists():
+        raise RuntimeError("No completed Agent execution to rescore")
+    if json.loads((output / "execution.json").read_text()).get("status") != "agent_completed":
+        raise RuntimeError("Agent infrastructure-failure snapshot is evidence only; cannot rescore")
+    return execute_task(task_id, Path(config.get("initial_skill_dir", output)), output, config)
+
+
+if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--task", required=True)
+    parser.add_argument("--skill-dir", required=True)
+    parser.add_argument("--output", required=True)
+    parser.add_argument("--config", required=True)
+    parser.add_argument("--rescore", action="store_true")
+    args = parser.parse_args()
+    configuration = json.loads(Path(args.config).read_text())
+    outcome = _execute_child(args.task, Path(args.skill_dir), Path(args.output), configuration, args.rescore)
+    print(
+        json.dumps(
+            {k: outcome.get(k) for k in ["task_id", "status", "score", "wall_seconds", "error"]}, ensure_ascii=False
+        )
+    )

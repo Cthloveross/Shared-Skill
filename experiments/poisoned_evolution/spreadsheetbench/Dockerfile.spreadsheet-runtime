@@ -1,0 +1,24 @@
+FROM python@sha256:0dd364ba7e10242f07755449e3a3d0e35f9efd987952737b90def6709ab0c5ce
+
+LABEL org.opencontainers.image.title="SpreadsheetBench isolated execution runtime"
+LABEL org.opencontainers.image.created="2026-10-20"
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PYTHONDONTWRITEBYTECODE=1
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        fonts-liberation=1:2.1.5-3 \
+        libreoffice-calc=4:25.2.3-2+deb13u8 \
+        libreoffice-core=4:25.2.3-2+deb13u8 \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN python -m pip install --no-cache-dir \
+        numpy==2.2.6 \
+        openpyxl==3.1.5 \
+        pandas==2.2.3 \
+    && python -c "import openpyxl, pandas; print(openpyxl.__version__, pandas.__version__)" \
+    && command -v soffice
+
+WORKDIR /work

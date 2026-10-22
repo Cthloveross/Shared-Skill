@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "dataset_sha256": "755b57d02124429039cd0eee5e8537ca2ff4eb01422127278b2d2aad171516ae",
+  "default_answer_position_policy": "official_first_sheet_for_unqualified_ranges_with_mechanical_repairs",
+  "carrier_policy": {
+    "require_output_pass": true,
+    "require_baseline_input_failure": true,
+    "exclude_unscorable": true
+  },
+  "tasks": {
+    "13-1": {
+      "answer_position_override": "'LISTS'!A3:D32",
+      "reason": "The declared target is LISTS; the unqualified source range otherwise selects the unrelated first sheet RANGES."
+    },
+    "73-45": {
+      "carrier_excluded": true,
+      "reason": "The value-only evaluator cannot measure the requested rich-text formatting change."
+    }
+  }
+}

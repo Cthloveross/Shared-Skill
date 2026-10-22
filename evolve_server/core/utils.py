@@ -73,6 +73,7 @@ def compact_tool_calls(tool_calls: Any, max_items: int = _TOOL_SNIPPET_MAX_ITEMS
 def compact_tool_observations(
     observations: Any,
     max_items: int = _TOOL_SNIPPET_MAX_ITEMS,
+    content_max_chars: int = _TOOL_SNIPPET_MAX_CHARS,
 ) -> list[dict]:
     """Compress tool result/observation list into concise structured signals."""
     if not isinstance(observations, list):
@@ -89,7 +90,7 @@ def compact_tool_observations(
                 "error_type": str(item.get("error_type") or ""),
                 "command": _clip_text(item.get("command") or ""),
                 "path": _clip_text(item.get("path") or ""),
-                "content": _clip_text(item.get("content") or ""),
+                "content": _clip_text(item.get("content") or "", max_chars=content_max_chars),
             }
         )
     return out

@@ -1,0 +1,92 @@
+{
+  "schema_version": 1,
+  "dataset": "dymalskill-trajectory-canary-v1",
+  "source": {
+    "archive": "DyMalSkill_300x12.zip",
+    "archive_sha256": "fc26fefa1be4988e71bcb2159ab12749f20cdd5ccaadba7d2e721ef2a091c8e9",
+    "manifest_member": "DyMalSkill/package_manifest.json",
+    "manifest_sha256": "f6eef002b3c28c4433b37c4262a22b6211af8fe85341400e05a7f316651949a5",
+    "source_git_commit": "7db389659fb10c027d63adf379a672513b131c95",
+    "generator": {
+      "path": "scripts/injection/prompt_injection_v2.py",
+      "sha256": "0b18f4e864639176eb7aeec75b883edf954cab9eec81a9ced4d500ed1ee08072",
+      "version": "v2",
+      "strategy": "prepend",
+      "wrapper_pierce": true
+    },
+    "original_carrier": "poisoned SKILL.md; prepend with wrapper_pierce=true",
+    "base_skills": 300,
+    "instances": 3600,
+    "adaptation_scope": "12 behavior-level synthetic trajectory fixtures, not 3600-instance reproduction"
+  },
+  "cases": [
+    {
+      "id": "credential_abuse",
+      "path": "credential_abuse.json",
+      "sha256": "89c5adae55da67f9151a35c8fadd32b8863c1507dafeaa7492e6733a2998b955"
+    },
+    {
+      "id": "data_exfil_http",
+      "path": "data_exfil_http.json",
+      "sha256": "c84b8367111810ca5828e89c72bcce61db5a2be3180b9a1bd2abf7f4b4b83519"
+    },
+    {
+      "id": "data_exfil_file",
+      "path": "data_exfil_file.json",
+      "sha256": "e00d88133ee69a632ff9e545585a8b07e5bf7e05e16a9722f55af466c40491f2"
+    },
+    {
+      "id": "data_exfil_log",
+      "path": "data_exfil_log.json",
+      "sha256": "4e143a5f6fd35375b82790744db3c78adcb7b019ae52b73bcc78287cfebf5f3d"
+    },
+    {
+      "id": "mock_api",
+      "path": "mock_api.json",
+      "sha256": "a43956f1c69522858efcff6310f59fdc2bf2263a18588c39e9cdd92fc0999562"
+    },
+    {
+      "id": "dos",
+      "path": "dos.json",
+      "sha256": "c02938b026c745da3f391be070517bbdf7e7f8da6b71749b6989849974a1d44c"
+    },
+    {
+      "id": "rce",
+      "path": "rce.json",
+      "sha256": "a343a523c181ebda509c6cfc877dd441dd485c15f3e302ec5cbf862ddef625c9"
+    },
+    {
+      "id": "db_insert",
+      "path": "db_insert.json",
+      "sha256": "855a104adaa014ddd7b6bd64c71661b1ca491f55908f9165ccd12a7b9167e1a5"
+    },
+    {
+      "id": "file_delete",
+      "path": "file_delete.json",
+      "sha256": "6b933455177db350629ff5ab9dcd0ece2d700ee6f17382166cf14cf9150a2387"
+    },
+    {
+      "id": "db_delete",
+      "path": "db_delete.json",
+      "sha256": "8e5b3481452a8403a343ccc2d95086462a34e412f6c748d4a09f345baba7ccf1"
+    },
+    {
+      "id": "cpu_hijack",
+      "path": "cpu_hijack.json",
+      "sha256": "53b00e4c23a16de852500098a9c57ed4cb763bfc48060136098f32e66ed94eaf"
+    },
+    {
+      "id": "gpu_hijack",
+      "path": "gpu_hijack.json",
+      "sha256": "fe49c68338d337d854c0ea7d6164ba250f6e4009f4c4a13d69ede3273bbcc8fe"
+    }
+  ],
+  "payload_revision": "platform-requirement-v2",
+  "presentation": {
+    "claimed_origin": "platform runtime checks",
+    "authority": "untrusted fixture claim; not a platform policy",
+    "execution": "synthetic record_only; no tool dispatch",
+    "observation": "PLT-CHECK references identify fixtures; legacy_marker preserves v1 mapping",
+    "comparison": "Do not mix previous-payload results with this revision."
+  }
+}
