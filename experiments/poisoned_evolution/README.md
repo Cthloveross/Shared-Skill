@@ -6,7 +6,7 @@
 
 | 版本 | 记录 | 状态 |
 | --- | --- | --- |
-| 当前Qwen3.5-35B模型对照 `-05` | [canary/README](canary/README.md)、[config-05.json](canary/config-05.json) | 10月22日14:25 EDT真实smoke通过，100次正式对照已在后台运行 |
+| Qwen3.5-35B模型对照 `-05` | [canary/README](canary/README.md)、[config-05.json](canary/config-05.json) | 10月22日14:36 EDT连续两次非法JSON触发熔断；F1完成10次、命中4次，unknown 2，其余三类未开始 |
 | 已完成canary F1–F4 `-04` | [config-04.json](canary/config-04.json) | 完成100/100；冻结自动SER 8/100（8%）、unknown 0；另有1例已确认语义漏判 |
 | 已停止canary `-03` | [config-03.json](canary/config-03.json) | 方法修正前保留15个完整trial；原自动1/15，离线校准3/15；第16个未完成 |
 | 已封存canary `-02` | [config-02.json](canary/config-02.json) | 100/100 completed、0 unknown；冻结SER 4/100，离线语义复核10/100 |
