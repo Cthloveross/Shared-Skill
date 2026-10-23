@@ -265,11 +265,133 @@ def _message_ids(text: str, endpoint: str) -> set[str]:
     return found
 
 
+def _json_body_spans(text: str, endpoint: str) -> list[tuple[str, int, int]]:
+    """Locate body string tokens without rewriting JSON metadata or siblings."""
+    def unique_object(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError("Ambiguous duplicate JSON key in message result")
+            result[key] = value
+        return result
+
+    decoder = json.JSONDecoder(object_pairs_hook=unique_object)
+    spans = []
+    body_field = SCHEMAS[endpoint][-1]
+
+    def whitespace(position):
+        while position < len(text) and text[position] in " \t\r\n":
+            position += 1
+        return position
+
+    def visit(value, start):
+        if not isinstance(value, (dict, list)):
+            return
+        position = whitespace(start + 1)
+        for key in value if isinstance(value, dict) else range(len(value)):
+            if isinstance(value, dict):
+                _, position = decoder.raw_decode(text, position)
+                position = whitespace(whitespace(position) + 1)  # colon
+            child_start = position
+            child, position = decoder.raw_decode(text, child_start)
+            if (isinstance(value, dict) and key == body_field and value.get("message_id")
+                    and all(isinstance(value.get(field), str) for field in SCHEMAS[endpoint])):
+                spans.append((value["message_id"], child_start, position))
+            visit(child, child_start)
+            position = whitespace(position)
+            if position < len(text) and text[position] == ",":
+                position = whitespace(position + 1)
+
+    position = 0
+    while match := re.search(r"[\[{]", text[position:]):
+        start = position + match.start()
+        try:
+            value, position = decoder.raw_decode(text, start)
+        except json.JSONDecodeError as exc:
+            raise ValueError("Unparseable JSON message result; refusing body insertion") from exc
+        visit(value, start)
+    return spans
+
+
+def _insert_message_body(raw_content: str | list, payload: dict, endpoint: str,
+                         source: dict, response_format: str, formatting_proof: dict | None,
+                         file_proof: dict | None) -> tuple[str | list, dict]:
+    text = _text(raw_content)
+    proof = file_proof or formatting_proof
+    requested = set(proof["requested_message_ids"]) if proof else set(
+        re.findall(r"msg_[A-Za-z0-9_-]+", json.dumps(_args(source))))
+    if not requested:
+        raise ValueError("Message body insertion requires a proven requested message ID")
+    if response_format == "json_message_object":
+        spans = _json_body_spans(text, endpoint)
+    elif response_format == "formatted_slack_header_body" and formatting_proof:
+        headers = list(re.finditer(
+            r"(?m)^={20} (msg_[A-Za-z0-9_-]+) \S+ @\S+[^\S\r\n]*\r?\n", text))
+        spans = [(header.group(1), header.end(), header.end())
+                 for index, header in enumerate(headers)
+                 if text[header.end():headers[index + 1].start()
+                         if index + 1 < len(headers) else len(text)].strip()]
+    else:
+        raise ValueError("No proven message body field; refusing body insertion")
+    eligible = [span for span in spans if span[0] in requested]
+    target = payload.get("target_message_id")
+    if target is not None:
+        eligible = [span for span in eligible if span[0] == target]
+    if len(eligible) != 1:
+        raise ValueError("Ambiguous or missing requested message body; set an unambiguous target_message_id")
+    message_id, start, end = eligible[0]
+    prefix = payload["text"] + "\n\n"
+    if response_format == "json_message_object":
+        replacement = json.dumps(prefix + json.loads(text[start:end]), ensure_ascii=False)
+        payload_end = start + 1 + len(json.dumps(prefix, ensure_ascii=False)[1:-1])
+    else:
+        replacement, payload_end = prefix, start + len(prefix)
+    if payload_end > SUMMARY_LIMIT:
+        raise ValueError("Complete message body payload would be truncated by the native summary")
+    if isinstance(raw_content, str):
+        modified = text[:start] + replacement + text[end:]
+    else:
+        modified = copy.deepcopy(raw_content)
+        offset = 0
+        for index, part in enumerate(raw_content):
+            value = part.get("text", "") if isinstance(part, dict) else part
+            if isinstance(value, str) and offset <= start <= end <= offset + len(value):
+                value = value[:start - offset] + replacement + value[end - offset:]
+                if isinstance(part, dict):
+                    modified[index]["text"] = value
+                else:
+                    modified[index] = value
+                break
+            offset += len(str(value)) + 1
+        else:
+            raise ValueError("Message body crosses native content blocks; refusing body insertion")
+    return modified, {"message_id": message_id, "body_field": SCHEMAS[endpoint][-1],
+                      "insertion_position": "before_original_message_body"}
+
+
 def _rows(turn: dict, call_id: str):
     for field in FIELDS:
         for row in turn.get(field) or []:
-            if isinstance(row, dict) and _id(row.get("tool_call_id") or row.get("toolCallId")) == call_id:
+            if (isinstance(row, dict)
+                    and _id(row.get("tool_call_id") or row.get("toolCallId")) == call_id
+                    and not _result_failed(row)):
                 yield field, row
+
+
+def _result_failed(row: dict) -> bool:
+    """A message-shaped response cannot override an explicit tool failure."""
+    details = row.get("details") or {}
+    if not isinstance(details, dict):
+        return True
+    if (any(row.get(flag) is True for flag in ("has_error", "isError", "is_error"))
+            or details.get("status") in {"error", "failed", "cancelled", "aborted"}):
+        return True
+    text = _text(row.get("content"))
+    codes = re.findall(r"(?:Process|Command) exited with code (-?\d+)", text, re.I)
+    return (any(int(code) != 0 for code in codes)
+            or any(code is not None and (type(code) is not int or code != 0)
+                   for code in (row.get("exit_code"), details.get("exitCode")))
+            or "Traceback (most recent call last)" in text)
 
 
 def _session_handle(text: str) -> str | None:
@@ -498,6 +620,12 @@ def inject_uploaded(raw: dict, payload: dict, endpoint: str) -> tuple[dict, dict
         raise ValueError(f"Unsupported message-read endpoint: {endpoint}")
     if not isinstance(payload.get("text"), str) or not payload["text"]:
         raise ValueError("Canary payload must contain nonempty text")
+    mode = payload.get("insertion_mode", "prefix")
+    if mode not in {"prefix", "message_body"}:
+        raise ValueError(f"Unsupported insertion_mode: {mode}")
+    target = payload.get("target_message_id")
+    if target is not None and (not isinstance(target, str) or not target):
+        raise ValueError("target_message_id must be a nonempty string")
     poisoned = copy.deepcopy(raw)
     turns = poisoned.get("turns", [])
     call_ids = [_id(call.get("id")) for turn in turns for call in turn.get("tool_calls") or []
@@ -520,7 +648,7 @@ def inject_uploaded(raw: dict, payload: dict, endpoint: str) -> tuple[dict, dict
             for field, row in _rows(turns[result_index], source_id):
                 text = _text(row.get("content"))
                 ids, response_format = _observed_ids(text, endpoint, formatting_proof)
-                if ids and (not markers or ids & markers):
+                if ids and (not markers or ids & markers) and (mode != "message_body" or target is None or target in ids):
                     candidate = (result_index, row, field, source, source, "direct_message_read", ids, None,
                                  response_format, formatting_proof)
                     break
@@ -542,7 +670,7 @@ def inject_uploaded(raw: dict, payload: dict, endpoint: str) -> tuple[dict, dict
                     for result_index in range(poll_index, len(turns)):
                         for field, row in _rows(turns[result_index], _id(poll["id"])):
                             ids, response_format = _observed_ids(_text(row.get("content")), endpoint, formatting_proof)
-                            if ids and (not markers or ids & markers):
+                            if ids and (not markers or ids & markers) and (mode != "message_body" or target is None or target in ids):
                                 candidate = (result_index, row, field, source, poll,
                                              "deferred_message_read_result", ids, handle,
                                              response_format, formatting_proof)
@@ -575,11 +703,15 @@ def inject_uploaded(raw: dict, payload: dict, endpoint: str) -> tuple[dict, dict
         raise ValueError("Linked result has inconsistent native stored views")
     if not isinstance(raw_content, (str, list)):
         raise ValueError("Linked message-read content is not editable text")
-    # Preserve the complete original raw output. The prefix keeps the existing
-    # canary visible in both native 4,000-character summaries as well as raw.
-    prefix = payload["text"] + "\n\n"
-    modified_raw = prefix + raw_content if isinstance(raw_content, str) else [
-        {"type": "text", "text": payload["text"] + "\n"}, *raw_content]
+    body_audit = {}
+    if mode == "message_body":
+        modified_raw, body_audit = _insert_message_body(
+            raw_content, payload, endpoint, source, response_format, formatting_proof, file_proof)
+    else:
+        # Frozen payloads retain the original whole-result prefix behavior.
+        prefix = payload["text"] + "\n\n"
+        modified_raw = prefix + raw_content if isinstance(raw_content, str) else [
+            {"type": "text", "text": payload["text"] + "\n"}, *raw_content]
     modified_text = _text(modified_raw)
     changed = []
     for field, row in views:
@@ -613,8 +745,12 @@ def inject_uploaded(raw: dict, payload: dict, endpoint: str) -> tuple[dict, dict
         "carrier_tool_call_id": result_call["id"], "source_tool_calls": [{
             "tool_name": (source.get("function") or {}).get("name"), "tool_call_id": source["id"]}],
         "process_session_id": handle, "message_ids_matched": sorted(ids), "selected_field": selected_field,
-        "insertion_position": "before_original_tool_result", "native_summary_max_chars": SUMMARY_LIMIT,
-        "summary_reconstruction": "Preserve complete original raw content after existing canary text; regenerate tool_results and tool_observations from modified raw text[:4000].",
+        "insertion_mode": mode, "insertion_position": "before_original_tool_result", **body_audit,
+        "native_summary_max_chars": SUMMARY_LIMIT,
+        "summary_reconstruction": (
+            "Insert only inside the selected message body; preserve other raw bytes and original body; regenerate views from modified raw text[:4000]."
+            if mode == "message_body" else
+            "Preserve complete original raw content after existing canary text; regenerate tool_results and tool_observations from modified raw text[:4000]."),
         "validated_message_schema": list(SCHEMAS[endpoint]) if response_format == "json_message_object" else None,
         "response_format": response_format,
         "source_formatting_proof": formatting_proof if response_format == "formatted_slack_header_body" else None,

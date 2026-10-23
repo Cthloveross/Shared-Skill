@@ -453,4 +453,327 @@ def test_alignment_candidate_error_is_recorded_and_publication_continues(tmp_pat
     publication = json.loads((directory / "publication.json").read_text())
     assert controller.tree_hash(published) == controller.tree_hash(bank)
     assert publication["per_skill_decisions"][0]["individual_reason"] == "candidate_validation_error"
+    assert publication["validation_gaps"][0]["phase"] == "candidate_preparation"
+    assert publication["validation_gaps"][0]["error"] == "bad source"
     assert json.loads(next((run_dir / "operations/unattended/skips").glob("*.json")).read_text())["score_available"] is False
+
+
+@pytest.mark.parametrize("marker,runtime_forbids", [(False, True), (True, False)])
+def test_real_validation_queue_never_repeats_unsealed_agent(tmp_path, monkeypatch, marker, runtime_forbids):
+    from scripts.wildclawbench import task_runtime
+    bank = tmp_path / "bank"
+    bank.mkdir()
+    (bank / "SKILL.md").write_text("unchanged")
+    tasks = [{"task_id": name, "short_id": short, "user_id": "user-01", "category": "test",
+              "source_sha256": "fixture"} for name, short in (("started", "03.01"), ("healthy", "03.03"))]
+    config = {**protocol(max_concurrency=1), "protocol_hash": "fixture", "seed": 42,
+        "all_tasks": tasks, "execution_plan": "longitudinal-day-night-text-endpoint-v1"}
+    calls = []
+
+    def execute(task_id, _bank, output, _config):
+        calls.append(task_id)
+        if task_id == "healthy":
+            return {"status": "completed", "score": .5}
+        if marker:
+            (output / "agent-started.json").write_text('{"started":true}')
+        return {"status": "infrastructure_error", "score": None, "error": "Runtime child exited 124",
+                "infrastructure_retry_eligible": not runtime_forbids}
+
+    monkeypatch.setattr(task_runtime, "execute_task", execute)
+    with pytest.raises(RuntimeError, match="isolated cases incomplete"):
+        controller.run_stage(tasks, bank, tmp_path, config, "validation", 1, "candidate", "fixture")
+    assert calls == ["started", "healthy"]
+    checkpoint = json.loads(next((tmp_path / "operations/resilient-queues").glob("*.json")).read_text())
+    assert checkpoint["cases"]["03.01"]["attempts"] == 1
+    assert checkpoint["cases"]["03.03"]["status"] == "completed"
+
+
+@pytest.mark.parametrize("field", [
+    "top_p", "top_k", "min_p", "presence_penalty", "repetition_penalty",
+    "grading_timeout_seconds", "task_timeout_seconds", "native_llm_request_timeout_seconds",
+    "judge_max_tokens", "judge_reasoning_effort", "local_judge_max_tokens", "local_judge_enable_thinking",
+])
+def test_baseline_identity_binds_sampling_and_budget_fields(field):
+    config = {"task_manifest_sha256": "manifest", "model_id": "model", "model_revision": "revision",
+              "agent_prompt_sha256": "prompt", "runtime_contract_sha256": "runtime", field: 1}
+    before = runner.baseline_execution_identity(config, [], "bank")
+    after = runner.baseline_execution_identity({**config, field: 2}, [], "bank")
+    assert before != after
+
+
+def test_baseline_task_timeout_is_bound_even_with_same_declared_manifest():
+    config = {"task_manifest_sha256": "manifest", "model_id": "model", "model_revision": "revision",
+              "agent_prompt_sha256": "prompt", "runtime_contract_sha256": "runtime"}
+    a = runner.baseline_execution_identity(config, [{"task_id": "task", "timeout_seconds": 10}], "bank")
+    b = runner.baseline_execution_identity(config, [{"task_id": "task", "timeout_seconds": 20}], "bank")
+    assert a["task_conditions_sha256"] != b["task_conditions_sha256"]
+
+
+def test_missing_local_judge_override_is_distinct_from_explicit_false():
+    config = {"model_id": "model", "model_revision": "revision",
+              "agent_prompt_sha256": "prompt", "runtime_contract_sha256": "runtime"}
+    before = runner.baseline_execution_identity(config, [], "bank")
+    after = runner.baseline_execution_identity({**config, "local_judge_enable_thinking": False}, [], "bank")
+    assert before != after
+
+
+def test_required_skill_prompt_change_cannot_reuse_previous_day_baseline():
+    from scripts.injection.e2e_cycles import cycle_settings
+
+    source = {"all_tasks": [], "model_id": "local", "model_revision": "fixed",
+              "agent_prompt_sha256": "actual-old-prompt", "runtime_contract_sha256": "actual-runtime"}
+    identity = runner.baseline_execution_identity(source, [], "bank")
+    imported = object.__new__(runner.BaselineImport)
+    imported.manifest = {"schema": runner.BASELINE_SCHEMA, "execution_identity": identity}
+    with pytest.raises(ValueError, match="required_shared_skill"):
+        cycle_settings(source, {"required_shared_skill": "xlsx"})
+    changed = runner.baseline_execution_identity({**source, "required_shared_skill": "xlsx"}, [], "bank")
+    with pytest.raises(runner.ProtocolError, match="incompatible"):
+        imported.verify_identity(changed)
+    # Earlier v2 imports never attested to this prompt condition.
+    imported.manifest["execution_identity"] = {
+        key: value for key, value in identity.items() if key != "required_shared_skill"}
+    with pytest.raises(runner.ProtocolError, match="incompatible"):
+        imported.verify_identity(identity)
+
+
+def test_legacy_baseline_is_read_only_and_cannot_pass_new_reuse_contract():
+    imported = object.__new__(runner.BaselineImport)
+    imported.manifest = {"schema": runner.LEGACY_BASELINE_SCHEMA, "execution_identity": {}}
+    with pytest.raises(runner.ProtocolError, match="read-only"):
+        imported.verify_identity({"identity_version": "baseline-execution-v2"})
+
+
+def fresh_day_fixture(tmp_path, monkeypatch):
+    from scripts.injection import e2e_30 as cohort
+    from scripts.wildclawbench import alignment_snapshot
+    from scripts.wildclawbench.protocol import tree_hash
+    source = tmp_path / "fresh-day"
+    bank = source / "banks/S0/skill"
+    bank.mkdir(parents=True)
+    (bank / "SKILL.md").write_text("original skill")
+    bank_hash = tree_hash(bank.parent)
+    tasks = [{"task_id": f"task-{i}", "short_id": f"03.0{i}", "user_id": f"user-{i}",
+              "source_path": str(source / f"task-{i}.md"), "source_sha256": f"source-{i}",
+              "input_sha256": f"input-{i}", "timeout_seconds": 240} for i in (1, 2)]
+    config = {"all_tasks": tasks, "injected_task_short_ids": ["03.02"],
+              "model_id": "local-model", "model_revision": "revision",
+              "agent_timeout": 900, "evolution_timeout_seconds": 900,
+              "top_p": .95, "task_timeout_seconds": 240, "grading_timeout_seconds": 180,
+              "protocol_hash": "protocol"}
+    def write(relative, value):
+        path = source / relative
+        runner._write_json(path, value)
+        return path
+    write("config.runtime.json", config)
+    write("day/state.json", {"status": "completed", "scored_tasks": 2})
+    write("finalized-day-inputs/manifest.json", {"task_count": 2,
+        "input_coverage_complete": True, "bank_sha256": bank_hash})
+    upload = b"{}"
+    uploaded_hash = hashlib.sha256(upload).hexdigest()
+    for i, task in enumerate(tasks, 1):
+        short, task_id = task["short_id"], task["task_id"]
+        output = f"day/tasks/{short}/task"
+        write(f"day/tasks/{short}/state.json", {"status": "completed", "task_id": task_id,
+            "task_score": .5, "bank_sha256": bank_hash, "session_id": f"native-{i}", "timed_out": False})
+        write(f"services/day-{short}/native-day-session.json", {
+            "task_id": task_id, "session_id": f"native-{i}", "skill_bank_sha256": bank_hash})
+        write(f"{output}/experiment-result.json", {"status": "completed", "score": .5,
+            "task_id": task_id, "run_id": f"run-{i}", "timed_out": False})
+        write(f"{output}/runtime-config.json", {**config, "task": {"source_path": task["source_path"]},
+            "user_id": task["user_id"]})
+        write(f"{output}/execution-binding.json", {"bank_sha256": bank_hash,
+            "protocol_hash": "protocol", "run_id": f"run-{i}"})
+        write(f"{output}/execution.json", {"task_id": task_id,
+            "scoring_status": "completed", "output_snapshot_sha256": "sealed"})
+        prompt = source / output / "execution-prompt.txt"
+        prompt.write_text(f"actual prompt for {task_id}")
+        write(f"{output}/task-variant.json", {
+            "execution_prompt_sha256": hashlib.sha256(prompt.read_bytes()).hexdigest()})
+        base = source / "finalized-day-inputs" / short
+        base.mkdir(parents=True)
+        (base / "uploaded.json").write_bytes(upload)
+        (base / "captured-upload.json").write_bytes(upload)
+        segments = []
+        for number in range(1, (2 if i == 1 else 1) + 1):
+            relative = Path("segments") / f"{number:03d}"
+            (base / relative).mkdir(parents=True)
+            (base / relative / "uploaded.json").write_bytes(upload)
+            session = {"task_id": task_id, "session_id": f"native-{i}-segment-{number}",
+                "original_session_id": f"native-{i}", "native_record_segment_index": number,
+                "native_uploaded_sha256": uploaded_hash, "user_id": task["user_id"], "phase": "day",
+                "skill_bank_sha256": bank_hash, "outcome": {"score": .5, "timed_out": False}, "turns": []}
+            runner._write_json(base / relative / "session.json", session)
+            segments.append({"session_id": session["session_id"], "uploaded_path": str(relative / "uploaded.json"),
+                "uploaded_sha256": uploaded_hash, "session_path": str(relative / "session.json"),
+                "session_sha256": hashlib.sha256((base / relative / "session.json").read_bytes()).hexdigest()})
+        runner._write_json(base / "manifest.json", {"task_id": task_id, "input_coverage_complete": True,
+            "final_uploaded_sha256": uploaded_hash, "captured_uploaded_sha256": uploaded_hash, "segments": segments})
+    # The builder is tested against real score/session fixtures; outer source-tree
+    # and Agent seal verification are separate suites, with no container/model calls.
+    monkeypatch.setattr(cohort, "validate_resume", lambda *a, **k: None)
+    monkeypatch.setattr(alignment_snapshot, "execution_identity", lambda *a: {})
+    monkeypatch.setattr(alignment_snapshot, "verify_agent_output", lambda *a: {"manifest_sha256": "sealed"})
+    return source, tasks, config, bank_hash
+
+
+def test_night_evolver_cap_does_not_change_day_baseline_identity(tmp_path, monkeypatch):
+    source, tasks, settings, bank_hash = fresh_day_fixture(tmp_path, monkeypatch)
+    imported = runner.build_baseline_import_from_run(source, tmp_path / "baseline")
+    identity = imported.manifest["execution_identity"]
+    settings.update({key: identity[key] for key in ("agent_prompt_sha256", "runtime_contract_sha256")})
+    budget = runner.StageBudget.open(tmp_path / "night-budget.json", "night", 900, clock=lambda: 100)
+    capped = budget.cap_config(settings, "native-evolver", clock=lambda: 101)
+    assert capped["agent_timeout"] == 899
+    imported.verify_identity(runner.baseline_execution_identity(capped, tasks, bank_hash))
+    # A cap that actually changes the task/grading budget remains incompatible.
+    capped = budget.cap_config(settings, "too-late", clock=lambda: 900)
+    with pytest.raises(runner.ProtocolError, match="identity"):
+        imported.verify_identity(runner.baseline_execution_identity(capped, tasks, bank_hash))
+
+
+def test_fresh_two_task_import_preserves_all_native_segments_and_is_idempotent(tmp_path, monkeypatch):
+    source, tasks, config, bank_hash = fresh_day_fixture(tmp_path, monkeypatch)
+    original = (source / "config.runtime.json").read_bytes()
+    bundle = runner.build_baseline_import_from_run(source, tmp_path / "import")
+    identity = bundle.manifest["execution_identity"]
+    assert bundle.manifest["task_count"] == 2
+    assert len(bundle.sessions(tasks, identity)) == 3
+    assert bundle.scored_row(tasks[0], identity, bank_hash)[0]["score"] == .5
+    assert (source / "config.runtime.json").read_bytes() == original
+    assert runner.build_baseline_import_from_run(source, tmp_path / "import").manifest == bundle.manifest
+    reference = bundle.manifest["tasks"][0]["sessions"][0]
+    (bundle.directory / reference["path"]).write_text("{}")
+    with pytest.raises(runner.ProtocolError, match="digest changed"):
+        bundle.sessions(tasks, identity)
+
+
+def test_fresh_import_reads_native_finalizer_nested_coverage(tmp_path, monkeypatch):
+    source, tasks, _, _ = fresh_day_fixture(tmp_path, monkeypatch)
+    for task in tasks:
+        path = source / "finalized-day-inputs" / task["short_id"] / "manifest.json"
+        manifest = json.loads(path.read_text())
+        manifest["native_finalization"] = {"input_coverage_complete": manifest.pop("input_coverage_complete")}
+        runner._write_json(path, manifest)
+    bundle = runner.build_baseline_import_from_run(source, tmp_path / "import")
+    assert len(bundle.sessions(tasks, bundle.manifest["execution_identity"])) == 3
+
+
+def test_fresh_import_rejects_changed_effective_sampling(tmp_path, monkeypatch):
+    source, tasks, config, bank_hash = fresh_day_fixture(tmp_path, monkeypatch)
+    path = source / "day/tasks/03.01/task/runtime-config.json"
+    runtime = json.loads(path.read_text())
+    runner._write_json(path, {**runtime, "top_p": .1})
+    with pytest.raises(runner.ProtocolError, match="effective sampling"):
+        runner.build_baseline_import_from_run(source, tmp_path / "import")
+    assert not (tmp_path / "import").exists()
+
+
+def test_fresh_import_rejects_incomplete_day_instead_of_partial_denominator(tmp_path, monkeypatch):
+    source, tasks, config, bank_hash = fresh_day_fixture(tmp_path, monkeypatch)
+    runner._write_json(source / "day/state.json", {"status": "completed", "scored_tasks": 1})
+    with pytest.raises(runner.ProtocolError, match="complete scored Day"):
+        runner.build_baseline_import_from_run(source, tmp_path / "import")
+
+
+def test_source_compatibility_requires_exact_reviewed_digest_pairs():
+    old = [{"path": "/runtime.py", "sha256": "old"}]
+    new = [{"path": "/runtime.py", "sha256": "new"}]
+    review = {"path": "/runtime.py", "before_sha256": "old", "after_sha256": "new",
+              "scope": "grading_only", "reason": "separate local judge policy; Agent route unchanged"}
+    runner._verify_source_changes(old, new, [review])
+    for reviews in ([], [{**review, "scope": "agent_execution"}], [{**review, "after_sha256": "another"}]):
+        with pytest.raises(runner.ProtocolError, match="compatibility review"):
+            runner._verify_source_changes(old, new, reviews)
+
+
+def test_reused_agent_keeps_sampling_and_renders_identical_prompt(tmp_path, monkeypatch):
+    from scripts.wildclawbench import alignment_snapshot, task_runtime
+    source = tmp_path / "task.md"
+    source.write_text("official task")
+    settings = {"model_id": "fixed", "top_p": .95, "task_timeout_seconds": 240}
+    task = {"task_id": "task", "user_id": "user-01", "source_path": str(source)}
+    output = tmp_path / "output"
+    runner._write_json(output / "runtime-config.json", settings)
+    runner._write_json(output / "execution.json", {"status": "agent_completed", "task_id": "task",
+                                                  "output_snapshot_sha256": "sealed"})
+    runner._write_json(output / "execution-binding.json", {"run_id": "original"})
+    prompt = task_runtime._execution_preamble(240) + "Complete the task."
+    (output / "execution-prompt.txt").write_text(prompt)
+    monkeypatch.setattr(alignment_snapshot, "execution_identity", lambda *a: {})
+    monkeypatch.setattr(alignment_snapshot, "verify_agent_output", lambda *a: {"manifest_sha256": "sealed"})
+    monkeypatch.setattr(task_runtime, "task_spec", lambda *a: {"task_id": "task", "timeout_seconds": 240,
+        "prompt": "Complete the task.", "file_path": str(source)})
+    # The actual variants/preamble renderer runs; only the upstream parser and seal fixture are isolated.
+    changed_judge = {**settings, "local_judge_enable_thinking": False, "local_judge_max_tokens": 4096}
+    assert runner._check_reused_agent(output, task, settings, changed_judge)["source_run_id"] == "original"
+    with pytest.raises(runner.ProtocolError, match="Changed Agent sampling"):
+        runner._check_reused_agent(output, task, settings, {**changed_judge, "top_p": .1})
+    (output / "execution-prompt.txt").write_text("different original prompt")
+    with pytest.raises(runner.ProtocolError, match="changes the original Agent prompt"):
+        runner._check_reused_agent(output, task, settings, changed_judge)
+
+
+def test_derived_baseline_retains_old_agent_binding_and_new_score_identity(tmp_path, monkeypatch):
+    source, tasks, config, _ = fresh_day_fixture(tmp_path, monkeypatch)
+    config.update(protocol_hash="derived-protocol", local_judge_enable_thinking=False, local_judge_max_tokens=4096)
+    runner._write_json(source / "config.runtime.json", config)
+    proof = {"source_protocol_hash": "protocol", "tasks": {}}
+    for task in tasks:
+        output = source / "day/tasks" / task["short_id"] / "task"
+        result = json.loads((output / "experiment-result.json").read_text())
+        result["run_id"] = "new-grading-" + task["short_id"]
+        runner._write_json(output / "experiment-result.json", result)
+        proof["tasks"][task["short_id"]] = {"scoring_run_id": result["run_id"]}
+    runner._write_json(source / "derived-source.json", proof)
+    bundle = runner.build_baseline_import_from_run(source, tmp_path / "import")
+    assert bundle.manifest["execution_identity"]["local_judge_enable_thinking"] is False
+    assert bundle.manifest["source"]["derived_source_sha256"] == hashlib.sha256(
+        (source / "derived-source.json").read_bytes()).hexdigest()
+    assert len(bundle.sessions(tasks, bundle.manifest["execution_identity"])) == 3
+
+
+@pytest.mark.parametrize("eligible", [None, False, True])
+def test_validation_score_recovery_requires_explicit_runtime_permission(tmp_path, monkeypatch, eligible):
+    from scripts.wildclawbench import task_runtime
+    bank = tmp_path / "bank"
+    bank.mkdir()
+    (bank / "SKILL.md").write_text("unchanged")
+    tasks = [{"task_id": name, "short_id": short, "user_id": "user-01", "category": "test",
+              "source_sha256": "fixture"} for name, short in (("pending", "03.01"), ("healthy", "03.03"))]
+    config = {**protocol(max_concurrency=1), "protocol_hash": "fixture", "seed": 42,
+        "all_tasks": tasks, "execution_plan": "longitudinal-day-night-text-endpoint-v1"}
+    calls = []
+
+    def execute(task_id, _bank, output, _config):
+        calls.append(("agent", task_id))
+        if task_id == "healthy":
+            return {"status": "completed", "score": .5}
+        runner._write_json(output / "execution.json", {"task_id": task_id, "status": "agent_completed"})
+        result = {"status": "pending_score", "score": None, "error": "ReadTimeout from grader"}
+        if eligible is not None:
+            result["scoring_recovery_eligible"] = eligible
+        return result
+
+    def rescore(task_id, _output, _config):
+        calls.append(("judge", task_id))
+        return {"status": "completed", "score": .6}
+
+    monkeypatch.setattr(task_runtime, "execute_task", execute)
+    monkeypatch.setattr(task_runtime, "rescore_task", rescore)
+    invoke = lambda: controller.run_stage(tasks, bank, tmp_path, config, "validation", 1, "candidate", "fixture")
+    if eligible is True:
+        rows = invoke()
+        assert all(row["status"] == "completed" for row in rows)
+        assert calls.count(("judge", "pending")) == 1
+    else:
+        with pytest.raises(RuntimeError, match="isolated cases incomplete"):
+            invoke()
+        # Neither a direct invocation nor queue resume grants permission to
+        # repeat prior successful or deterministically failed judge responses.
+        prior = controller.run_one(tasks[0], bank, tmp_path, config, "validation", 1, "candidate", "fixture")
+        assert prior["status"] == "pending_score" and prior.get("scoring_recovery_eligible") is eligible
+        with pytest.raises(RuntimeError, match="isolated cases incomplete"):
+            invoke()
+        assert calls == [("agent", "pending"), ("agent", "healthy")]
+    assert calls.count(("agent", "pending")) == 1

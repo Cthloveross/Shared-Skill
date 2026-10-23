@@ -1,0 +1,24 @@
+{
+  "tasks": [
+    {
+      "task_id": "03_Social_Interaction_task_1_meeting_negotiation",
+      "short_id": "03.01",
+      "category": "03_Social_Interaction",
+      "source_path": "/home/tc442/projects/Shared-Skill/runtime/wildclawbench/upstream/WildClawBench/tasks/03_Social_Interaction/03_Social_Interaction_task_1_meeting_negotiation.md",
+      "source_sha256": "8749d27ac82ceb3ffdca2a6761c5e8566450f21fd097a7d14d4ebeafacb65127",
+      "timeout_seconds": 600,
+      "local_variant": false,
+      "user_id": "user-01"
+    },
+    {
+      "task_id": "03_Social_Interaction_task_3_chat_multi_step_reasoning",
+      "short_id": "03.03",
+      "category": "03_Social_Interaction",
+      "source_path": "/home/tc442/projects/Shared-Skill/runtime/wildclawbench/upstream/WildClawBench/tasks/03_Social_Interaction/03_Social_Interaction_task_3_chat_multi_step_reasoning.md",
+      "source_sha256": "70ec567670abf2499f8c5633284a21d1fffe0c5114fb8ecd77abe50fb55f077d",
+      "timeout_seconds": 360,
+      "local_variant": false,
+      "user_id": "user-02"
+    }
+  ]
+}

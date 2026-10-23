@@ -219,7 +219,9 @@ class UnattendedControllerTests(unittest.TestCase):
             self.assertTrue((policy.operations / "skips" / (first["execution_hash"] + ".json")).exists())
 
     def test_existing_pending_score_resumes_only_the_native_grader(self):
-        pending = lambda *args: {"status": "pending_score", "score": None, "session": {"turns": []}}
+        # Explicit runtime permission covers a transient-only grader attempt.
+        pending = lambda *args: {"status": "pending_score", "score": None, "session": {"turns": []},
+                                 "error": "Judge HTTP 503", "scoring_recovery_eligible": True}
         scored = lambda *args: {"status": "completed", "score": 0.4, "session": {"turns": []}}
         with self.native_mocks(execute=pending, rescore=scored) as (adapter, evolution):
             first = run.run_one(self.tasks[0], self.bank, self.directory, self.config, "day", 1)

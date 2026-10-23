@@ -132,3 +132,82 @@ def test_diagnostic_failure_releases_only_its_owned_gateway(tmp_path):
         with pytest.raises(RuntimeError, match="fixture failure"):
             alignment_validation.main()
     cleanup.assert_called_once_with(ownership)
+
+
+@pytest.mark.parametrize('language_only', [True, False])
+def test_main_service_flags_use_frozen_configuration(tmp_path, monkeypatch, language_only):
+    from scripts.wildclawbench.services import main_qwen
+    model = tmp_path / 'model'; model.mkdir()
+    (model / 'model.safetensors.index.json').write_text(json.dumps({'weight_map': {'weight': 'part.safetensors'}}))
+    (model / 'part.safetensors').write_bytes(b'test')
+    monkeypatch.setattr(main_qwen, 'MODEL', model)
+    monkeypatch.setattr(main_qwen, 'RUNTIME', tmp_path / 'service')
+    monkeypatch.setattr(main_qwen, 'STATE', tmp_path / 'service/process.json')
+    monkeypatch.setattr(main_qwen, 'PORT', 0)
+    monkeypatch.setattr(main_qwen, 'VLLM', Path('/isolated/bin/vllm'))
+    monkeypatch.setattr(main_qwen, 'SERVICE_SETTINGS', {'tool_call_parser': 'qwen3_coder',
+        'language_model_only': language_only, 'enable_thinking': False, 'model_repository': 'Qwen/test',
+        'limit_mm_per_prompt': {'image': 2, 'video': 0},
+        'mm_processor_kwargs': {'max_pixels': 1048576}})
+    monkeypatch.setattr(main_qwen, 'state_read', lambda: {})
+    monkeypatch.setattr(main_qwen, 'gpu_snapshot', lambda: 'test GPU')
+    monkeypatch.setattr(main_qwen, 'start_ticks', lambda _: '123')
+    monkeypatch.setattr(main_qwen.subprocess, 'check_output', lambda args, **kwargs: '' if '--query-compute-apps=gpu_uuid,pid' in args else 'test-gpu')
+    launched = []
+    def launch(command, **kwargs):
+        launched.append(command)
+        return types.SimpleNamespace(pid=1234)
+    monkeypatch.setattr(main_qwen.subprocess, 'Popen', launch)
+    state = main_qwen.start()
+    command = launched[0]
+    assert command[command.index('--tool-call-parser') + 1] == 'qwen3_coder'
+    assert '--enable-auto-tool-choice' in command
+    assert ('--language-model-only' in command) is language_only
+    assert json.loads(command[command.index('--default-chat-template-kwargs') + 1])['enable_thinking'] is False
+    assert state['model_repository'] == 'Qwen/test'
+    assert json.loads(command[command.index('--limit-mm-per-prompt') + 1]) == {'image': 2, 'video': 0}
+    assert json.loads(command[command.index('--mm-processor-kwargs') + 1]) == {'max_pixels': 1048576}
+
+
+@pytest.mark.parametrize('released', [True, False])
+def test_main_stop_waits_for_owned_driver_pids_without_touching_other_jobs(tmp_path, monkeypatch, released):
+    from scripts.wildclawbench.services import main_qwen
+    clock, snapshots, kills = [0.0], [], []
+    monkeypatch.setattr(main_qwen, 'STATE', tmp_path / 'process.json')
+    monkeypatch.setattr(main_qwen, 'state_read', lambda: {'pid': 101, 'start_ticks': 'one'})
+    monkeypatch.setattr(main_qwen, 'owned', lambda _: True)
+    monkeypatch.setattr(main_qwen, 'SERVICE_SETTINGS', {'main_stop_timeout_seconds': .6})
+    monkeypatch.setattr(main_qwen.time, 'monotonic', lambda: clock[0])
+    monkeypatch.setattr(main_qwen.time, 'sleep', lambda seconds: clock.__setitem__(0, clock[0] + seconds))
+    def stop_tree(pid, ticks, timeout):
+        kills.append((pid, ticks))
+        return {'quiescent': True, 'survivors': [], 'identities': {101: 'one', 202: 'two'}}
+    def listing(command, **kwargs):
+        assert command[0] == 'nvidia-smi' and 0 < kwargs['timeout'] <= .6
+        snapshots.append(command)
+        return '999\n' if released and len(snapshots) >= 3 else '202\n999\n'
+    monkeypatch.setattr(main_qwen, 'stop_tree', stop_tree)
+    monkeypatch.setattr(main_qwen.subprocess, 'check_output', listing)
+    result = main_qwen.stop()
+    assert kills == [(101, 'one')] and len(snapshots) >= 3
+    assert result['stopped'] is released and result['gpu_released'] is released
+    assert result['remaining_owned_compute_pids'] == ([] if released else [202])
+    stored = json.loads(main_qwen.STATE.read_text())
+    assert ('stopped_at' in stored) is released
+    assert 999 not in result['process_tree']['identities']
+
+
+def test_main_stop_does_not_claim_success_when_driver_query_fails(tmp_path, monkeypatch):
+    import subprocess
+    from scripts.wildclawbench.services import main_qwen
+    monkeypatch.setattr(main_qwen, 'STATE', tmp_path / 'process.json')
+    monkeypatch.setattr(main_qwen, 'state_read', lambda: {'pid': 101, 'start_ticks': 'one'})
+    monkeypatch.setattr(main_qwen, 'owned', lambda _: True)
+    monkeypatch.setattr(main_qwen, 'stop_tree', lambda *args, **kwargs:
+                        {'quiescent': True, 'survivors': [], 'identities': {101: 'one'}})
+    def unavailable(*args, **kwargs):
+        raise subprocess.TimeoutExpired('nvidia-smi', kwargs['timeout'])
+    monkeypatch.setattr(main_qwen.subprocess, 'check_output', unavailable)
+    result = main_qwen.stop()
+    assert not result['stopped'] and result['reason'] == 'TimeoutExpired'
+    assert 'stopped_at' not in json.loads(main_qwen.STATE.read_text())

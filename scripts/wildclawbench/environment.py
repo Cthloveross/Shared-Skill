@@ -315,7 +315,51 @@ def prepare_assets(config: Mapping[str, Any], workspace_only: bool = False) -> d
     }
 
 
+def _daemon_bindings(config: Mapping[str, Any]) -> list[tuple[Path, bool, str]]:
+    """The daemon must see every path it will bind into a task or evolver."""
+    p = paths(config)
+    bindings = [(p["root"], False, "repository")]
+    for key in ("runtime_dir", "artifacts_dir", "outputs_dir"):
+        if config.get(key):
+            path = Path(str(config[key])).resolve()
+            if not any(path.is_relative_to(parent) and not readonly for parent, readonly, _ in bindings):
+                bindings.append((path, False, key))
+    if config.get("shared_runtime_dir"):
+        shared = Path(str(config["shared_runtime_dir"])).resolve()
+        # A separate shared cache is mounted read-only. Same-root legacy configs
+        # already own their cache and cannot overlay the same target twice.
+        if all(path != shared for path, _, _ in bindings):
+            bindings.append((shared, True, "shared runtime"))
+    return bindings
+
+
+def inspect_docker(config: Mapping[str, Any]) -> dict[str, Any]:
+    """Check an explicitly selected existing daemon without starting or altering it."""
+    name = str(config.get("docker_container", "sharedskill-wildbench-" + str(os.getuid())))
+    outer = json.loads(_run(["docker", "inspect", name], timeout=10).stdout)[0]
+    if not outer.get("State", {}).get("Running"):
+        raise RuntimeError("Selected existing Docker daemon is not running")
+    for path, readonly, purpose in _daemon_bindings(config):
+        covered = [mount for mount in outer.get("Mounts", []) if mount.get("Type") == "bind"
+                   and mount.get("Source") == mount.get("Destination")
+                   and path.is_relative_to(Path(mount["Source"]))
+                   and (readonly or mount.get("RW") is True)]
+        if not covered:
+            raise RuntimeError(f"Existing Docker daemon cannot see {purpose}: {path}")
+    _run(["docker", "info", "--format", "{{.DockerRootDir}}"], config=config, timeout=10)
+    image = json.loads(_run(["docker", "image", "inspect", TASK_IMAGE], config=config, timeout=10).stdout)[0]
+    frozen_image = paths(config)["assets"] / "task-image-python-environment.json"
+    if not frozen_image.is_file() or json.loads(frozen_image.read_text()).get("task_image_id") != image["Id"]:
+        raise RuntimeError("Existing Docker task image differs from the prepared pinned image")
+    gateways = [value.get("Gateway") for value in outer["NetworkSettings"]["Networks"].values() if value.get("Gateway")]
+    return {"container": name, "docker_host": docker_host(config), "outer_gateway": gateways[0] if gateways else None,
+            "task_image": TASK_IMAGE, "task_image_id": image["Id"], "image_ready": True,
+            "existing_daemon_reused": True, "read_only_inspection": True}
+
+
 def prepare_docker(config: Mapping[str, Any], load_image: bool = True) -> dict[str, Any]:
+    if config.get("reuse_existing_docker") is True:
+        return inspect_docker(config)
     p = paths(config)
     name = str(config.get("docker_container", "sharedskill-wildbench-" + str(os.getuid())))
     shared_runtime = Path(str(config["shared_runtime_dir"])).resolve() if config.get("shared_runtime_dir") else None
@@ -347,12 +391,14 @@ def prepare_docker(config: Mapping[str, Any], load_image: bool = True) -> dict[s
                     f"{expected}:{expected} ({access}); refusing to reuse or modify it"
                 )
 
-        require_bind(p["root"], readonly=False, purpose="repository")
-        if shared_runtime is not None:
-            require_bind(shared_runtime, readonly=True, purpose="shared runtime")
+        for path, readonly, purpose in _daemon_bindings(config):
+            require_bind(path, readonly=readonly, purpose=purpose)
         if not info["State"]["Running"]:
             _run(["docker", "start", name])
     else:
+        bindings = _daemon_bindings(config)
+        for path, _, _ in bindings:
+            path.mkdir(parents=True, exist_ok=True)
         _run(
             [
                 "docker",
@@ -371,12 +417,8 @@ def prepare_docker(config: Mapping[str, Any], load_image: bool = True) -> dict[s
                 f"type=bind,src={p['docker'] / 'data'},dst=/var/lib/docker",
                 "--mount",
                 f"type=bind,src={p['docker'] / 'run'},dst=/run/sharedskill",
-                "--mount",
-                f"type=bind,src={p['root']},dst={p['root']}",
-                *(
-                    ["--mount", f"type=bind,src={shared_runtime},dst={shared_runtime},readonly"]
-                    if shared_runtime is not None else []
-                ),
+                *[value for path, readonly, _ in bindings for value in
+                  ("--mount", f"type=bind,src={path},dst={path}" + (",readonly" if readonly else ""))],
                 "--entrypoint",
                 "dockerd",
                 DIND_IMAGE,

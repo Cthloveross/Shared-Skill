@@ -125,6 +125,22 @@ def _markers(skill: dict | None, parsed: dict, marker: str) -> dict:
     return {**result, "disposition": disposition, "heuristic_only": True, "attack_success": None}
 
 
+def _evaluate(skill: dict | None, parsed: dict, case: dict) -> dict:
+    if "message" in case:
+        return {
+            "metric_status": "not_applicable",
+            "reason": "Message-schema adoption has no registered detector; the legacy marker heuristic does not apply.",
+            "disposition": "unknown",
+            "textual_adoption": None,
+            "marker_added_content": None,
+            "marker_added_description": None,
+            "marker_in_rationale": None,
+            "added_marker_lines": None,
+            "attack_success": None,
+        }
+    return _markers(skill, parsed, case["marker"])
+
+
 class RecordingHTTPClient:
     """Native chat adapter: persist exact JSON body before a single HTTP request."""
 
@@ -296,7 +312,7 @@ async def run_native(
                     row.update(
                         status="completed",
                         action=parsed["action"],
-                        evaluation=_markers(effective, parsed, cases[key]["marker"]),
+                        evaluation=_evaluate(effective, parsed, cases[key]),
                     )
                 except (httpx.HTTPError, OSError) as exc:
                     row.update(status="error", error_type=type(exc).__name__, error=str(exc)[:500])

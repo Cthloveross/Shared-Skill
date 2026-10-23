@@ -9,6 +9,7 @@ import binascii
 import hashlib
 import io
 import json
+import math
 import re
 import time
 import uuid
@@ -25,6 +26,9 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 from scripts.wildclawbench.paid_judge import BudgetExceeded, CostLedger, credential, judge_payload
 from scripts.wildclawbench.protocol import ROOT, load_config, public_config, write_json
+from scripts.wildclawbench.interface_checks import required_interfaces
+from scripts.wildclawbench.local_budget import LocalRequestBudget, MediaRequestBudget
+from scripts.wildclawbench.task_runtime import local_judge_settings
 
 SUPPORTED_ENDPOINTS = frozenset(
     {"chat/completions", "completions", "audio/speech", "audio/transcriptions", "images/generations"}
@@ -158,9 +162,42 @@ def has_audio(value: object) -> bool:
     return False
 
 
+async def upstream_until_disconnect(request: Request, operation):
+    """Close non-streaming upstream work when the task client disappears."""
+    pending = asyncio.create_task(operation)
+    try:
+        while not pending.done():
+            if await request.is_disconnected():
+                raise asyncio.CancelledError("Downstream client disconnected")
+            await asyncio.wait({pending}, timeout=0.1)
+        return await pending
+    finally:
+        if not pending.done():
+            pending.cancel()
+            await asyncio.gather(pending, return_exceptions=True)
+
+
 def create_app(config: dict) -> FastAPI:
+    local_grading = local_judge_settings(config)
+    local_budget = LocalRequestBudget(config)
+    media_budget = MediaRequestBudget(config)
+    body_limit = config.get("gateway_max_request_bytes", 64 * 1024 * 1024)
+    if type(body_limit) is not int or body_limit <= 0:
+        raise ValueError("gateway_max_request_bytes must be positive")
+    for key in ("gateway_request_timeout_seconds", "media_request_timeout_seconds"):
+        value = config.get(key, 1800)
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value <= 0:
+            raise ValueError(f"{key} must be finite and positive")
+    interfaces = required_interfaces(config)
+    available_roles = ["main"]
+    if "audio" in interfaces:
+        available_roles.append("audio")
+    if "image-generation" in interfaces:
+        available_roles.append("image")
+    if local_budget.spec is not None and len(available_roles) > 1 and media_budget.spec is None:
+        raise ValueError("Budgeted multimodal runs require a media_request_budget")
     app = FastAPI(title="Shared-Skill local experiment router")
-    evidence = Path(config["runtime_dir"]) / "api-evidence"
+    evidence = Path(config.get("gateway_log_dir", Path(config["runtime_dir"]) / "api-evidence"))
     evidence.mkdir(parents=True, exist_ok=True)
     write_json(evidence / "router-config.json", public_config(config))
     external_judge = config.get("external_judge") is True
@@ -180,15 +217,18 @@ def create_app(config: dict) -> FastAPI:
 
         roles = dict(
             zip(
-                ("main", "audio", "image"),
+                available_roles,
                 await asyncio.gather(
-                    *[probe(config[key]) for key in ("model_base_url", "audio_base_url", "image_base_url")]
+                    *[probe(config["model_base_url" if role == "main" else role + "_base_url"])
+                      for role in available_roles]
                 ),
             )
         )
         return {
             "ready": all(item["ready"] for item in roles.values()),
+            "protocol_hash": config.get("protocol_hash"),
             "roles": roles,
+            "required_interfaces": interfaces,
             "supported_endpoints": sorted(SUPPORTED_ENDPOINTS),
             "audio_input_formats": sorted(AUDIO_FORMATS),
             "external_judge": external_judge,
@@ -202,8 +242,8 @@ def create_app(config: dict) -> FastAPI:
             "object": "list",
             "data": [
                 {"id": config["model_id"], "object": "model", "owned_by": "local-gpu1"},
-                {"id": "local-audio", "object": "model", "owned_by": "local-gpu1"},
-                {"id": "local-image", "object": "model", "owned_by": "local-gpu1"},
+                *[{"id": "local-" + role, "object": "model", "owned_by": "local-gpu1"}
+                  for role in available_roles if role != "main"],
             ],
         }
 
@@ -212,6 +252,7 @@ def create_app(config: dict) -> FastAPI:
         endpoint: str,
         run_id: str = "unassigned",
         judge: bool = False,
+        local_judge: bool = False,
         execution_id: str | None = None,
     ):
         agent = execution_id is not None
@@ -226,7 +267,16 @@ def create_app(config: dict) -> FastAPI:
             safe_id = "run-" + hashlib.sha256(run_id.encode()).hexdigest()[:24]
         directory = evidence / safe_id / request_id
         directory.mkdir(parents=True)
-        raw = await request.body()
+        chunks, size = [], 0
+        async for chunk in request.stream():
+            size += len(chunk)
+            if size > body_limit:
+                write_json(directory / "record.json", {"request_id": request_id, "run_id": safe_id,
+                    "status": "rejected", "http_status": 413, "upstream_attempted": False,
+                    "error": "Request exceeds frozen byte limit"})
+                return JSONResponse({"error": "Request exceeds frozen byte limit"}, status_code=413)
+            chunks.append(chunk)
+        raw = b"".join(chunks)
         content_type = request.headers.get("content-type", "application/json")
         # Capture the incoming payload before parsing/routing, including rejected requests.
         (directory / ("incoming.json" if "application/json" in content_type else "incoming.bin")).write_bytes(raw)
@@ -236,7 +286,7 @@ def create_app(config: dict) -> FastAPI:
             "endpoint": endpoint,
             "started_unix": time.time(),
             "status": "received",
-            "purpose": "task_agent" if agent else "judge" if judge else "unbound_execution",
+            "purpose": "task_agent" if agent else "local_judge" if local_judge else "judge" if judge else "unbound_execution",
             "upstream_attempted": False,
         }
         if agent:
@@ -252,6 +302,10 @@ def create_app(config: dict) -> FastAPI:
 
         if endpoint not in SUPPORTED_ENDPOINTS:
             return reject("Unsupported local endpoint", 404, "unsupported_endpoint")
+        if local_judge and local_grading is None:
+            return reject("Separate local judge policy is not enabled", 404)
+        if local_judge and endpoint != "chat/completions":
+            return reject("Local judge only supports chat/completions")
         if agent and endpoint != "chat/completions":
             return reject("The bound agent route only supports chat/completions")
         body = None
@@ -271,6 +325,8 @@ def create_app(config: dict) -> FastAPI:
                 return reject(error, code="unsupported_media_format")
         audio = endpoint.startswith("audio/") or has_audio(body.get("messages") if body else None)
         image = endpoint.startswith("images/")
+        if (audio and "audio" not in available_roles) or (image and "image" not in available_roles):
+            return reject("This run does not enable the requested media interface", 503, "interface_not_enabled")
         if agent and (body is None or audio or image):
             return reject("The bound agent route requires main-model chat JSON")
         if endpoint == "audio/transcriptions":
@@ -295,8 +351,14 @@ def create_app(config: dict) -> FastAPI:
                 if not isinstance(speech_format, str) or speech_format not in SPEECH_FORMATS:
                     return reject("Unsupported speech response_format", code="unsupported_media_format")
         role = "audio" if audio else "image" if image else "judge" if judge else "main"
+        if role == "main" and local_budget.spec is not None:
+            if endpoint != "chat/completions" or body is None:
+                return reject("Budgeted main requests require single-sample chat/completions", 400, "local_budget_request_invalid")
+            if any(type(body.get(key, 1)) is not int or body.get(key, 1) != 1 for key in ("n", "best_of")):
+                return reject("Budgeted main requests require n=1 and best_of=1", 400, "local_budget_request_invalid")
         record["purpose"] = (
-            "task_agent" if agent else "audio_judge" if judge and audio else "judge" if judge else "unbound_execution"
+            "task_agent" if agent else "audio_judge" if (judge or local_judge) and audio
+            else "local_judge" if local_judge else "judge" if judge else "unbound_execution"
         )
         if role == "judge" and not external_judge:
             return reject("External judge is disabled", 404)
@@ -344,12 +406,19 @@ def create_app(config: dict) -> FastAPI:
             if role == "main" and endpoint in {"chat/completions", "completions"}:
                 for key in ("seed", "temperature", "top_p", "top_k", "min_p", "presence_penalty", "repetition_penalty"):
                     body[key] = config[key]
-                # Legacy GPT judge limits (often 512) leave no answer budget with Qwen thinking.
-                # Freeze one output budget for every main-model role and every experimental arm.
+                # Route identity, never a request-body hint, selects the grading policy.
                 body.pop("max_completion_tokens", None)
-                body["max_tokens"] = config["max_tokens"]
+                interface_probe = run_id == "interface-checks" and not local_judge
+                body["max_tokens"] = (local_grading["max_tokens"] if local_judge else
+                                      int(config.get("interface_max_tokens", 1024)) if interface_probe else config["max_tokens"])
                 body["reasoning_effort"] = config["reasoning_effort"]
-                body["chat_template_kwargs"] = {"enable_thinking": True, "reasoning_effort": config["reasoning_effort"]}
+                body["chat_template_kwargs"] = {"enable_thinking": (local_grading["enable_thinking"] if local_judge else
+                                                                     False if interface_probe else config.get("enable_thinking", True)),
+                                                "reasoning_effort": config["reasoning_effort"]}
+                if local_judge:
+                    for key in ("chat_template", "enable_thinking", "thinking", "reasoning"):
+                        body.pop(key, None)
+                    record["local_judge_settings"] = local_grading
                 if body.get("stream"):
                     body["stream_options"] = {**(body.get("stream_options") or {}), "include_usage": True}
                 # Provider-specific accounting hints are irrelevant to the local model.
@@ -365,7 +434,8 @@ def create_app(config: dict) -> FastAPI:
             "image": "local-image",
             "judge": config.get("judge_model_id"),
         }[role]
-        if agent or (config.get("alignment") and role == "main" and endpoint == "chat/completions"):
+        if agent or ((config.get("alignment") or local_budget.spec is not None)
+                     and role == "main" and endpoint == "chat/completions"):
             if config.get("protocol_hash"):
                 record["protocol_hash"] = config["protocol_hash"]
             try:
@@ -388,7 +458,28 @@ def create_app(config: dict) -> FastAPI:
                     code="context_length_exceeded",
                 )
         write_json(directory / "record.json", record)
-        client = httpx.AsyncClient(timeout=httpx.Timeout(1800, connect=15), trust_env=False)
+        if role == "main":
+            try:
+                reservation = local_budget.reserve()
+                if reservation is not None:
+                    record["local_budget_reservation"] = reservation
+            except BudgetExceeded as error:
+                return reject(str(error), 429, "local_budget_exhausted")
+            except ValueError as error:
+                return reject(str(error), 409, "local_budget_invalid")
+        elif role in {"audio", "image"}:
+            try:
+                reservation = media_budget.reserve(role)
+                if reservation is not None:
+                    record["media_budget_reservation"] = reservation
+            except BudgetExceeded as error:
+                return reject(str(error), 429, "media_budget_exhausted")
+            except ValueError as error:
+                return reject(str(error), 409, "media_budget_invalid")
+        timeout = float(config.get("media_request_timeout_seconds", config.get("gateway_request_timeout_seconds", 1800))
+                        if role in {"audio", "image"} else config.get("gateway_request_timeout_seconds", 1800))
+        client = httpx.AsyncClient(timeout=httpx.Timeout(timeout, connect=15),
+                                   trust_env=False)
         try:
             outgoing = client.build_request(
                 "POST",
@@ -397,11 +488,15 @@ def create_app(config: dict) -> FastAPI:
                 headers={
                     "Content-Type": content_type,
                     "Authorization": "Bearer " + (judge_key if role == "judge" else "local-experiment"),
+                    "X-Request-Deadline-Unix": str(time.time() + timeout),
+                    "X-Request-ID": request_id,
+                    "X-Run-ID": safe_id,
                 },
             )
             record["upstream_attempted"] = True
             write_json(directory / "record.json", record)
-            response = await client.send(outgoing, stream=bool(body and body.get("stream")))
+            response = await upstream_until_disconnect(request,
+                client.send(outgoing, stream=bool(body and body.get("stream"))))
             record["http_status"] = response.status_code
             record["status"] = (
                 "streaming"
@@ -478,6 +573,11 @@ def create_app(config: dict) -> FastAPI:
     @app.post("/runs/{run_id}/v1/{endpoint:path}")
     async def main_proxy(request: Request, endpoint: str, run_id: str = "unassigned"):
         return await proxy(request, endpoint, run_id)
+
+    @app.post("/local-judge/v1/{endpoint:path}")
+    @app.post("/runs/{run_id}/local-judge/v1/{endpoint:path}")
+    async def local_judge_proxy(request: Request, endpoint: str, run_id: str = "unassigned"):
+        return await proxy(request, endpoint, run_id, local_judge=True)
 
     @app.post("/judge/v1/{endpoint:path}")
     @app.post("/runs/{run_id}/judge/v1/{endpoint:path}")

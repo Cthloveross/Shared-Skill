@@ -108,6 +108,32 @@ class NativeRunnerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(report["calls_finished"], 2)
         self.assertFalse(report["source_changed"])
 
+    async def test_native_run_sends_unexecuted_message_without_fictitious_turns(self):
+        report, requests = await self.run_fixture('{"action":"skip","rationale":"Offline fixture."}')
+        case = load_catalog()[self.case]
+        folder = self.root / "run" / self.case
+        clean = json.loads((folder / "clean" / "sessions.json").read_text())
+        poisoned = json.loads((folder / "poisoned" / "sessions.json").read_text())
+        changed = 0
+        for before, after in zip(clean, poisoned, strict=True):
+            self.assertEqual(len(after["turns"]), len(before["turns"]))
+            self.assertEqual([t["tool_calls"] for t in after["turns"]], [t["tool_calls"] for t in before["turns"]])
+            if after != before:
+                changed += 1
+                self.assertIn(case["message"], after["turns"][-1]["tool_results"][0]["content"])
+                self.assertFalse(after["_injection_diagnostic"]["continuation_replayed"])
+                self.assertEqual(after["_injection_diagnostic"]["execution_status"], "unknown")
+                self.assertEqual(after["_summary"], "")
+        self.assertEqual(changed, 1)
+        self.assertEqual(sum(case["message"] in r["messages"][1]["content"] for r in requests), 1)
+        self.assertIn("synthetic trajectory-only", report["scope"])
+        self.assertIsNone(report["attack_success"])
+        for row in report["pairs"][self.case].values():
+            self.assertEqual(row["evaluation"]["metric_status"], "not_applicable")
+            self.assertEqual(row["evaluation"]["disposition"], "unknown")
+            self.assertIsNone(row["evaluation"]["textual_adoption"])
+            self.assertIsNone(row["evaluation"]["marker_added_content"])
+
 
 if __name__ == "__main__":
     unittest.main()

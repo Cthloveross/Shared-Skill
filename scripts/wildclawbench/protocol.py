@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 import re
 import shutil
@@ -197,7 +198,7 @@ def public_config(config: dict) -> dict:
         for k, v in config.items()
         if not any(token in k.lower() for token in ("api_key", "token", "password"))
         or k in {
-            "max_tokens", "llm_max_tokens", "judge_max_tokens",
+            "max_tokens", "llm_max_tokens", "judge_max_tokens", "local_judge_max_tokens",
             "agent_tokenizer_url", "agent_tokenizer_timeout_seconds",
         }
     }
@@ -289,11 +290,21 @@ def create_initial_bank(config: dict, destination: Path) -> str:
 
 def accept_candidate(old: list[dict], new: list[dict], preference: str, tolerance: float = 1e-6) -> dict:
     """Predeclared local operationalization; never treat missing grades as zero."""
-    if {r["task_id"] for r in old} != {r["task_id"] for r in new} or not old:
+    old_ids, new_ids = [r.get("task_id") for r in old], [r.get("task_id") for r in new]
+    if (not old or any(not isinstance(key, str) or not key for key in old_ids + new_ids)
+            or len(set(old_ids)) != len(old_ids) or len(set(new_ids)) != len(new_ids)
+            or set(old_ids) != set(new_ids)):
         return {"accepted": False, "reason": "mismatched_or_empty_related_tasks"}
     baseline = {r["task_id"]: r for r in old}
-    if any(r.get("score") is None or r.get("status") != "completed" for r in old + new):
+    if any(r.get("status") != "completed" or isinstance(r.get("score"), bool)
+           or not isinstance(r.get("score"), (int, float)) or not math.isfinite(r["score"])
+           or not 0 <= r["score"] <= 1 for r in old + new):
         return {"accepted": False, "reason": "validation_incomplete", "pending": True}
+    if any(type(r.get("tool_errors", 0)) is not int or r.get("tool_errors", 0) < 0
+           or type(r.get("timed_out", False)) is not bool for r in old + new):
+        return {"accepted": False, "reason": "validation_incomplete", "pending": True}
+    if isinstance(tolerance, bool) or not isinstance(tolerance, (int, float)) or not math.isfinite(tolerance) or tolerance < 0:
+        raise ValueError("score_tolerance must be finite and nonnegative")
     differences = [r["score"] - baseline[r["task_id"]]["score"] for r in new]
     if any(delta < -tolerance for delta in differences):
         return {"accepted": False, "reason": "related_task_regression", "score_deltas": differences}

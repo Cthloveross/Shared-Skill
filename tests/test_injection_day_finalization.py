@@ -112,10 +112,10 @@ def test_real_archived_upload_recovers_a_missing_middle_epoch_without_reconstruc
         runner.verify_native_upload_finalization(first, last, records, {label: raw + b" "})
 
 
-@pytest.fixture
-def cohort(tmp_path, monkeypatch):
+@pytest.fixture(params=[2, 30])
+def cohort(tmp_path, monkeypatch, request):
     tasks, sessions = [], []
-    for n in range(30):
+    for n in range(request.param):
         task = {"task_id": f"task-{n}", "short_id": f"task-{n}", "user_id": "user"}
         captured, final, records = native_fixture(f"session-{n}")
         service = tmp_path / f"services/day-task-{n}"
@@ -140,7 +140,7 @@ def cohort(tmp_path, monkeypatch):
         session["outcome"] = {"score": 0, "timed_out": True, "tool_errors": 0}
         tasks.append(task)
         sessions.append(session)
-    runner.e2e.write_json(tmp_path / "day/state.json", {"status": "completed", "uploaded_sessions": 30, "scored_tasks": 30})
+    runner.e2e.write_json(tmp_path / "day/state.json", {"status": "completed", "uploaded_sessions": len(tasks), "scored_tasks": len(tasks)})
     runner.e2e.write_json(tmp_path / "phase-handoff.json", {"previous_runner_pid": 999999, "previous_runner_start_ticks": "old"})
     monkeypatch.setattr(runner, "process_identity", lambda pid: None)
     monkeypatch.setattr(runner.time, "sleep", lambda seconds: None)
@@ -160,7 +160,7 @@ def test_finalization_freezes_exact_uploads_and_retains_original_captures_and_ou
     original = (root / "services/day-task-0/uploaded-session.json").read_bytes()
     state = (root / "day/tasks/task-0/state.json").read_bytes()
     final = runner.finalize_day_sessions(root, tasks, sessions, "bank")
-    assert len(final) == 30
+    assert len(final) == len(tasks)
     assert final[0]["outcome"] == sessions[0]["outcome"]
     assert len(final[0]["turns"]) == 2
     assert (root / "services/day-task-0/uploaded-session.json").read_bytes() == original

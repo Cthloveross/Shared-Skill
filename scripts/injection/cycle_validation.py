@@ -45,6 +45,24 @@ def build_validation_binding(source_run: Path, runtime_path: Path | None = None)
             "files": {name: _hash_file(path) for name, path in paths.items()}}
 
 
+def prepare_input_binding(run: Path, tasks: list[dict]) -> dict:
+    """Freeze input descriptors independently of the config that binds them."""
+    root = run.resolve() / "input-validation"
+    for name, value in (("config.runtime.json", {"all_tasks": tasks}), ("frozen-tasks.json", tasks)):
+        path = root / name
+        if path.exists():
+            if e2e.read_json(path) != value:
+                raise ValueError("Frozen cohort input descriptors changed")
+        else:
+            e2e.write_json(path, value)
+    from scripts.wildclawbench import task_runtime
+    binding = build_validation_binding(root, Path(task_runtime.__file__))
+    expected = _bound_tasks(binding)
+    for task in tasks:
+        validate_cohort_inputs(binding, task, expected_tasks=expected)
+    return binding
+
+
 def _bound_tasks(binding: dict) -> dict[str, dict]:
     if binding.get("policy") != POLICY or set(binding.get("files", {})) != {
             "config.runtime.json", "frozen-tasks.json"}:
@@ -117,15 +135,20 @@ class _RuntimeProcesses:
         return getattr(subprocess, name)
 
     def run(self, command, *args, **kwargs):
-        if list(command[:2]) == [sys.executable, self.runtime_path]:
-            command = [sys.executable, "-m", "scripts.injection.cycle_validation", "--runtime-child",
-                       self.runtime_path, *command[2:]]
-        elif list(command[:3]) == [sys.executable, "-m", "scripts.wildclawbench.task_runtime"]:
-            command = [sys.executable, "-m", "scripts.injection.cycle_validation", "--runtime-child",
-                       self.runtime_path, *command[3:]]
-        if list(command[:3]) == [sys.executable, "-m", "scripts.injection.cycle_validation"]:
+        prefix, child = [], list(command)
+        if (child[:3] == [sys.executable, "-m", "scripts.wildclawbench.agent_supervisor"]
+                and "--" in child):
+            boundary = child.index("--") + 1
+            prefix, child = child[:boundary], child[boundary:]
+        if child[:2] == [sys.executable, self.runtime_path]:
+            child = [sys.executable, "-m", "scripts.injection.cycle_validation", "--runtime-child",
+                     self.runtime_path, *child[2:]]
+        elif child[:3] == [sys.executable, "-m", "scripts.wildclawbench.task_runtime"]:
+            child = [sys.executable, "-m", "scripts.injection.cycle_validation", "--runtime-child",
+                     self.runtime_path, *child[3:]]
+        if child[:3] == [sys.executable, "-m", "scripts.injection.cycle_validation"]:
             kwargs["cwd"] = e2e.ROOT
-        return subprocess.run(command, *args, **kwargs)
+        return subprocess.run([*prefix, *child], *args, **kwargs)
 
 
 @contextmanager

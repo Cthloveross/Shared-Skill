@@ -195,6 +195,27 @@ def _execution_preamble(timeout_seconds: int) -> str:
     )
 
 
+def local_judge_settings(config: Mapping[str, Any]) -> dict[str, Any] | None:
+    """Opt in to a separate local grading policy; legacy runs keep their policy."""
+    keys = ("local_judge_enable_thinking", "local_judge_max_tokens")
+    if not any(key in config for key in keys):
+        return None
+    if config.get("external_judge"):
+        raise ValueError("Local judge settings cannot be combined with external_judge")
+    thinking = config.get(keys[0], config.get("enable_thinking", True))
+    tokens = config.get(keys[1], config.get("max_tokens", 16384))
+    if type(thinking) is not bool:
+        raise ValueError("local_judge_enable_thinking must be boolean")
+    if type(tokens) is not int or not 0 < tokens < int(config.get("context_length", 131072)):
+        raise ValueError("local_judge_max_tokens must be positive and below context_length")
+    return {"enable_thinking": thinking, "max_tokens": tokens}
+
+
+def _judge_api_url(api_url: str, config: Mapping[str, Any]) -> str:
+    suffix = "/judge/v1" if config.get("external_judge") else "/local-judge/v1" if local_judge_settings(config) else None
+    return api_url.removesuffix("/v1") + suffix if suffix and not api_url.endswith(suffix) else api_url
+
+
 def _variants(
     spec: dict[str, Any], config: Mapping[str, Any], output: Path, api_url: str, rescore: bool = False
 ) -> dict[str, Any]:
@@ -205,8 +226,8 @@ def _variants(
         original = str(patched.get(field, ""))
         current = original
         target_api_url = api_url
-        if field == "automated_checks" and config.get("external_judge"):
-            target_api_url = api_url.removesuffix("/v1") + "/judge/v1"
+        if field == "automated_checks":
+            target_api_url = _judge_api_url(api_url, config)
         for remote in () if field == "prompt" else ("https://openrouter.ai/api/v1", "https://api.openai.com/v1"):
             if remote in current:
                 current = current.replace(remote, target_api_url)
@@ -272,6 +293,7 @@ def _variants(
         "execution_preamble_source": "eval/run_batch.py:run_single_task",
         "timeout_seconds": spec["timeout_seconds"],
         "judge_model": config.get("judge_model_id") if config.get("external_judge") else model,
+        "local_judge_settings": local_judge_settings(config),
         "audio_judge_route": "local adapter via gateway",
         "shared_skill_bank": "complete supplied snapshot",
         "search": "free browser; Brave disabled",
@@ -508,7 +530,7 @@ def _ocr_grade(
 # Injected into the grader process, not into the Agent. It records API failures
 # even when an official check catches the exception and returns a default zero.
 _GRADE_MONITOR = r"""
-import hashlib as _hashlib, json as _json, pathlib as _pathlib, urllib.parse as _urlparse
+import hashlib as _hashlib, json as _json, pathlib as _pathlib, urllib.parse as _urlparse, sys as _sys
 _api_log = _pathlib.Path('/tmp/sharedskill-judge-api.jsonl')
 _mock_log = _pathlib.Path('/tmp/sharedskill-mock-replay.json')
 _replay = _json.loads(_mock_log.read_text()) if _mock_log.exists() else {}
@@ -535,7 +557,32 @@ def _audit_timeout(client,url,before,after):
     fingerprint='timeout_override:'+client+':'+_hashlib.sha256(str(url).encode()).hexdigest()
     _audit('timeout_override',url,client=client,original_timeout=_timeout_evidence(before),
            effective_timeout=_timeout_evidence(after),fingerprint=fingerprint)
-def _completion_issue(payload,require_choices=False):
+_judge_parses = {}
+_original_json_loads = _json.loads
+def _native_json_loads(value,*args,**kwargs):
+    # Observe the official parser, not guesses about what a prompt intended.
+    # Other JSON (task files, SDK wire responses) is outside this contract.
+    native=(_sys._getframe(1).f_code.co_filename == '/tmp/official-automated-checks.py')
+    text=value.strip() if native and isinstance(value,str) else None
+    matches=[item for item in _judge_parses.values()
+             if text and text in item['content']] if native else []
+    try:
+        parsed=_original_json_loads(value,*args,**kwargs)
+    except _json.JSONDecodeError as error:
+        for item in matches:
+            item['attempted']=True;item['error']=str(error)
+        raise
+    else:
+        for item in matches:
+            item['attempted']=True;item['successful']=True
+        return parsed
+_json.loads=_native_json_loads
+def _finalize_judge_parses():
+    for fingerprint,item in _judge_parses.items():
+        if item['attempted'] and not item['successful']:
+            _audit('judge_parse',item['url'],error='Native grader JSON parsing failed: '+item['error'],
+                   fingerprint='judge_parse:'+fingerprint,source_fingerprint=fingerprint,parser='json.loads')
+def _completion_issue(payload,require_choices=False,url='',body=b''):
     if not isinstance(payload,dict) or not isinstance(payload.get('choices'),list) or not payload['choices']:
         return 'Scoring completion API returned missing choices' if require_choices else None
     choice=payload['choices'][0]
@@ -544,6 +591,10 @@ def _completion_issue(payload,require_choices=False):
     message=choice.get('message',{})
     content=message.get('content') if isinstance(message,dict) else None
     if not str(content or choice.get('text') or '').strip():return 'Scoring model returned empty assistant content'
+    if require_choices and url:
+        fingerprint=_hashlib.sha256(str(url).encode()+body).hexdigest()
+        _judge_parses[fingerprint]={'url':url,'content':str(content or choice.get('text')),
+                                    'attempted':False,'successful':False,'error':None}
     return None
 try:
     import httpx as _httpx
@@ -579,7 +630,7 @@ try:
                 issue=None
                 if response.status_code==200:
                     required=url.endswith('/chat/completions') or url.endswith('/completions')
-                    try:issue=_completion_issue(response.json(),required)
+                    try:issue=_completion_issue(response.json(),required,url,body)
                     except Exception:
                         if required:issue='Scoring completion API returned invalid JSON'
                 _audit('model_api',url,status=response.status_code,error=issue,body=body)
@@ -626,7 +677,7 @@ try:
                 issue=None
                 if response.status_code==200:
                     required=url.endswith('/chat/completions') or url.endswith('/completions')
-                    try:issue=_completion_issue(response.json(),required)
+                    try:issue=_completion_issue(response.json(),required,url,body)
                     except Exception:
                         if required:issue='Scoring completion API returned invalid JSON'
                 _audit('model_api',url,status=response.status_code,error=issue,body=body)
@@ -646,6 +697,7 @@ try:
         def info(self):return self.headers
     def _urlopen(request, *args, **kwargs):
         url=request.full_url if hasattr(request,'full_url') else str(request)
+        body=getattr(request,'data',None) or b''
         host=_urlparse.urlsplit(url).hostname
         method=request.get_method() if hasattr(request,'get_method') else 'GET'
         is_model=_is_local_model_api(url)
@@ -677,11 +729,19 @@ try:
                 _audit('mock_api',url,status=status,
                        error='Mock API returned HTTP '+str(status) if status>=400 else None)
                 return _CachedResponse(body,status,url)
-            if '/v1/' in url:_audit('model_api',url,status=response.status)
+            if '/v1/' in url:
+                required=url.endswith('/chat/completions') or url.endswith('/completions')
+                if response.status==200 and required:
+                    raw=response.read();status=response.status;response.close()
+                    try:issue=_completion_issue(_json.loads(raw),True,url,body)
+                    except Exception:issue='Scoring completion API returned invalid JSON'
+                    _audit('model_api',url,status=status,error=issue,body=body)
+                    return _CachedResponse(raw,status,url)
+                _audit('model_api',url,status=response.status,body=body)
             return response
         except Exception as exc:
             if is_mock:_audit('mock_api',url,status=getattr(exc,'code',None),error=str(exc))
-            elif '/v1/' in url:_audit('model_api',url,error=str(exc))
+            elif '/v1/' in url:_audit('model_api',url,error=str(exc),body=body)
             raise
     _urllib_request.urlopen=_urlopen
 except ImportError: pass
@@ -692,11 +752,22 @@ def _grade(
     name: str, spec: Mapping[str, Any], output: Path, config: Mapping[str, Any], *, replay_only: bool = False
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     source = environment.paths(config)["upstream"]
-    api_url = environment.container_api_url(
+    api_url = _judge_api_url(environment.container_api_url(
         config, run_id="wcb-" + hashlib.sha256(str(output.resolve()).encode()).hexdigest()[:20], role="judge"
-    )
+    ), config)
     grading_timeout = int(config.get("grading_timeout_seconds", config.get("grade_timeout_seconds", 1800)))
     _copy_in(source / "src" / "utils" / "transcript_loader.py", name, "/tmp/_transcript_loader.py", config)
+    model_replay = ""
+    if config.get("grade_recovery"):
+        _copy_in(Path(__file__).with_name("grading_cache.py"), name, "/tmp/sharedskill-grading-cache.py", config)
+        _copy_in(output / "model-replay.json", name, "/tmp/sharedskill-model-replay.json", config)
+        model_replay = (
+            "\n_cache_namespace={}\n"
+            "exec(compile(_pathlib.Path('/tmp/sharedskill-grading-cache.py').read_text(),"
+            "'/tmp/sharedskill-grading-cache.py','exec'),_cache_namespace)\n"
+            "_cache_namespace['install'](globals(),'/tmp/sharedskill-model-replay.json',"
+            "'/tmp/sharedskill-model-responses.json')\n"
+        )
     runner = output / "grade-runner.py"
     runner.write_text(
         "_sharedskill_replay_only="
@@ -708,14 +779,20 @@ def _grade(
         + repr(grading_timeout)
         + "\n"
         + _GRADE_MONITOR
+        + model_replay
         + "\nfrom _transcript_loader import load_transcript\n"
         "_transcript=load_transcript('/root/.openclaw/agents/main/sessions/chat.jsonl')\n"
-        + str(spec["automated_checks"])
+        + "exec(compile(" + repr(str(spec["automated_checks"]))
+        + ",'/tmp/official-automated-checks.py','exec'),globals())\n"
         + "\n"
-        "print(__import__('json').dumps(grade(transcript=_transcript,workspace_path='/tmp_workspace')))\n"
+        "try:\n    _grade_result=grade(transcript=_transcript,workspace_path='/tmp_workspace')\n"
+        "finally:\n    _finalize_judge_parses()\n"
+        "print(__import__('json').dumps(_grade_result))\n"
     )
     _copy_in(runner, name, "/tmp/_grade_runner.py", config)
-    _docker(["exec", name, "rm", "-f", "/tmp/sharedskill-judge-api.jsonl"], config)
+    _copy_in(Path(__file__).with_name("agent_supervisor.py"), name,
+             "/tmp/sharedskill-grade-supervisor.py", config)
+    _docker(["exec", name, "rm", "-f", "/tmp/sharedskill-judge-api.jsonl", "/tmp/sharedskill-grade-quiescence.json"], config)
     replay = output / "mock-replay.json"
     if replay.exists():
         _copy_in(replay, name, "/tmp/sharedskill-mock-replay.json", config)
@@ -732,10 +809,14 @@ def _grade(
                                      else config.get("model_id", "qwen3.8-27b")),
                 name,
                 "python3",
+                "/tmp/sharedskill-grade-supervisor.py",
+                "--timeout", str(grading_timeout),
+                "--evidence", "/tmp/sharedskill-grade-quiescence.json", "--",
+                "python3",
                 "/tmp/_grade_runner.py",
             ],
             config,
-            timeout=grading_timeout,
+            timeout=grading_timeout + 15,
             check=False,
         )
         (output / "grade.stdout").write_text(result.stdout)
@@ -763,8 +844,20 @@ def _grade(
     except subprocess.TimeoutExpired:
         scores = {"error": "Official Automated Checks timed out", "_grading_infrastructure_error": True}
     finally:
+        stopped = output / "grade-quiescence.json"
+        stopped.unlink(missing_ok=True)
+        _copy_out(name, "/tmp/sharedskill-grade-quiescence.json", stopped, config, required=False)
+        evidence = json.loads(stopped.read_text()) if stopped.exists() else {}
+        if not evidence.get("quiescent") or evidence.get("surviving_writers"):
+            # Killing a Docker CLI does not kill its in-container exec process.
+            # Freeze the whole private container before copying any late logs.
+            _docker(["stop", "--time", "1", name], config, timeout=15, check=False)
+            scores = {"error": "Cannot establish stopped grading process tree",
+                      "_grading_infrastructure_error": True}
         _copy_out(name, "/tmp/sharedskill-mock-replay.json", replay, config, required=False)
         _copy_out(name, "/tmp/sharedskill-judge-api.jsonl", output / "judge-api.jsonl", config, required=False)
+        if config.get("grade_recovery"):
+            _copy_out(name, "/tmp/sharedskill-model-responses.json", output / "model-responses.json", config, required=False)
     events = []
     log = output / "judge-api.jsonl"
     if log.exists():
@@ -776,16 +869,25 @@ def _grade(
     return scores, events
 
 
+def _grading_input_error(scores: Mapping[str, Any]) -> bool:
+    """Missing evaluator inputs are unknown; missing Agent outputs remain failures."""
+    error = str(scores.get("error", "")).lower()
+    return bool(re.search(r"missing\s+(?:gt|ground.?truth)\s+(?:file|directory)|"
+                          r"gt_dir.*(?:not exist|不存在)|no\s+\.tex\s+files\s+(?:found\s+)?under\s+gt_dir", error))
+
+
 def _judge_diagnostics(scores: Mapping[str, Any], events: list[dict[str, Any]]) -> list[str]:
     """Only model-judge parsing failures; task artifacts still earn real failures."""
     if not any(e.get("kind") == "model_api" for e in events):
         return []
-    issues = []
+    issues = [str(event["error"]) for event in events
+              if event.get("kind") == "judge_parse" and event.get("error")]
     for key, value in scores.items():
         if not isinstance(value, str) or not ("judge" in key.lower() or "llm" in key.lower()):
             continue
         text = value.lower()
-        if ("method" in key.lower() and text in ("regex_fallback", "rule_fallback", "keyword_fallback")) or any(
+        if (key.lower() in {"llm_error", "judge_error"} and text.strip()) or (
+            "method" in key.lower() and text in ("regex_fallback", "rule_fallback", "keyword_fallback")) or any(
             marker in text
             for marker in (
                 "did not contain a json",
@@ -797,6 +899,23 @@ def _judge_diagnostics(scores: Mapping[str, Any], events: list[dict[str, Any]]) 
         ):
             issues.append(key + ": " + value)
     return issues
+
+
+def _scoring_recovery_eligible(events: list[dict[str, Any]], judge_issues: list[str]) -> bool:
+    """Automatic whole-grader retries must not repeat a successful model judgment.
+
+    There is no per-model-response replay cache. Only an all-failed, explicitly
+    transient HTTP attempt is safe to retry; unknown exceptions require review.
+    """
+    final = {event["fingerprint"]: event for event in events
+             if event.get("kind") in {"model_api", "mock_api"}}
+    models = [event for event in final.values() if event.get("kind") == "model_api"]
+    failed_mock = any(event.get("kind") == "mock_api" and
+                      (event.get("error") or (event.get("status") or 200) >= 400)
+                      for event in final.values())
+    return bool(models and not judge_issues and not failed_mock and all(
+        event.get("status") in {408, 429, 500, 502, 503, 504} for event in models
+    ))
 
 
 def _session(output: Path, spec: Mapping[str, Any]) -> dict[str, Any]:
@@ -1243,8 +1362,19 @@ def _execute_child(
 ) -> dict[str, Any]:
     begin = time.monotonic()
     begin_unix = time.time()
+    grade_recovery = None
+    if config.get("grade_recovery"):
+        from scripts.wildclawbench.grade_recovery import verify_recovery
+        if not rescore or Path(config["grade_recovery"]["attempt"]).resolve() != output.resolve():
+            raise ValueError("Independent grading cannot start an Agent or change its attempt directory")
+        grade_recovery = verify_recovery(output, require_result=False)
     source = environment.paths(config)["upstream"]
     spec = task_spec(task_id, config)
+    if "task_timeout_seconds" in config:
+        limit = int(config["task_timeout_seconds"])
+        if limit <= 0:
+            raise ValueError("task_timeout_seconds must be positive")
+        spec = {**spec, "timeout_seconds": min(int(spec["timeout_seconds"]), limit)}
     stage_budget = None
     if config.get("execution_protocol"):
         from scripts.injection import resilient_runner
@@ -1266,7 +1396,7 @@ def _execute_child(
         if rescore:
             saved_binding = json.loads((output / "execution-binding.json").read_text())
             execution_id = saved_binding["execution_id"]
-            binding = load_binding(config, run_id, execution_id)
+            binding = load_binding(config, grade_recovery["source_run_id"] if grade_recovery else run_id, execution_id)
             if binding != saved_binding:
                 raise RuntimeError("Saved grading execution binding differs from immutable registration")
             skill_dir = Path(binding["bank_dir"])
@@ -1274,7 +1404,8 @@ def _execute_child(
             binding = prepare_binding(config, run_id, execution_id, skill_dir)
             _save(output / "execution-binding.json", binding)
         from scripts.wildclawbench.alignment_snapshot import execution_identity
-        snapshot_identity = execution_identity(spec["task_id"], run_id, binding, config)
+        snapshot_identity = execution_identity(spec["task_id"],
+            grade_recovery["source_run_id"] if grade_recovery else run_id, binding, config)
         agent_api_url = api_url.removesuffix("/v1") + "/executions/" + execution_id + "/agent/v1"
     elif supervised_day:
         _, snapshot_identity = _supervised_day_binding(
@@ -1286,6 +1417,7 @@ def _execute_child(
     result: dict[str, Any] = {
         "task_id": spec["task_id"],
         "status": "infrastructure_error",
+        "infrastructure_retry_eligible": True,
         "score": None,
         "overall_score": None,
         "scores": {},
@@ -1498,6 +1630,8 @@ def _execute_child(
                     raise RuntimeError(f"Task warmup failed: {proc.stderr[-2000:]}")
             # Native local mode gives the same tool-capable OpenClaw agent,
             # without a gateway readiness race in every clean task container.
+            if stage_budget is not None:
+                timeout = min(timeout, max(1, int(stage_budget.require_remaining(f"task-agent:{task_id}"))))
             agent_args = [
                 "exec",
                 "--workdir",
@@ -1525,6 +1659,8 @@ def _execute_child(
                 ]
             start = time.monotonic()
             agent_started_unix = time.time()
+            result["infrastructure_retry_eligible"] = False
+            _save(output / "agent-started.json", {"started_unix": agent_started_unix, "container": name})
             outer_timeout = False
             # A failed artifact copy must not reuse a transcript from an earlier
             # failed attempt in this output directory.
@@ -1681,7 +1817,8 @@ def _execute_child(
         else:
             score_error = "No finite task score"
         judge_issues = _judge_diagnostics(scores, events)
-        pending = bool(failures or scores.get("_grading_infrastructure_error") or score_error or judge_issues)
+        pending = bool(failures or scores.get("_grading_infrastructure_error") or _grading_input_error(scores)
+                       or score_error or judge_issues)
         keep_container = pending
         result.update(
             status="pending_score" if pending else "completed",
@@ -1690,6 +1827,8 @@ def _execute_child(
             overall_score=None if pending else score,
             scoring_api_failures=failures,
             scoring_parse_failures=judge_issues,
+            scoring_recovery_eligible=bool(pending and _scoring_recovery_eligible(events, judge_issues)
+                                           and not _grading_input_error(scores)),
         )
         if pending:
             result["error"] = (
@@ -1713,8 +1852,15 @@ def _execute_child(
         result["error"] = str(exc)
         result["session"] = _session(output, spec)
     finally:
+        if grade_recovery:
+            keep_container = False  # The sealed output is recoverable; a failed judge needs no live container.
         if not keep_container:
-            _docker(["rm", "--force", name], config, timeout=60, check=False)
+            try:
+                cleanup = _docker(["rm", "--force", name], config, timeout=60, check=False)
+                if cleanup.returncode:
+                    result["cleanup_error"] = cleanup.stderr[-1000:]
+            except (OSError, subprocess.SubprocessError) as error:
+                result["cleanup_error"] = f"{type(error).__name__}: {error}"
         result["wall_seconds"] = time.monotonic() - begin
         try:
             result["logs"] = _export_logs(output, config)
@@ -1769,10 +1915,37 @@ def execute_task(
     ]
     if resume:
         command.append("--rescore")
-    # Each task's own timeout plus warmup/grading bounds; output goes to its log.
+    # A host subreaper bounds setup, Agent, grader and cleanup together.
+    default_cap = (int(config.get("task_timeout_seconds", config.get("task", {}).get("timeout_seconds", 1800)))
+                   + int(config.get("grading_timeout_seconds", 1800))
+                   + int(config.get("warmup_timeout_seconds", 600)) + 600)
+    case_cap = float(config.get("case_timeout_seconds", default_cap))
+    if not math.isfinite(case_cap) or case_cap <= 0:
+        raise ValueError("case_timeout_seconds must be finite and positive")
+    from scripts.injection import resilient_runner
+    if resilient_runner.enabled(dict(config)):
+        budget = resilient_runner.active_budget(dict(config))
+        if budget is not None:
+            case_cap = min(case_cap, budget.require_remaining("task-process"))
+    command = [sys.executable, "-m", "scripts.wildclawbench.agent_supervisor", "--timeout", str(case_cap),
+               "--evidence", str(output / "case-quiescence.json"), "--", *command]
     log_file = _log_directory(output, config) / "runtime.log"
     with log_file.open("a") as stream:
-        proc = subprocess.run(command, cwd=Path(__file__).resolve().parents[2], stdout=stream, stderr=subprocess.STDOUT, check=False)
+        try:
+            proc = subprocess.run(command, cwd=environment.ROOT, stdout=stream,
+                                  stderr=subprocess.STDOUT, check=False, timeout=case_cap + 15)
+        except subprocess.TimeoutExpired:
+            proc = subprocess.CompletedProcess(command, 124)
+    if proc.returncode:
+        run_id = "wcb-" + hashlib.sha256(str(output).encode()).hexdigest()[:20]
+        try:
+            containers = _docker(["ps", "--all", "--quiet", "--filter", "label=org.sharedskill.run_id=" + run_id],
+                                 config, timeout=10, check=False)
+            for identifier in containers.stdout.split():
+                if re.fullmatch(r"[a-f0-9]{12,64}", identifier):
+                    _docker(["rm", "--force", identifier], config, timeout=15, check=False)
+        except (OSError, subprocess.SubprocessError):
+            pass  # Keep the primary child failure; no valid score is returned.
     result_file = output / "runtime-result.json"
     if proc.returncode == 0 and result_file.exists():
         return json.loads(result_file.read_text())
@@ -1782,6 +1955,7 @@ def execute_task(
         "score": None,
         "overall_score": None,
         "error": f"Runtime child exited {proc.returncode}; see {log_file}",
+        "infrastructure_retry_eligible": not (output / "agent-started.json").exists(),
         "timed_out": False,
         "tool_errors": 0,
         "wall_seconds": 0,

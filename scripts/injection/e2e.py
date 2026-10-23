@@ -91,7 +91,7 @@ def configure(config_file: Path) -> dict:
 
 def load_settings() -> dict:
     settings = json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
-    for key in ("payload_file", "task_manifest", "shared_runtime_dir", "source_run",
+    for key in ("payload_file", "task_manifest", "shared_runtime_dir", "source_run", "initial_bank",
                 "runtime_dir", "artifacts_dir", "outputs_dir"):
         if settings.get(key):
             path = Path(settings[key])
@@ -113,6 +113,14 @@ def run_directory(run_id: str) -> Path:
         raise ValueError("Unsafe run id")
     settings = load_settings()
     return Path(settings.get("artifacts_dir", ROOT / "artifacts")) / run_id
+
+
+def new_gateway_evidence_dir(run_dir: Path, settings: dict) -> Path:
+    """Keep each new run/stage's raw gateway logs under its outputs owner."""
+    artifacts = Path(settings.get("artifacts_dir", ROOT / "artifacts")).resolve()
+    run = run_dir.resolve()
+    relative = run.relative_to(artifacts) if run.is_relative_to(artifacts) else Path(run.name)
+    return Path(settings.get("outputs_dir", ROOT / "outputs")).resolve() / relative / "api-evidence"
 
 
 def require_execution() -> None:
@@ -171,6 +179,7 @@ def source_manifest(engine: Path, task: dict) -> dict[str, Any]:
             "alignment_validation.py", "agent_supervisor.py",
         )
     ]
+    paths.extend(engine.rglob("*.py"))
     paths.extend([
         ROOT / "sharedskill/api_server.py",
         ROOT / "sharedskill/config.py",
@@ -238,7 +247,7 @@ def prepare(run_id: str | None = None) -> tuple[Path, dict, dict, Any, Any, Any,
     settings["llm_model_id"] = settings["model_id"]
     settings.pop("credential_file", None)
     settings.pop("credential_env_var", None)
-    settings["gateway_log_dir"] = str(runtime / "api-evidence")
+    settings["gateway_log_dir"] = str(new_gateway_evidence_dir(run_dir, settings))
     settings["task_timeout_seconds"] = int(settings["task_timeout_seconds"])
     settings["protocol_hash"] = canonical_hash({
         "config": {key: value for key, value in settings.items() if key != "protocol_hash"},
@@ -359,20 +368,42 @@ class StripRunPrefix:
         await self.app(scope, receive, send)
 
 
+def available_api_port(settings: dict) -> int:
+    preferred = settings.get("api_port", 0)
+    if type(preferred) is not int or not 0 <= preferred <= 65535:
+        raise ValueError("api_port must be an integer from 0 to 65535")
+    with socket.socket() as candidate:
+        try:
+            candidate.bind(("0.0.0.0", preferred))
+        except OSError:
+            if preferred == 0:
+                raise
+            candidate.bind(("0.0.0.0", 0))
+        return int(candidate.getsockname()[1])
+
+
 def build_api(bank: Path, storage: Path, record_dir: Path, request_dir: Path,
-              defense: str | None = None, session_namespace: str | None = None) -> SharedSkillAPIServer:
+              defense: str | None = None, session_namespace: str | None = None,
+              *, runtime_settings: dict | None = None) -> SharedSkillAPIServer:
+    settings = runtime_settings if runtime_settings is not None else load_settings()
+    model = settings.get("model_id") or settings.get("llm_model_id")
+    context = settings.get("context_length", settings.get("model_context_window"))
+    if not isinstance(model, str) or not model.strip():
+        raise ValueError("The recording API requires the current runtime model_id")
+    if type(context) is not int or context < 1:
+        raise ValueError("The recording API requires a positive runtime context_length")
     api_bank = record_dir.parent / "api-skills"
     if not api_bank.exists():
         shutil.copytree(bank, api_bank)
     manager = SkillManager(str(api_bank), retrieval_mode="template")
     config = SharedSkillConfig(
-        model_name="qwen3.8-27b", use_skills=True, skills_dir=str(api_bank),
-        max_context_tokens=131072, max_skills_prompt_chars=30000,
-        proxy_port=int(json.loads(CONFIG_FILE.read_text())["api_port"]), proxy_host="0.0.0.0",
-        served_model_name="qwen3.8-27b", proxy_api_key="local-e2e-only",
+        model_name=model, use_skills=True, skills_dir=str(api_bank),
+        max_context_tokens=context, max_skills_prompt_chars=settings.get("alignment", {}).get("catalog_max_chars", 30000),
+        proxy_port=settings.get("api_port", 0), proxy_host="0.0.0.0",
+        served_model_name=model, proxy_api_key=settings.get("local_api_key", "local-e2e-only"),
         record_enabled=True, record_dir=str(record_dir), claw_type="none", configure_openclaw=False,
         llm_provider="openai", llm_api_base=read_json(record_dir.parent / "gateway.json")["base_url"],
-        llm_api_key="local-experiment", llm_model_id="qwen3.8-27b", llm_api_mode="chat",
+        llm_api_key=settings.get("local_api_key", "local-e2e-only"), llm_model_id=model, llm_api_mode="chat",
         sharing_enabled=True, sharing_backend="local", sharing_local_root=str(storage),
         sharing_group_id="day", sharing_user_alias="trajectory-e2e", sharing_auto_pull_on_start=False,
         sharing_session_upload_interval=0, sharing_skill_reload_mode="callback",
@@ -409,28 +440,29 @@ def build_api(bank: Path, storage: Path, record_dir: Path, request_dir: Path,
 
 
 def start_api(bank: Path, run_dir: Path, branch: str, gateway_url: str,
-              defense: str | None = None, session_namespace: str | None = None) -> tuple[SharedSkillAPIServer, int, Path]:
-    preferred = int(json.loads(CONFIG_FILE.read_text())["api_port"])
-    with socket.socket() as sock:
-        try:
-            sock.bind(("0.0.0.0", preferred))
-            port = preferred
-        except OSError:
-            with socket.socket() as fallback:
-                fallback.bind(("0.0.0.0", 0))
-                port = int(fallback.getsockname()[1])
+              defense: str | None = None, session_namespace: str | None = None,
+              *, runtime_settings: dict | None = None) -> tuple[SharedSkillAPIServer, int, Path]:
+    settings = runtime_settings
+    if settings is None:
+        settings = read_json(run_dir / "config.runtime.json")
+    if settings is None:
+        settings = load_settings()
+    port = available_api_port(settings)
     service_dir = run_dir / "services" / branch
     service_dir.mkdir(parents=True, exist_ok=True)
     write_json(service_dir / "gateway.json", {"base_url": gateway_url.rstrip("/") + "/v1",
                                                "root": gateway_url.rstrip("/")})
     api = build_api(bank, service_dir / "shared-objects", service_dir / "records",
-                    service_dir / "requests", defense=defense, session_namespace=session_namespace)
+                    service_dir / "requests", defense=defense, session_namespace=session_namespace,
+                    runtime_settings={**settings, "api_port": port})
     api.config.proxy_port = port
     api.start()
     if not api.wait_until_ready(30):
+        api.stop()
         raise RuntimeError("Shared-Skill API did not become ready")
+    from scripts.wildclawbench.protocol import tree_hash
     write_json(service_dir / "service.json", {
-        "status": "ready", "port": port, "bank_sha256": load_components()[-2](bank),
+        "status": "ready", "port": port, "bank_sha256": tree_hash(bank),
         "defense": "victim_safe_prompt" if defense else "none",
         "safe_prompt_sha256": sha256(defense.encode()) if defense else None,
     })
@@ -752,7 +784,9 @@ def start_gateway(run_dir: Path, settings: dict, engine: Path) -> tuple[subproce
     settings["llm_api_key"] = settings["backend_api_key"]
     config_path = run_dir / "gateway-config.json"
     write_json(config_path, settings)
-    log = (run_dir / "gateway.log").open("ab")
+    log_path = Path(settings.get("gateway_log_dir", run_dir / "runtime/api-evidence")).parent / "gateway.log"
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    log = log_path.open("ab")
     process = subprocess.Popen([sys.executable, "-m", "scripts.wildclawbench.gateway", "--config", str(config_path), "--port", str(port)],
                                cwd=str(ROOT), stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
     health_url = f"http://127.0.0.1:{port}/healthz"
@@ -767,7 +801,7 @@ def start_gateway(run_dir: Path, settings: dict, engine: Path) -> tuple[subproce
     deadline = time.monotonic() + readiness_seconds
     while time.monotonic() < deadline:
         if process.poll() is not None:
-            raise RuntimeError(f"Alignment gateway exited with code {process.returncode}; see {run_dir / 'gateway.log'}")
+            raise RuntimeError(f"Alignment gateway exited with code {process.returncode}; see {log_path}")
         try:
             with urllib.request.urlopen(health_url, timeout=2) as response:
                 status = json.loads(response.read())
@@ -829,7 +863,8 @@ def verify_night_safe_prompt(run_dir: Path, branch: Path) -> dict[str, Any]:
         if found:
             hits.append({"kind": "openclaw_session_message", "path": str(transcript)})
 
-    evidence_root = run_dir / "runtime/api-evidence"
+    settings = read_json(run_dir / "config.runtime.json", {})
+    evidence_root = Path(settings.get("gateway_log_dir", run_dir / "runtime/api-evidence"))
     for request in evidence_root.rglob("request.json") if evidence_root.exists() else []:
         try:
             body = read_json(request, {})
@@ -954,7 +989,7 @@ def run_victim(run_dir: Path, settings: dict, task: dict, published_bank: Path,
         raise RuntimeError("Sandbox input lacks the workspace sentinel expected in the container copy")
     sentinel_hash = sha256(sentinel.read_bytes())
     defense = VICTIM_SAFE_PROMPT if safe else None
-    api, port, service_dir = start_api(published_bank, run_dir, name, gateway_url, defense=defense)
+    api, port, service_dir = start_api(published_bank, run_dir, name, gateway_url, defense=defense, runtime_settings=settings)
     try:
         config = copy.deepcopy(settings)
         config.pop("alignment", None)
@@ -1011,7 +1046,7 @@ def run_day(run_dir: Path, settings: dict, task: dict, task_runtime, gateway_url
             raise RuntimeError("Completed Day marker lacks its original uploaded-session evidence")
         return previous, session
     write_json(state_path, {"status": "started", "at": now(), "task_id": task["task_id"]})
-    api, port, service_dir = start_api(run_dir / "banks/S0", run_dir, "day", gateway_url)
+    api, port, service_dir = start_api(run_dir / "banks/S0", run_dir, "day", gateway_url, runtime_settings=settings)
     try:
         config = copy.deepcopy(settings)
         config.pop("alignment", None)

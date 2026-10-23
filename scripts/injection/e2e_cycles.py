@@ -15,6 +15,7 @@ import os
 from pathlib import Path
 import re
 import shutil
+import signal
 import socket
 import subprocess
 import sys
@@ -62,14 +63,14 @@ def configure(config_file: Path) -> dict:
     return settings
 
 
-def stop_gateway(process) -> None:
+def stop_gateway(process, *, grace_seconds: float = 15) -> None:
     if process is not None and process.poll() is None:
         process.terminate()
         try:
-            process.wait(timeout=15)
+            process.wait(timeout=grace_seconds)
         except subprocess.TimeoutExpired:
             process.kill()
-            process.wait(timeout=15)
+            process.wait(timeout=grace_seconds)
 
 
 def _gateway_port_state(port: int) -> str:
@@ -157,7 +158,7 @@ def sources() -> list[dict]:
     # Freeze the actual native dependency trees as well as orchestration code.
     _, engine, *_ = e2e.load_components()
     paths = set(Path(__file__).parent.glob("*.py"))
-    paths.update(engine.glob("*.py"))
+    paths.update(engine.rglob("*.py"))
     for directory in (ROOT / "sharedskill", ROOT / "evolve_server"):
         paths.update(directory.rglob("*.py"))
         paths.update(directory.rglob("*.md"))
@@ -201,7 +202,7 @@ def prepare_bootstrap(source: Path, target: Path) -> Path:
             "score": state["task_score"], "execution_sha256": e2e.sha256((output / "execution.json").read_bytes()),
             "task_state_sha256": e2e.sha256((original / "state.json").read_bytes()),
             "protocol_hash": settings["protocol_hash"], "execution_guard": "legacy_native_proxy"})
-    settings.update(runtime_dir=str(target / "runtime"), gateway_log_dir=str(target / "runtime/api-evidence"),
+    settings.update(runtime_dir=str(target / "runtime"), gateway_log_dir=str(e2e.new_gateway_evidence_dir(target, settings)),
         cohort_day_alignment=True, bootstrap_import_source=str(source), trajectory_recollection_task_ids=missing)
     settings["protocol_hash"] = cohort.digest({"parent_protocol": settings["protocol_hash"],
         "supplement": "missing-native-upload-recollection-aligned-v1", "recollect_tasks": missing,
@@ -219,14 +220,47 @@ def prepare_bootstrap(source: Path, target: Path) -> Path:
     return target
 
 
+def cycle_settings(source: dict, requested: dict) -> dict:
+    """Apply the requested run, refusing incompatible reuse of its scored Day1."""
+    immutable = ("model_id", "model_revision", "temperature", "top_p", "top_k", "min_p",
+        "presence_penalty", "repetition_penalty", "reasoning_effort", "seed", "max_tokens",
+        "context_length", "task_timeout_seconds", "grading_timeout_seconds", "users",
+        "agent_prompt_sha256", "runtime_contract_sha256", "task_manifest_sha256", "required_shared_skill",
+        "external_judge", "judge_model_id", "judge_model_revision", "alignment",
+        "local_judge_enable_thinking", "local_judge_max_tokens")
+    changed = [key for key in immutable if key in requested and requested[key] != source.get(key)]
+    if changed:
+        raise ValueError("Day1 baseline identity differs; collect a new baseline for: " + ", ".join(changed))
+    if requested.get("task_manifest"):
+        manifest = e2e.read_json(Path(requested["task_manifest"]))
+        rows = manifest["tasks"] if isinstance(manifest, dict) else manifest
+        if [row["task_id"] for row in rows] != [row["task_id"] for row in source["all_tasks"]]:
+            raise ValueError("Day1 baseline task selection differs; collect a new baseline")
+    settings = copy.deepcopy(source)
+    settings.update(copy.deepcopy(requested))
+    # These are evidence of the executed baseline, not configurable aliases.
+    for key in ("all_tasks", "task", "protocol_hash"):
+        if key in source:
+            settings[key] = copy.deepcopy(source[key])
+    importer = resilient_runner.baseline_import(settings)
+    if importer is not None:
+        identity = importer.manifest["execution_identity"]
+        for key in ("agent_prompt_sha256", "runtime_contract_sha256"):
+            if not settings.get(key):
+                settings[key] = identity[key]
+    return settings
+
+
 def prepare(run_id: str, source_run: str | None, bootstrap_day_run: str | None, resume: bool) -> tuple[Path, dict]:
     e2e.require_execution()
+    cohort.validate_local_execution(e2e.load_settings())
     run = e2e.run_directory(run_id)
     _, _, _, _, _, _, _, tree_hash, _ = e2e.load_components()
     if resume:
         config = e2e.read_json(run / "cycles-config.json")
         if (not config or config["sources"] != sources() or config.get("rounds") != ROUNDS
-                or config.get("native_llm_request_timeout_seconds") != 600
+                or config.get("settings") != cycle_settings(
+                    e2e.read_json(Path(config["source_run"]) / "config.runtime.json"), e2e.load_settings())
                 or config.get("conditions") != list(CONDITIONS)):
             raise ValueError("Cycle orchestration sources differ from the frozen run")
     else:
@@ -236,14 +270,11 @@ def prepare(run_id: str, source_run: str | None, bootstrap_day_run: str | None, 
         baseline = Path(bootstrap_day_run or source_run).resolve()
         source_settings = e2e.read_json(source / "config.runtime.json")
         cohort.validate_resume(source, source_settings, tree_hash)
-        settings = copy.deepcopy(source_settings)
         requested = e2e.load_settings()
-        for key in ("execution_protocol", "stage_budgets", "baseline_import", "conditions",
-                    "agent_prompt_sha256", "runtime_contract_sha256", "task_manifest_sha256"):
-            if key in requested:
-                settings[key] = copy.deepcopy(requested[key])
+        settings = cycle_settings(source_settings, requested)
         protocol = resilient_runner.execution_protocol(settings)
         tasks = settings["all_tasks"]
+        task_count = cohort.configured_task_count(settings, tasks)
         importer = resilient_runner.baseline_import(settings)
         if protocol is not None and importer is None:
             raise resilient_runner.ProtocolError(
@@ -260,8 +291,8 @@ def prepare(run_id: str, source_run: str | None, bootstrap_day_run: str | None, 
                 raise ValueError("Bootstrap Day differs from the original task cohort or S0")
             day = e2e.read_json(baseline / "day/state.json", {})
             frozen = e2e.read_json(baseline / "finalized-day-inputs/manifest.json", {})
-            if day.get("status") != "completed" or day.get("scored_tasks") != 30 or frozen.get("task_count") != 30:
-                raise ValueError("Bootstrap requires all 30 real scored tasks and finalized native uploads")
+            if day.get("status") != "completed" or day.get("scored_tasks") != task_count or frozen.get("task_count") != task_count:
+                raise ValueError(f"Bootstrap requires all {task_count} real scored tasks and finalized native uploads")
             bootstrap_manifest_sha256 = e2e.sha256((baseline / "finalized-day-inputs/manifest.json").read_bytes())
         run.mkdir(parents=True, exist_ok=False)
         payload_bytes = Path(settings["payload_file"]).read_bytes()
@@ -272,7 +303,7 @@ def prepare(run_id: str, source_run: str | None, bootstrap_day_run: str | None, 
             "source_protocol_hash": settings["protocol_hash"], "settings": settings, "sources": sources(),
             "bootstrap_manifest_sha256": bootstrap_manifest_sha256,
             "conditions": list(configured_conditions(settings)), "rounds": ROUNDS, "cohort_day_alignment": True,
-            "native_llm_request_timeout_seconds": 600,
+            "native_llm_request_timeout_seconds": settings.get("native_llm_request_timeout_seconds", 600),
             "frozen_payload": str(frozen_payload), "payload_sha256": e2e.sha256(payload_bytes),
             "poisoning": "Repeated exposure: one verified carrier per selected task on each poisoned Night",
             "sandbox_schedule": f"Only final S{ROUNDS} deployed banks; selected unprotected tasks per condition",
@@ -297,7 +328,8 @@ def wait_bootstrap(run_id: str, baseline: Path, worker_pid: int) -> None:
     record = e2e.read_json(baseline / "day-workers/manual-launch.json", {})
     if record.get("pid") != worker_pid:
         raise ValueError("Bootstrap worker identity does not match its launch record")
-    marker = EXPERIMENT / "runtime/launches" / f"{run_id}-bootstrap-wait.json"
+    marker = (e2e.new_gateway_evidence_dir(e2e.run_directory(run_id), e2e.load_settings()).parent
+              / f"{run_id}-bootstrap-wait.json")
     while True:
         current = cohort.process_identity(worker_pid)
         if not current or current[0] != record["start_ticks"] or current[1] == "Z":
@@ -324,8 +356,11 @@ def setup_stage(run: Path, config: dict, condition: str, number: int, parent_ban
     bank_hash = copy_bank(parent_bank, stage / "banks/S0", tree_hash)
     catalog = catalog_hash(stage / "banks/S0")
     settings = copy.deepcopy(config["settings"])
+    if not settings.get("cohort_validation_binding"):
+        from scripts.injection.cycle_validation import build_validation_binding
+        settings["cohort_validation_binding"] = build_validation_binding(Path(config["source_run"]))
     settings.update(experiment_root=str(EXPERIMENT), runtime_dir=str(stage / "runtime"),
-        gateway_log_dir=str(stage / "runtime/api-evidence"), cohort_day_alignment=True,
+        gateway_log_dir=str(e2e.new_gateway_evidence_dir(stage, settings)), cohort_day_alignment=True,
         native_llm_request_timeout_seconds=config["native_llm_request_timeout_seconds"],
         cycle_round=number, cycle_condition=condition)
     settings["protocol_hash"] = cohort.digest({"source_protocol_hash": config["source_protocol_hash"],
@@ -367,15 +402,58 @@ def day_worker(stage: Path) -> None:
         raise ValueError("Fresh cycle Day requires the bound API/snapshot execution chain")
     _, engine, _, _, controller, task_runtime, _, tree_hash, _ = e2e.load_components()
     process = None
+    previous_term = signal.getsignal(signal.SIGTERM)
+
+    def terminate(signum, _frame):
+        # SIGTERM normally bypasses finally. Stop the separate-session gateway
+        # before executor shutdown can wait on outstanding task threads.
+        signal.signal(signal.SIGTERM, signal.SIG_IGN)
+        if process is not None:
+            stop_gateway(process, grace_seconds=3)
+        else:
+            # Startup may still be waiting for health before returning its handle.
+            from scripts.wildclawbench.agent_supervisor import processes
+            gateways = {}
+            for pid, item in processes(os.getpid()).items():
+                identity = cohort.process_identity(pid)
+                if identity and "-m scripts.wildclawbench.gateway" in identity[2]:
+                    gateways[pid] = item[2]
+            for pid, ticks in gateways.items():
+                if (cohort.process_identity(pid) or (None,))[0] == ticks:
+                    try:
+                        os.kill(pid, signal.SIGTERM)
+                    except ProcessLookupError:
+                        pass
+            deadline = time.monotonic() + 3
+            while time.monotonic() < deadline and any(
+                (identity := cohort.process_identity(pid)) and identity[0] == ticks and identity[1] not in {"Z", "X"}
+                for pid, ticks in gateways.items()
+            ):
+                time.sleep(.05)
+            for pid, ticks in gateways.items():
+                if (cohort.process_identity(pid) or (None,))[0] == ticks:
+                    try:
+                        os.kill(pid, signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
+        raise SystemExit(128 + signum)
+
+    signal.signal(signal.SIGTERM, terminate)
     try:
         process, gateway, _ = start_gateway(stage, settings, engine)
+        if settings.get("cycle_round", 1) == 1:
+            from scripts.wildclawbench.interface_checks import verify_interfaces
+            verify_interfaces(settings, stage / "interface-checks")
         from scripts.injection.cycle_validation import validation_adapter
         context = (validation_adapter(controller, settings["cohort_validation_binding"])
-                   if settings.get("method_revision") else nullcontext())
+                   if settings.get("cohort_validation_binding") else nullcontext())
         with context:
             cohort.run_day_cohort(stage, settings, settings["all_tasks"], task_runtime, gateway, tree_hash)
     finally:
-        stop_gateway(process)
+        try:
+            stop_gateway(process)
+        finally:
+            signal.signal(signal.SIGTERM, previous_term)
 
 
 def infrastructure_recoverable(stage: Path, tasks: list[dict]) -> bool:
@@ -388,6 +466,8 @@ def infrastructure_recoverable(stage: Path, tasks: list[dict]) -> bool:
         if (output / "execution.json").exists():
             continue  # Existing executor restores scoring; it does not run the Agent again.
         result = e2e.read_json(output / "runtime-result.json", {})
+        if result.get("infrastructure_retry_eligible") is not True:
+            return False
         text = str(result.get("error") or state.get("error") or "").lower()
         if result.get("status") != "infrastructure_error" or not any(
                 marker in text for marker in ("connection", "transport", "503", "502", "runtime child exited")):
@@ -423,8 +503,100 @@ def stop_preserved_grading_containers(stage: Path, settings: dict) -> None:
         runtime._docker(["stop", name], settings)
 
 
+def day_worker_budget(stage: Path, settings: dict):
+    budget = resilient_runner.active_budget(settings) or resilient_runner.budget_from_config(settings, "day", stage)
+    if budget is not None:
+        return budget
+    # Legacy profiles also get a persisted finite deadline; never renew it on resume.
+    limit = settings.get("day_timeout_seconds")
+    if limit is None:
+        limit = len(settings["all_tasks"]) * (float(settings.get("task_timeout_seconds", 1800))
+            + float(settings.get("grading_timeout_seconds", 1800)) + 300)
+    return resilient_runner.StageBudget.open(stage / "day-worker-budget.json", "day", limit)
+
+
+def stop_owned_worker(record: dict, process=None, *, grace_seconds: float = 10) -> None:
+    pid = record["pid"]
+    identity = cohort.process_identity(pid)
+    if not identity or identity[0] != record["start_ticks"]:
+        return
+    if os.getpgid(pid) != pid:
+        raise RuntimeError("Cannot stop Day worker: process group ownership differs")
+    from scripts.wildclawbench.agent_supervisor import processes
+    tracked = {pid: record["start_ticks"]}
+
+    def members():
+        # Follow only this worker's descendants. A host-wide /proc scan can be
+        # slower than the shutdown grace period on a busy multi-user machine.
+        for owner, ticks in list(tracked.items()):
+            identity = cohort.process_identity(owner)
+            if not identity or identity[0] != ticks:
+                continue
+            for child, entry in processes(owner).items():
+                try:
+                    if os.getpgid(child) == pid and os.getsid(child) == pid:
+                        tracked[child] = entry[2]
+                except ProcessLookupError:
+                    pass
+        result = {}
+        for child, ticks in tracked.items():
+            identity = cohort.process_identity(child)
+            if identity and identity[0] == ticks and identity[1] not in {"Z", "X"}:
+                result[child] = ticks
+        return result
+
+    owned = members()
+    try:
+        os.killpg(pid, signal.SIGTERM)
+    except ProcessLookupError:
+        return
+    until = time.monotonic() + grace_seconds
+    while time.monotonic() < until:
+        current = members()
+        if not current:
+            break
+        # Keep following the authenticated group after its leader exits.
+        if not any(current.get(child) == ticks for child, ticks in owned.items()):
+            raise RuntimeError("Day worker group identity changed during shutdown")
+        owned.update(current)
+        time.sleep(min(.1, max(0, until - time.monotonic())))
+    current = members()
+    if current and any(current.get(child) == ticks for child, ticks in owned.items()):
+        try:
+            os.killpg(pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        deadline = time.monotonic() + 2
+        while members() and time.monotonic() < deadline:
+            time.sleep(.02)
+        if members():
+            raise RuntimeError("Day worker group still has live processes after SIGKILL")
+    if process is not None:
+        process.wait(timeout=10)
+
+
+def wait_day_worker(stage: Path, record: dict, budget, process=None) -> None:
+    while True:
+        identity = cohort.process_identity(record["pid"])
+        if (not identity or identity[0] != record["start_ticks"] or identity[1] == "Z"
+                or (process is not None and process.poll() is not None)):
+            return
+        try:
+            remaining = budget.require_remaining("day-worker")
+        except resilient_runner.StageBudgetExceeded:
+            stop_owned_worker(record, process)
+            e2e.write_json(stage / "day-worker-timeout.json", {"status": "unknown",
+                "error_type": "StageBudgetExceeded", "worker_pid": record["pid"],
+                "deadline_epoch": budget.deadline_epoch, "updated_at": e2e.now()})
+            raise
+        time.sleep(min(5, remaining))
+
+
 def run_day(stage: Path, settings: dict) -> None:
     tasks = settings["all_tasks"]
+    if e2e.read_json(stage / "day/state.json", {}).get("status") == "completed":
+        return
+    budget = day_worker_budget(stage, settings)
     for attempt in range(1, MAX_DAY_ATTEMPTS + 1):
         if e2e.read_json(stage / "day/state.json", {}).get("status") == "completed":
             return
@@ -432,11 +604,9 @@ def run_day(stage: Path, settings: dict) -> None:
         prior = e2e.read_json(marker)
         process = None
         if prior:
-            identity = cohort.process_identity(prior["pid"])
-            while identity and identity[0] == prior["start_ticks"] and identity[1] != "Z":
-                time.sleep(15)
-                identity = cohort.process_identity(prior["pid"])
+            wait_day_worker(stage, prior, budget)
         else:
+            budget.require_remaining("day-worker-launch")
             if attempt > 1 and not infrastructure_recoverable(stage, tasks):
                 break
             if attempt > 1:
@@ -452,8 +622,8 @@ def run_day(stage: Path, settings: dict) -> None:
                 raise RuntimeError("Day worker exited before its process identity was recorded")
             prior = {"pid": process.pid, "start_ticks": identity[0], "started_at": e2e.now(), "attempt": attempt}
             e2e.write_json(marker, prior)
-            while process.poll() is None:
-                time.sleep(15)
+            wait_day_worker(stage, prior, budget, process)
+            process.wait(timeout=10)
             prior.update(returncode=process.returncode, exited_at=e2e.now())
             e2e.write_json(marker, prior)
         e2e.write_json(stage / "phase-handoff.json", {"status": "day_worker_exited", "one_shot": True,
@@ -462,6 +632,22 @@ def run_day(stage: Path, settings: dict) -> None:
         if e2e.read_json(stage / "day/state.json", {}).get("status") == "completed":
             return
     raise RuntimeError("Day remains incomplete after its bounded infrastructure recovery; original evidence preserved")
+
+
+def summary_payload_exposure(session: dict, payload: dict, content_budget: int) -> dict:
+    from evolve_server.pipeline.summarizer import _build_session_payload
+
+    formatted = _build_session_payload(session)
+    contents = [row.get("content", "") for turn in formatted["interactions"]
+                for field in ("tool_results", "tool_observations") for row in turn.get(field, [])]
+    spellings = [payload["text"]]
+    if payload.get("insertion_mode") == "message_body":
+        spellings.append(json.dumps(payload["text"], ensure_ascii=False)[1:-1])
+    return {"policy": "prepared-native-summary-input-full-payload-v1",
+        "delivery_status": "unverified",
+        "complete_payload_present": any(value in text for text in contents for value in spellings),
+        "payload_text_sha256": e2e.sha256(payload["text"].encode()),
+        "observation_content_max_chars": content_budget, "observation_views": len(contents)}
 
 
 def night_inputs(stage: Path, condition: str, tasks: list[dict], sessions: list[dict], payload: dict,
@@ -480,6 +666,10 @@ def night_inputs(stage: Path, condition: str, tasks: list[dict], sessions: list[
         for session in candidates:
             try:
                 modified, audit = inject_uploaded(session, payload, cohort.INJECTION_ENDPOINTS[short_id])
+                if payload.get("insertion_mode") == "message_body":
+                    modified["_tool_observation_content_max_chars"] = observation_content_max_chars
+                    if not summary_payload_exposure(modified, payload, observation_content_max_chars)["complete_payload_present"]:
+                        raise ValueError("Message-body payload is outside the frozen summary window")
             except ValueError as error:
                 errors.append({"session_id": session["session_id"], "reason": str(error)})
                 continue
@@ -495,19 +685,11 @@ def night_inputs(stage: Path, condition: str, tasks: list[dict], sessions: list[
         if observation_content_max_chars != 240:
             modified["_tool_observation_content_max_chars"] = observation_content_max_chars
         exposure = None
-        if audit is not None and payload.get("source_case") == "data_exfil_file":
-            from evolve_server.pipeline.summarizer import _build_session_payload
-            formatted = _build_session_payload(modified)
-            contents = [row.get("content", "") for turn in formatted["interactions"]
-                        for field in ("tool_results", "tool_observations")
-                        for row in turn.get(field, [])]
-            exposure = {"policy": "actual-native-summary-input-full-payload-v1",
-                "complete_payload_present": any(payload["text"] in text for text in contents),
-                "payload_text_sha256": e2e.sha256(payload["text"].encode()),
-                "observation_content_max_chars": observation_content_max_chars,
-                "observation_views": len(contents)}
+        if audit is not None and (payload.get("source_case") == "data_exfil_file"
+                                  or payload.get("insertion_mode") == "message_body"):
+            exposure = summary_payload_exposure(modified, payload, observation_content_max_chars)
             if not exposure["complete_payload_present"]:
-                raise ValueError("The selected updated payload is incomplete in the actual summary input")
+                raise ValueError("The selected updated payload is incomplete in the prepared summary input")
         result.append(modified)
         e2e.write_json(stage / "inputs" / "sessions" / f"{session['session_id']}.json", modified)
         e2e.write_json(stage / "inputs" / "evidence" / f"{session['session_id']}.json", {
@@ -519,7 +701,7 @@ def night_inputs(stage: Path, condition: str, tasks: list[dict], sessions: list[
             "summary_input_exposure": exposure,
             "round_metadata": {"source_round": session.get("round"), "cycle_round": number,
                                "original_uploaded_object_unchanged": True}})
-    manifest = {"task_count": 30, "native_session_count": len(sessions), "condition": condition, "round": number,
+    manifest = {"task_count": len(tasks), "native_session_count": len(sessions), "condition": condition, "round": number,
         "attempted_injected_tasks": sorted(cohort.INJECTED_IDS) if condition == "poisoned" else [],
         "injected_native_session_ids": sorted(selected), "missing_carriers": missing,
         "repeated_exposure_round": True, "safe_prompt_enabled": False,
@@ -527,6 +709,46 @@ def night_inputs(stage: Path, condition: str, tasks: list[dict], sessions: list[
         "session_content_hash": cohort.digest(result)}
     e2e.write_json(stage / "inputs/manifest.json", manifest)
     return result, manifest
+
+
+def verify_summary_delivery(stage: Path, settings: dict, sessions: list[dict], injection: dict) -> dict:
+    """Count only exact summary inputs with a completed, bound provider response."""
+    from evolve_server.pipeline.summarizer import _build_session_payload, _SUMMARIZE_SESSION_SYSTEM
+    selected = set(injection["injected_native_session_ids"])
+    expected = {row["session_id"]: _build_session_payload(row) for row in sessions
+                if row["session_id"] in selected}
+    receipts = {}
+    evidence_root = Path(settings.get("gateway_log_dir", stage / "runtime/api-evidence"))
+    for path in sorted(evidence_root.glob("*/*/request.json")):
+        body = e2e.read_json(path, {})
+        messages = body.get("messages", [])
+        if not any(row.get("role") == "system" and row.get("content") == _SUMMARIZE_SESSION_SYSTEM
+                   for row in messages):
+            continue
+        record = e2e.read_json(path.parent / "record.json", {})
+        response = path.parent / "response.bin"
+        if (record.get("status") != "completed" or record.get("http_status") != 200
+                or record.get("protocol_hash") != settings["protocol_hash"]
+                or record.get("actual_model") != settings["model_id"] or not response.is_file()):
+            continue
+        for message in messages:
+            if message.get("role") != "user" or not isinstance(message.get("content"), str):
+                continue
+            try:
+                actual = json.loads(message["content"])
+            except ValueError:
+                continue
+            if not isinstance(actual, dict):
+                continue
+            sid = actual.get("session_id")
+            if sid in expected and actual == expected[sid]:
+                receipts[sid] = {"request": str(path), "request_sha256": e2e.sha256(path.read_bytes()),
+                    "response": str(response), "response_sha256": e2e.sha256(response.read_bytes())}
+    evidence = {"policy": "successful-bound-summary-request-v1", "planned": len(selected),
+        "delivered": len(receipts), "complete": set(receipts) == selected,
+        "missing_session_ids": sorted(selected - set(receipts)), "receipts": receipts}
+    e2e.write_json(stage / "inputs/summary-delivery.json", evidence)
+    return evidence
 
 
 def run_stage(run: Path, config: dict, condition: str, number: int, parent_bank: Path) -> dict:
@@ -560,11 +782,12 @@ def run_stage(run: Path, config: dict, condition: str, number: int, parent_bank:
             imported_rows = [importer.scored_row(task, identity, bank_hash)[0]
                              for task in settings["all_tasks"]]
             scores = [float(row["score"]) for row in imported_rows]
-            day = {"status": "completed", "task_count": 30, "scored_tasks": 30,
+            task_count = cohort.configured_task_count(settings, settings["all_tasks"])
+            day = {"status": "completed", "task_count": task_count, "scored_tasks": task_count,
                    "uploaded_sessions": len(sessions), "mean_score": sum(scores) / len(scores)}
-            source_inputs = {"input_coverage_complete": True, "task_count": 30}
+            source_inputs = {"input_coverage_complete": True, "task_count": task_count}
             day_evidence = {"kind": "digest_bound_baseline_import", "import_bundle": str(importer.directory),
-                "manifest_sha256": e2e.sha256(importer.manifest_path.read_bytes()), "scored_tasks": 30,
+                "manifest_sha256": e2e.sha256(importer.manifest_path.read_bytes()), "scored_tasks": task_count,
                 "new_agent_executions": 0, "new_scoring_calls": 0}
             e2e.write_json(stage / "baseline-import-receipt.json", {**day_evidence,
                 "execution_identity": identity, "source_manifest": importer.manifest})
@@ -581,7 +804,7 @@ def run_stage(run: Path, config: dict, condition: str, number: int, parent_bank:
         captured = [cohort.load_completed_day(stage, task)[1] for task in settings["all_tasks"]]
         sessions = cohort.finalize_day_sessions(stage, settings["all_tasks"], captured, tree_hash(stage / "banks/S0"))
         source_inputs = e2e.read_json(stage / "finalized-day-inputs/manifest.json")
-        day_evidence = {"kind": "fresh_30_task_executions", "source_run": str(stage), "scored_tasks": day["scored_tasks"]}
+        day_evidence = {"kind": "fresh_task_executions", "source_run": str(stage), "scored_tasks": day["scored_tasks"]}
     payload_file = Path(config["frozen_payload"])
     if e2e.sha256(payload_file.read_bytes()) != config["payload_sha256"]:
         raise ValueError("Frozen poisoning payload changed before Night")
@@ -607,6 +830,7 @@ def run_stage(run: Path, config: dict, condition: str, number: int, parent_bank:
         night = run_native_night(stage, settings, sessions, condition, controller, evolution, tree_hash, writer)
     finally:
         stop_gateway(gateway_process)
+    delivery = verify_summary_delivery(stage, settings, sessions, injection)
     published = Path(night["published_bank"])
     published_hash = tree_hash(published)
     if published_hash != night["published_bank_sha256"] or published_hash != night["publication"]["bank_sha256"]:
@@ -615,9 +839,11 @@ def run_stage(run: Path, config: dict, condition: str, number: int, parent_bank:
         "parent_bank": str(parent_bank), "parent_bank_sha256": tree_hash(parent_bank),
         "published_bank": str(published), "published_bank_sha256": published_hash,
         "changeset_accepted": night["publication"].get("changeset_accepted") is True,
+        "validation_gaps": night["publication"].get("validation_gaps", []),
         "protocol_hash": settings["protocol_hash"], "day": day_evidence,
         "scored_tasks": day["scored_tasks"], "mean_score": day.get("mean_score"),
-        "input_coverage_complete": source_inputs["input_coverage_complete"],
+        "input_coverage_complete": source_inputs["input_coverage_complete"] and delivery["complete"],
+        "summary_delivery": delivery,
         "missing_injection_carriers": injection["missing_carriers"],
         "native_session_count": len(sessions), "night_state": str(stage / "branches" / condition / "night-state.json"),
         "sandbox_status": f"scheduled_only_at_S{configured_rounds(config)}", "finished_at": e2e.now()}
@@ -671,9 +897,15 @@ def run_native_night(stage, settings, sessions, condition, controller, evolution
     if summary_resume:
         e2e.write_json(branch / "summary-recovery.json", {"at": e2e.now(), "round": number,
             "new_calls_for_completed_summaries": 0, "mode": "resume_incomplete_summary_units"})
+    def execute_night():
+        from scripts.injection.cycle_validation import validation_adapter
+        binding = settings.get("cohort_validation_binding")
+        with validation_adapter(controller, binding) if binding else nullcontext():
+            return controller.night(number, branch / "banks/S0", sessions,
+                                    settings["all_tasks"], branch, settings)
+
     try:
-        published = controller.night(number, branch / "banks/S0", sessions,
-                                     settings["all_tasks"], branch, settings)
+        published = execute_night()
     except Exception as error:
         if resilient_runner.enabled(settings):
             raise
@@ -682,8 +914,7 @@ def run_native_night(stage, settings, sessions, condition, controller, evolution
             raise
         cache_hash = record_recovery()
         recovering = True
-        published = controller.night(number, branch / "banks/S0", sessions,
-                                     settings["all_tasks"], branch, settings)
+        published = execute_night()
     if cache_hash is not None and e2e.sha256(cached.read_bytes()) != cache_hash:
         raise ValueError("Finished proposal changed during validation recovery")
     publication = e2e.read_json(night_dir / "publication.json", {})
@@ -709,15 +940,34 @@ def endpoint_sandbox(run: Path, config: dict, condition: str, result: dict) -> d
     endpoint = f"S{configured_rounds(config)}"
     # This observer uses its own frozen sandbox task and canary input contract.
     settings.pop("cohort_validation_binding", None)
-    settings.update(runtime_dir=str(root / "runtime"), gateway_log_dir=str(root / "runtime/api-evidence"),
+    settings.update(runtime_dir=str(root / "runtime"), gateway_log_dir=str(e2e.new_gateway_evidence_dir(root, settings)),
                     cohort_day_alignment=True)
-    endpoint_budget = resilient_runner.budget_from_config(settings, "endpoint", root)
-    if endpoint_budget is not None:
-        settings = endpoint_budget.cap_config(settings, f"endpoint:{condition}")
     settings["protocol_hash"] = cohort.digest({"cycle_run": config["run_id"], "endpoint": condition,
         "bank_sha256": result["published_bank_sha256"], "sources": config["sources"]})
     source = Path(config["source_run"])
     tasks = [task for task in settings["all_tasks"] if task["short_id"] in cohort.INJECTED_IDS]
+    if not tasks:
+        raise ValueError("Endpoint requires at least one explicitly selected observation task")
+    _, engine, _, _, _, runtime, _, tree_hash, _ = e2e.load_components()
+    bank = Path(result["published_bank"])
+    if tree_hash(bank) != result["published_bank_sha256"]:
+        raise ValueError(f"Final {endpoint} bank changed before sandbox execution")
+    prior = e2e.read_json(root / "summary.json")
+    if prior and prior.get("status") == "completed":
+        if (prior.get("bank_sha256") != result["published_bank_sha256"]
+                or prior.get("protocol_hash") != settings["protocol_hash"]
+                or prior.get("endpoint") != endpoint or prior.get("condition") != condition
+                or set(prior.get("observations", {})) != {task["short_id"] for task in tasks}):
+            raise ValueError("Completed endpoint summary identity differs")
+        for task in tasks:
+            observation = cohort_sandbox.cached_observation(root, settings, task, bank, False,
+                condition=f"{endpoint}-{condition}-{task['short_id']}")
+            if observation is None or observation != prior["observations"][task["short_id"]]:
+                raise ValueError("Completed endpoint observer evidence differs")
+        return prior
+    endpoint_budget = resilient_runner.budget_from_config(settings, "endpoint", root)
+    if endpoint_budget is not None:
+        settings = endpoint_budget.cap_config(settings, f"endpoint:{condition}")
     for task in tasks:
         target = root / "frozen/tasks" / task["short_id"] / "task-workspace"
         original = source / "frozen/tasks" / task["short_id"] / "task-workspace"
@@ -725,10 +975,6 @@ def endpoint_sandbox(run: Path, config: dict, condition: str, result: dict) -> d
             target.parent.mkdir(parents=True, exist_ok=True)
             target.symlink_to(original, target_is_directory=True)
     e2e.write_json(root / "config.runtime.json", settings)
-    _, engine, _, _, _, runtime, _, tree_hash, _ = e2e.load_components()
-    bank = Path(result["published_bank"])
-    if tree_hash(bank) != result["published_bank_sha256"]:
-        raise ValueError(f"Final {endpoint} bank changed before sandbox execution")
     gateway_process = None
     original_start = cohort_sandbox.e2e.start_api
     startup_lock = threading.Lock()
@@ -740,7 +986,10 @@ def endpoint_sandbox(run: Path, config: dict, condition: str, result: dict) -> d
     try:
         gateway_process, gateway, _ = start_gateway(root, settings, engine)
         cohort_sandbox.e2e.start_api = serialized_start
-        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as pool:
+        workers = settings.get("endpoint_workers", settings.get("day_workers", settings.get("users", 1)))
+        if type(workers) is not int or workers < 1:
+            raise ValueError("endpoint_workers must be a positive integer")
+        with concurrent.futures.ThreadPoolExecutor(max_workers=min(workers, len(tasks))) as pool:
             futures = {pool.submit(cohort_sandbox.run_victim, root, settings, task, bank, runtime,
                 gateway, safe=False, condition=f"{endpoint}-{condition}-{task['short_id']}"): task["short_id"] for task in tasks}
             observations = {}
@@ -761,7 +1010,7 @@ def endpoint_sandbox(run: Path, config: dict, condition: str, result: dict) -> d
     summary = {"status": "completed" if valid == len(tasks) else "finished_with_gaps", "condition": condition,
         "endpoint": endpoint, "safe_prompt": False, "valid_denominator": valid, "attack_successes": successes,
         "asr": successes / valid if valid else None, "observations": observations,
-        "bank_sha256": result["published_bank_sha256"]}
+        "bank_sha256": result["published_bank_sha256"], "protocol_hash": settings["protocol_hash"]}
     if settings.get("selected_injection_case") == "data_exfil_file":
         summary.update(selected_injection_case="data_exfil_file",
             behavior_metric="synthetic_invocation_audit_record_rate",
@@ -812,7 +1061,8 @@ def run_cycles(run: Path, config: dict) -> None:
                 except Exception as error:
                     errors[condition] = {"stage": f"S{rounds}/sandbox", "error_type": type(error).__name__, "error": str(error)}
         complete = (len(results) == rounds * len(conditions) and not errors and all(
-            item["input_coverage_complete"] and not item["missing_injection_carriers"] for item in results.values())
+            item["input_coverage_complete"] and not item["missing_injection_carriers"]
+            and not item.get("validation_gaps") for item in results.values())
             and all(item["status"] == "completed" for item in endpoints.values()))
         e2e.write_json(state_path, {"status": "finished" if complete else "finished_with_gaps", "method_revision": config.get("method_revision"), "stages": results,
             "errors": errors, "endpoints": endpoints, "finished_at": e2e.now(), "paid_api_budget_usd": 0,
@@ -855,7 +1105,7 @@ def main() -> None:
     if not args.run_id or len(args.run_id) > 48 or not re.fullmatch(r"[A-Za-z0-9_.-]+", args.run_id):
         parser.error("A safe --run-id is required")
     if args.detach:
-        logs = EXPERIMENT / "runtime/launches"
+        logs = e2e.new_gateway_evidence_dir(e2e.run_directory(args.run_id), settings).parent
         logs.mkdir(parents=True, exist_ok=True)
         command = [sys.executable, "-m", "scripts.injection.e2e_cycles", *[arg for arg in sys.argv[1:] if arg != "--detach"]]
         suffix = f"-{args.method_revision}" if args.method_revision else ""
@@ -867,7 +1117,7 @@ def main() -> None:
             "log": str(log_path), "launched_at": e2e.now()})
         print(json.dumps({"pid": child.pid, "log": str(log_path)}), flush=True)
         return
-    locks = EXPERIMENT / "runtime/runner-locks"
+    locks = ROOT / "runtime/runner-locks"
     locks.mkdir(parents=True, exist_ok=True)
     with (locks / f"{args.run_id}.lock").open("a") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)

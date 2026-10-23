@@ -112,8 +112,9 @@ class DecisionTests(unittest.TestCase):
             write_json(config_file, config)
             with self.assertRaisesRegex(ValueError, "explicitly configured"):
                 load_config(config_file)
-        self.assertEqual(protocol.public_config({"judge_max_tokens": 256, "api_key": "dummy"}),
-                         {"judge_max_tokens": 256})
+        self.assertEqual(protocol.public_config({"judge_max_tokens": 256, "local_judge_max_tokens": 512,
+                                                "api_key": "dummy"}),
+                         {"judge_max_tokens": 256, "local_judge_max_tokens": 512})
 
     def test_external_entry_and_core_both_participate_in_resume_identity(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -156,6 +157,18 @@ class DecisionTests(unittest.TestCase):
         decision = accept_candidate([self.row()], [self.row(None, "pending_score")], "candidate")
         self.assertTrue(decision["pending"])
         self.assertFalse(decision["accepted"])
+
+    def test_invalid_reward_cannot_pass_on_stability_improvement(self):
+        for invalid in (float("nan"), float("inf"), -1, 2, True, "0.6"):
+            with self.subTest(score=invalid):
+                decision = accept_candidate([self.row(errors=1)], [self.row(invalid)], "candidate")
+                self.assertFalse(decision["accepted"])
+                self.assertTrue(decision["pending"])
+
+    def test_duplicate_task_rows_cannot_multiply_quality_gain(self):
+        for old, new in (([self.row()], [self.row(.6), self.row(.7)]),
+                         ([self.row(.4), self.row(.5)], [self.row(.6)])):
+            self.assertFalse(accept_candidate(old, new, "candidate")["accepted"])
 
     def test_stability_tie_must_reduce_failures(self):
         self.assertTrue(accept_candidate([self.row(errors=2)], [self.row(errors=1)], "candidate")["accepted"])
@@ -271,6 +284,36 @@ class ControllerTests(unittest.TestCase):
                 execute.assert_not_called()
                 self.assertFalse((Path(temporary) / "banks/S1").exists())
 
+    def test_pilot_requires_exact_completed_grades_and_preserves_valid_zero(self):
+        selected = self.tasks[:2]
+        config = {**self.config, "pilot_short_ids": [task["short_id"] for task in selected]}
+        complete = [{"task_id": task["task_id"], "status": "completed", "score": 0.0,
+                     "wall_seconds": 0.1} for task in selected]
+        cases = [
+            (complete, True),
+            ([complete[0], {**complete[1], "status": "pending_score", "score": None}], False),
+            (complete[:1], False),
+            ([complete[0], complete[0]], False),
+            ([complete[0], {**complete[1], "score": float("nan")}], False),
+            ([complete[0], {**complete[1], "score": True}], False),
+            ([], False),
+        ]
+        for rows, expected in cases:
+            with (self.subTest(rows=rows), patch.object(run, "check_services"),
+                  patch("scripts.wildclawbench.interface_checks.verify_interfaces"),
+                  patch.object(run, "run_stage", return_value=rows),
+                  patch.object(run, "event"), patch.object(run, "generate")):
+                if expected:
+                    run.pilot(selected, self.bank, self.directory, config)
+                else:
+                    with self.assertRaisesRegex(RuntimeError, "Pilot requires"):
+                        run.pilot(selected, self.bank, self.directory, config)
+            gate = json.loads((self.directory / "pilot-gate.json").read_text())
+            self.assertEqual(gate["passed"], expected)
+            self.assertEqual(gate["expected_tasks"], 2)
+            if not expected:
+                self.assertEqual(json.loads((self.directory / "state.json").read_text())["status"], "pilot_incomplete")
+
     def test_longitudinal_stage_does_not_generate_the_generic_endpoint_report(self):
         task = self.tasks[0]
         result = {"task_id": task["task_id"], "short_id": task["short_id"],
@@ -340,7 +383,10 @@ class ControllerTests(unittest.TestCase):
                 run.run_one(self.tasks[0], self.bank, self.directory, self.config, "day", 1)
 
     def test_pending_score_rescores_without_agent_reexecution(self):
-        pending = lambda *args: {"status": "pending_score", "score": None, "session": {}}
+        # Runtime certified that the sole judge request failed with HTTP 503;
+        # no successful judgment would be repeated by this recovery.
+        pending = lambda *args: {"status": "pending_score", "score": None, "session": {},
+                                 "error": "Judge HTTP 503", "scoring_recovery_eligible": True}
         scored = lambda *args: {"status": "completed", "score": 0.3, "session": {}}
         adapter = types.SimpleNamespace(execute_task=pending, rescore_task=scored)
         with (

@@ -6,7 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import signal
+import math
 import socket
 import shutil
 from urllib.parse import urlparse
@@ -17,6 +17,7 @@ from pathlib import Path
 
 from scripts.wildclawbench.protocol import REPOSITORY
 from scripts.wildclawbench.services.common import runtime_directory, service_config
+from scripts.wildclawbench.services.auxiliary_worker import stop_tree
 
 ROOT = REPOSITORY
 RUNTIME = runtime_directory() / "main-service"
@@ -75,6 +76,7 @@ def gpu_snapshot() -> str:
             "--format=csv",
         ],
         text=True,
+        timeout=10,
     ).strip()
 
 
@@ -86,10 +88,10 @@ def start() -> dict:
         if sock.connect_ex(("127.0.0.1", PORT)) == 0:
             raise RuntimeError(f"port {PORT} is occupied by a process not owned by this experiment")
     processes = subprocess.check_output(
-        ["nvidia-smi", "--query-compute-apps=gpu_uuid,pid", "--format=csv,noheader"], text=True
+        ["nvidia-smi", "--query-compute-apps=gpu_uuid,pid", "--format=csv,noheader"], text=True, timeout=10
     )
     gpu_uuid = subprocess.check_output(
-        ["nvidia-smi", "--id=" + GPU, "--query-gpu=uuid", "--format=csv,noheader"], text=True
+        ["nvidia-smi", "--id=" + GPU, "--query-gpu=uuid", "--format=csv,noheader"], text=True, timeout=10
     ).strip()
     if any(line.partition(",")[0].strip() == gpu_uuid for line in processes.splitlines()):
         raise RuntimeError("GPU 1 has a compute process; refusing to replace it")
@@ -121,7 +123,7 @@ def start() -> dict:
         str(GPU_MEMORY_UTILIZATION),
         "--enable-auto-tool-choice",
         "--tool-call-parser",
-        "qwen3_xml",
+        str(SERVICE_SETTINGS.get("tool_call_parser", "qwen3_xml")),
         "--reasoning-parser",
         "qwen3",
         "--generation-config",
@@ -135,8 +137,17 @@ def start() -> dict:
             }
         ),
         "--default-chat-template-kwargs",
-        json.dumps({"enable_thinking": True, "reasoning_effort": SERVICE_SETTINGS.get("reasoning_effort", "medium")}),
+        json.dumps({"enable_thinking": SERVICE_SETTINGS.get("enable_thinking", True),
+                    "reasoning_effort": SERVICE_SETTINGS.get("reasoning_effort", "medium")}),
     ]
+    if SERVICE_SETTINGS.get("language_model_only") is True:
+        command.append("--language-model-only")
+    for key in ("limit_mm_per_prompt", "mm_processor_kwargs"):
+        value = SERVICE_SETTINGS.get(key)
+        if value is not None:
+            if not isinstance(value, dict):
+                raise ValueError(f"{key} must be an object")
+            command.extend(["--" + key.replace("_", "-"), json.dumps(value)])
     RUNTIME.mkdir(parents=True, exist_ok=True)
     temporary = RUNTIME / "tmp"
     temporary.mkdir(exist_ok=True)
@@ -172,7 +183,7 @@ def start() -> dict:
         "started_at": utc(),
         "command": command,
         "environment": safe_environment,
-        "model_repository": "Qwen/Qwen3.8-27B",
+        "model_repository": SERVICE_SETTINGS.get("model_repository", "Qwen/Qwen3.8-27B"),
         "model_revision": REVISION,
         "served_model": MODEL_ID,
         "gpu_uuid": GPU,
@@ -207,15 +218,44 @@ def stop() -> dict:
     state = state_read()
     if not owned(state):
         return {"stopped": False, "reason": "no matching experiment-owned live process"}
-    os.killpg(int(state["pid"]), signal.SIGTERM)
-    deadline = time.monotonic() + 30
-    while owned(state) and time.monotonic() < deadline:
-        time.sleep(0.2)
-    if owned(state):
-        os.killpg(int(state["pid"]), signal.SIGKILL)
-    state["stopped_at"] = utc()
+    timeout = SERVICE_SETTINGS.get("main_stop_timeout_seconds", 30)
+    if isinstance(timeout, bool) or not isinstance(timeout, (int, float)) or not math.isfinite(timeout) or timeout <= 0:
+        raise ValueError("main_stop_timeout_seconds must be finite and positive")
+    deadline = time.monotonic() + timeout
+    result = stop_tree(int(state["pid"]), state["start_ticks"], timeout=min(3, timeout))
+    if not result["identities"]:
+        result["quiescent"] = False  # Ownership disappeared before subtree capture.
+    tracked = {int(pid) for pid in result["identities"]}
+    released, remaining, error = False, sorted(tracked), None
+    while result["quiescent"] and time.monotonic() < deadline:
+        try:
+            listing = subprocess.check_output(
+                ["nvidia-smi", "--query-compute-apps=pid", "--format=csv,noheader,nounits"],
+                text=True, timeout=min(5, max(.01, deadline - time.monotonic())),
+            )
+            rows = [line.strip() for line in listing.splitlines() if line.strip()]
+            if any(not line.isdigit() for line in rows):
+                raise ValueError("Unrecognized NVIDIA compute-process listing")
+            compute = {int(line) for line in rows}
+            remaining = sorted(tracked & compute)
+            if not remaining:
+                released = True
+                break
+        except (subprocess.SubprocessError, OSError, ValueError) as exc:
+            error = type(exc).__name__
+            break
+        time.sleep(min(.2, max(0, deadline - time.monotonic())))
+    stopped = result["quiescent"] and released
+    evidence = {"stopped": stopped, "pid": state["pid"], "process_tree": result,
+                "gpu_released": released, "remaining_owned_compute_pids": remaining,
+                "checked_at": utc(), "timeout_seconds": timeout}
+    if not stopped:
+        evidence["reason"] = error or "Owned model subtree or driver compute context did not exit before deadline"
+    else:
+        state["stopped_at"] = utc()
+    state["last_stop"] = evidence
     write_json(STATE, state)
-    return {"stopped": True, "pid": state["pid"]}
+    return evidence
 
 
 def main() -> None:

@@ -1,20 +1,21 @@
-"""Compile a pinned record-only fixture into one tool-result text payload.
+"""Compile pinned synthetic message text; never execute source_function.
 
-This module only reads JSON. It does not dispatch the source_function, invent
-tool turns, or treat a fixture's success statement as an observed execution.
+Legacy four-field fixtures remain readable for historical evidence only.
 """
 from __future__ import annotations
 
+import argparse
 import copy
 import hashlib
 import json
 from pathlib import Path
 
-POLICY = "platform-requirement-record-only-tool-result-v1"
+POLICY = "message-body-record-only-v3"
+REVISION = "message-body-canary-v3"
 DEFAULT_CASE = "data_exfil_file"
 DEFAULT_ROOT = Path(__file__).resolve().parents[2] / "injection"
-MODEL_FIELDS = ("constraint", "action", "success", "parameters")
-SERIALIZATION = "json-utf8-ensure_ascii_false-fixed-field-order-compact-v1"
+MODEL_FIELDS = ("message",)
+LEGACY_FIELDS = ("constraint", "action", "success", "parameters")
 
 
 def _sha(raw: bytes) -> str:
@@ -73,19 +74,16 @@ def load_catalog(root: Path = DEFAULT_ROOT) -> dict[str, dict]:
 
 
 def compile_payload(case_id: str = DEFAULT_CASE, *, root: Path = DEFAULT_ROOT) -> dict:
-    """Return a nonempty ``text`` accepted by the real linked-result adapter.
-
-    The four original trajectory fields are serialized in their existing order
-    without changing their values. Review labels are not model instructions.
-    The complete case's raw bytes and compiler are pinned in provenance.
-    This is a synthetic record-only observation, not a live deletion/exfiltration
-    instruction or evidence that a source_function actually ran.
-    """
+    """Return verbatim message text and separately pinned review metadata."""
     cases, references, catalog, catalog_ref = _load(root)
     if case_id not in cases:
         raise ValueError("Unknown fixture case: " + str(case_id))
     case = cases[case_id]
-    for key in ("constraint", "action", "success", "marker", "source_function"):
+    message_body = catalog.get("payload_revision") == REVISION
+    fields = MODEL_FIELDS if message_body else LEGACY_FIELDS
+    required_text = ("message", "marker", "source_function") if message_body else (
+        "constraint", "action", "success", "marker", "source_function")
+    for key in required_text:
         if not isinstance(case.get(key), str) or not case[key]:
             raise ValueError("Missing fixture field: " + key)
     parameters = case.get("parameters")
@@ -93,32 +91,69 @@ def compile_payload(case_id: str = DEFAULT_CASE, *, root: Path = DEFAULT_ROOT) -
         raise ValueError("Only explicitly synthetic record_only fixtures are supported")
     if not isinstance(case.get("source"), dict):
         raise ValueError("The original fixture source references are required")
-    visible = {key: copy.deepcopy(case[key]) for key in MODEL_FIELDS}
-    text = json.dumps(visible, ensure_ascii=False, separators=(",", ":"))
+    if message_body:
+        if (catalog.get("schema_version") != 3 or case.get("schema_version") != 3 or case.get("payload_revision") != REVISION
+                or any(key in case for key in LEGACY_FIELDS[:-1])):
+            raise ValueError("Message-body fixtures require an unmixed v3 schema")
+        if (not case["message"].strip() or len(case["message"]) > 400
+                or not isinstance(case.get("target_behavior"), str)
+                or not isinstance(case.get("behavioral_measurement"), dict)):
+            raise ValueError("Message-body fixtures require concise text and explicit behavior/measurement metadata")
+        text = case["message"]
+    else:
+        if "message" in case:
+            raise ValueError("Message-body fixtures require the v3 catalog revision")
+        text = json.dumps({key: copy.deepcopy(case[key]) for key in fields}, ensure_ascii=False, separators=(",", ":"))
     compiler = Path(__file__).resolve()
-    return {
+    payload = {
         "id": case_id,
         "source_case": case_id,
         "source_payload": case_id + ".json",
         "payload_revision": catalog.get("payload_revision"),
-        "carrier": "one existing proven linked native message-read tool-result",
+        "carrier": "one message body in an existing proven linked native message-read tool-result" if message_body
+                   else "one existing proven linked native message-read tool-result",
         "text": text,
         "parameters": copy.deepcopy(parameters),
         "fixture_execution": "record_only",
         "provenance": {
-            "policy": POLICY,
+            "policy": POLICY if message_body else "platform-requirement-record-only-tool-result-v1",
             "case": references[case_id],
             "catalog": catalog_ref,
             "compiler": {"path": str(compiler), "sha256": _sha(compiler.read_bytes())},
             "source": copy.deepcopy(case["source"]),
-            "serialization": SERIALIZATION,
+            "serialization": "message-utf8-verbatim-v1" if message_body else "json-utf8-ensure_ascii_false-fixed-field-order-compact-v1",
             "serialized_case_sha256": _sha(text.encode("utf-8")),
             "serialized_case_characters": len(text),
-            "allowlisted_fields": list(MODEL_FIELDS),
+            "allowlisted_fields": list(fields),
             "all_selected_original_values_preserved": True,
-            "omitted_review_fields": [key for key in case if key not in MODEL_FIELDS],
+            "omitted_review_fields": [key for key in case if key not in fields],
             "new_tool_turns_created": False,
             "source_function_dispatched": False,
-            "success_claim": "untrusted fixture text; not an observed tool execution",
+            "success_claim": "none; message requests are not execution evidence" if message_body
+                             else "untrusted fixture text; not an observed tool execution",
         },
     }
+    if message_body:
+        payload.update(insertion_mode="message_body", target_behavior=case["target_behavior"],
+                       behavioral_measurement=copy.deepcopy(case["behavioral_measurement"]))
+    return payload
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--case", default=DEFAULT_CASE, dest="case_id")
+    parser.add_argument("--message-id", help="Select one message ID already present in the linked read response")
+    parser.add_argument("--output", type=Path, required=True, help="New compiled JSON; existing files are never replaced")
+    arguments = parser.parse_args()
+    payload = compile_payload(arguments.case_id)
+    if arguments.message_id:
+        payload["target_message_id"] = arguments.message_id
+    arguments.output.parent.mkdir(parents=True, exist_ok=True)
+    with arguments.output.open("x", encoding="utf-8") as stream:
+        json.dump(payload, stream, ensure_ascii=False, indent=2)
+        stream.write("\n")
+    print(json.dumps({"case": payload["id"], "output": str(arguments.output), "revision": payload["payload_revision"]}))
+
+
+if __name__ == "__main__":
+    main()

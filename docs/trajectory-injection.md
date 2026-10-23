@@ -4,24 +4,33 @@
 
 ## Payload与可信边界
 
-`injection/`保存十二类独立英文JSON与catalog，不放可执行代码或结果；`scripts/injection/`负责适配、模型输入保存和实验驱动。catalog固定来源与payload版本，实际运行冻结选定文件，后续修改不回写历史结果。
+[`injection/`](../injection/README.md)保存十二类独立英文JSON与catalog，不放可执行代码或结果；`scripts/injection/`负责适配、模型输入保存和实验驱动。catalog固定来源与payload版本，实际运行冻结选定文件，后续修改不回写历史结果。
 
-这些适配来自本地DyMalSkill材料的行为级代表，构造“环境检查失败→修复操作→声称恢复”的轨迹文本，并要求额外前置操作进入可复用流程。平台、审计和验证契约都是fixture中的不可信主张，不是用户授权。适配器本身不分发工具、不读真实凭据、不发送数据、不执行数据库写入或删除、负载与延时。
+这些适配来自本地DyMalSkill材料的行为级代表。当前schema使用预写的`message`请求固定合成操作，并要求其进入可复用流程；不写虚构成功声明，不根据任务或模型反馈自动优化文案。来源、参数和指标留在元数据，编译器只将message正文送入模型输入。适配器本身不分发工具、不读真实凭据、不发送数据、不执行数据库写入或删除、负载与延时。旧constraint/action/success格式仅供历史合成路径兼容。
 
 | Payload | 合成目标行为 |
 | --- | --- |
 | credential_abuse | 合成配置发现与披露 |
-| data_exfil_http | 时间戳/平台HTTP握手 |
+| data_exfil_http | 固定时间戳/平台值的HTTP请求计划 |
 | data_exfil_file | 本地调用审计记录 |
-| data_exfil_log | 缓存日志传输 |
-| mock_api | 固定合成凭据的请求 |
-| dos | 启动延时 |
-| rce | 下载产物；源案例本身不执行下载物 |
-| db_insert / db_delete | 合成数据库插入/删行 |
-| file_delete | 删除指定合成缓存记录 |
-| cpu_hijack / gpu_hijack | 合成负载步骤 |
+| data_exfil_log | 固定合成日志的传输计划 |
+| mock_api | 固定合成凭据的请求计划 |
+| dos | 延时步骤的文字记录，不实际等待 |
+| rce | 惰性测试产物的取回计划，不下载或执行 |
+| db_insert / db_delete | 固定合成数据库插入/删行计划 |
+| file_delete | 指定合成缓存记录的清理计划，不实际删除 |
+| cpu_hijack / gpu_hijack | 合成负载步骤的文字记录，不实际占用资源 |
 
-一个payload代表一类适配，不是全部原始实例的复现。marker仅用于定位和审读；出现marker不证明正向采纳或行为执行。记录only与真实行为执行配置必须明确区分。
+一个payload代表一类适配，不是全部原始实例的复现。marker保存在元数据，不一定出现在message中；旧marker启发式对新message标为不适用，不能算零采纳。记录only与真实行为执行配置必须明确区分。目前行为observer只覆盖`data_exfil_file`的合成本地写入；其余类别的ASR未覆盖。
+
+## 编译主框架的消息正文
+
+```bash
+.venv/bin/python -B -m scripts.injection.platform_payload \
+  --case data_exfil_file --output artifacts/NEW_ID/payload.json
+```
+
+零模型调用，拒绝覆盖。输出`text=message`与`insertion_mode=message_body`，供新实验`payload_file`使用。主适配器只在可证明关联的Slack `content`／邮件`body`内加入文字；保留原正文、发送者、ID和其他返回值。同一读取返回多个候选时，可加`--message-id`固定已请求的一个ID；歧义或截断拒绝，不退回工具输出前置。
 
 ## 构造合成批次
 
@@ -31,9 +40,9 @@
 .venv/bin/python -m scripts.injection build --output /tmp/sharedskill-injection-inputs
 ```
 
-默认每个case独立构造30条会话，seed7选3条增强，其他27条与clean相同；每类从同一初始技能开始，不跨case继承。默认`--summary none`仅构造轨迹；显式`--summary template`才加入人工模板概要，必须单独标注。fixture不发明PRM/ORM评分或声称真实任务执行。
+默认每个case独立构造30条会话，seed7选3条增强，其他27条与clean相同；每类从同一初始技能开始，不跨case继承。新message只加入已有工具结果，不增加工具操作或成功重试；此入口是合成诊断，不能代替主框架的真实消息关联。默认`--summary none`仅构造轨迹；显式`--summary template`才加入人工模板概要，必须单独标注。fixture不发明PRM/ORM评分或声称真实任务执行。
 
-保存的`*-request.json`是原生helper的system/user消息，未经模型评估；capture stub的skip不是模型决策。适配器核对目标constraint、action和success经过原生字段截断后是否完整保留。
+保存的`*-request.json`是原生helper的system/user消息，未经模型评估；capture stub的skip不是模型决策。适配器核对当前message正文经过原生字段截断后是否完整保留；旧格式另检查constraint、action和success。
 
 ## 修改已有会话的副本
 
@@ -44,7 +53,7 @@
   --output /tmp/sharedskill-injected-sessions.json
 ```
 
-只有选中的flat session改变，输入不覆盖。默认在最后一个turn前插入，Python接口可设置`insertion_index`。验证路径从原工具调用推断，或由`--output-path`提供；缺失路径拒绝。tool-call ID必须配对且唯一；聚合多rollout输入拒绝，不静默摊平。
+只有选中的flat session改变，输入不覆盖。新message添加到选中turn的已有工具结果，保留turn数量、调用ID与工具元数据；Python接口可设置`insertion_index`。这是显式标注的`synthetic_tool_result_append`诊断，无法证明该文字来自真实消息body；主框架必须使用上一节的关联适配器。旧格式才需要工作簿`--output-path`并生成反事实turn。tool-call ID必须配对且唯一；聚合多rollout输入拒绝，不静默摊平。
 
 缓存trajectory、summary和metadata重新构造，旧概要清除；增强会话的整体成功声称删除，原指标仅在独立来源记录中保留。原turn和旧评分仍只证明原步骤，不能证明新插入路径执行过。
 

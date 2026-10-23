@@ -10,6 +10,8 @@ Day k使用冻结的S(k−1)，Night k从真实成功/失败经验生成候选�
 
 `direct`与`validated`属于服务发布模式；实验采用的完整工具环境A/B和精确bundle发布由`scripts/wildclawbench`调度，不能用文本verifier或通用replay替代。候选接受少、技能未被实际读取或执行波动，均可能影响观测结果，需用对应运行证据解释。
 
+WildClawBench主管线的`alignment`模式将当晚全部会话的概要、结构化轨迹和整个技能库放入同一个Agent工作区，见[实际入口](../scripts/wildclawbench/evolution.py)。`_skills_referenced`分组用于关联和分析，不隔离输入；`per-skill-v1`是逐技能收集、验证候选，也不限制进化器只看读取过该技能的会话。来源校验核实引用是否属于真实Day记录，没有要求来源会话读取过被修改的技能。因此，其他任务或用户的经验可以被用于更新目标技能；某组只有一条会话，不代表进化器只看这一条。是否实际采用及其影响，应分别由修改依据与受控对照判断。
+
 实验入口放在`experiments/<name>/`；通用驱动和测试位于`scripts/`、`tests/`。独立论文复现的专用代码、测试、配置和说明集中在所属实验目录，例如[PoisonedEvolution](../experiments/poisoned_evolution/README.md)，不修改既有Day/Night管线。配置、源码和快照归`artifacts/<ID>/`，原始日志和指标归`outputs/<ID>/`，`runtime/`供隔离引擎与依赖使用。已完成证据保留原字节，通过归档根映射解析旧绝对路径。
 
 ## 给定一个 skill 后的完整流程

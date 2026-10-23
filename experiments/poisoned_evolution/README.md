@@ -6,9 +6,9 @@
 
 | 版本 | 记录 | 状态 |
 | --- | --- | --- |
-| 修复后续接 `-06` | [canary/README](canary/README.md)、[config-06.json](canary/config-06.json) | 真实smoke 4/4通过；旧10次completed和2次unknown已导入，第13批正常完成，后台继续，共用原预算 |
+| 已完成 Qwen3.5 `-06` | [canary/README](canary/README.md)、[config-06.json](canary/config-06.json) | 10月22日16:16 EDT完成；四类各25次，SER 20/100，unknown 3/103；汇报见[PRESENTATION](canary/PRESENTATION.md) |
 | Qwen3.5-35B模型对照 `-05` | [canary/README](canary/README.md)、[config-05.json](canary/config-05.json) | 10月22日14:36 EDT连续两次非法JSON触发熔断；F1完成10次、命中4次，unknown 2，其余三类未开始 |
-| 已完成canary F1–F4 `-04` | [config-04.json](canary/config-04.json) | 完成100/100；冻结自动SER 8/100（8%）、unknown 0；另有1例已确认语义漏判 |
+| 已完成canary F1–F4 `-04` | [config-04.json](canary/config-04.json) | 完成100/100；冻结自动SER 8/100、unknown 0；修复检测器后离线重计9/100 |
 | 已停止canary `-03` | [config-03.json](canary/config-03.json) | 方法修正前保留15个完整trial；原自动1/15，离线校准3/15；第16个未完成 |
 | 已封存canary `-02` | [config-02.json](canary/config-02.json) | 100/100 completed、0 unknown；冻结SER 4/100，离线语义复核10/100 |
 | 早期安全替代BF1–BF4 | [benign/README](benign/README.md)、[config-05.json](benign/config-05.json) | 100/100 completed、0 unknown、冻结SER 9/100；改变过目标动作，单独保留 |

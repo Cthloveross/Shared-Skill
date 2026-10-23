@@ -6,10 +6,8 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import signal
 import socket
 import subprocess
-import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -17,6 +15,7 @@ import httpx
 
 from scripts.wildclawbench.protocol import REPOSITORY
 from scripts.wildclawbench.services.common import runtime_directory, service_config
+from scripts.wildclawbench.services.auxiliary_worker import model_root, limits, stop_tree
 
 ROOT = REPOSITORY
 RUNTIME = runtime_directory()
@@ -24,6 +23,9 @@ MODULE = "scripts.wildclawbench.services.auxiliary_server"
 CONFIG_PATH: Path | None = None
 MAIN_HEALTH = "http://127.0.0.1:18181/health"
 PYTHON = RUNTIME / "auxiliary-venv" / "bin" / "python"
+MODELS = RUNTIME / "models"
+DOWNLOADS = RUNTIME / "auxiliary-downloads.json"
+REVISIONS = {}
 GPU = "GPU-04d83de3-985b-d799-0e97-0bb7498b1f00"
 PORTS = {"audio": 18183, "image": 18184}
 
@@ -66,13 +68,8 @@ def run(action, kind):
     if action == "stop":
         if not running:
             return {"stopped": False, "reason": "no matching experiment-owned live process"}
-        os.killpg(state["pid"], signal.SIGTERM)
-        deadline = time.monotonic() + 30
-        while owned(state) and time.monotonic() < deadline:
-            time.sleep(0.2)
-        if owned(state):
-            os.killpg(state["pid"], signal.SIGKILL)
-        return {"stopped": True, "pid": state["pid"]}
+        stopped = stop_tree(state["pid"], state["start_ticks"])
+        return {"stopped": stopped["quiescent"], "pid": state["pid"], **stopped}
     if running:
         return {**state, "running": True, "reused_existing_process": True}
     if httpx.get(MAIN_HEALTH, timeout=3, trust_env=False).status_code != 200:
@@ -82,14 +79,18 @@ def run(action, kind):
             raise RuntimeError(f"port {PORTS[kind]} is occupied by a process outside this experiment")
     free = int(
         subprocess.check_output(
-            ["nvidia-smi", "--id=" + GPU, "--query-gpu=memory.free", "--format=csv,noheader,nounits"], text=True
+            ["nvidia-smi", "--id=" + GPU, "--query-gpu=memory.free", "--format=csv,noheader,nounits"], text=True, timeout=10
         ).strip()
     )
     if free < {"audio": 32000, "image": 13000}[kind]:
         raise RuntimeError(f"GPU 1 has insufficient free memory for {kind}: {free} MiB")
-    downloads = json.loads((RUNTIME / "auxiliary-downloads.json").read_text())
+    downloads = json.loads(DOWNLOADS.read_text())
     if downloads["models"][kind]["status"] != "downloaded":
         raise RuntimeError(f"fixed {kind} model download is incomplete")
+    if REVISIONS.get(kind) and downloads["models"][kind].get("revision") != REVISIONS[kind]:
+        raise RuntimeError(f"Prepared {kind} model revision differs from configured revision")
+    if not PYTHON.is_file() or not (MODELS / {"audio": "qwen2.5-omni-7b", "image": "sdxl-base-1.0"}[kind]).is_dir():
+        raise RuntimeError("Prepared auxiliary Python or model directory is missing")
     directory.mkdir(parents=True, exist_ok=True)
     temporary = directory / "tmp"
     temporary.mkdir(exist_ok=True)
@@ -133,7 +134,7 @@ def run(action, kind):
 
 
 def main():
-    global RUNTIME, PYTHON, GPU, PORTS, CONFIG_PATH, MAIN_HEALTH
+    global RUNTIME, PYTHON, MODELS, DOWNLOADS, REVISIONS, GPU, PORTS, CONFIG_PATH, MAIN_HEALTH
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=["start", "status", "stop"])
     parser.add_argument("kind", choices=list(PORTS))
@@ -141,7 +142,12 @@ def main():
     from urllib.parse import urlparse
     CONFIG_PATH = args.config.resolve()
     RUNTIME = Path(config["runtime_dir"])
-    PYTHON = Path(config.get("auxiliary_python", RUNTIME / "auxiliary-venv/bin/python"))
+    shared = Path(config.get("shared_runtime_dir", RUNTIME))
+    PYTHON = Path(config.get("auxiliary_python", shared / "auxiliary-venv/bin/python"))
+    MODELS = model_root(config)
+    DOWNLOADS = Path(config.get("auxiliary_download_manifest", shared / "auxiliary-downloads.json"))
+    REVISIONS = {kind: config.get(kind + "_model_revision") for kind in ("audio", "image")}
+    limits(config)
     GPU = str(config.get("gpu_uuid", config.get("gpu_index", 0)))
     PORTS = {kind: urlparse(config[kind + "_base_url"]).port or 80 for kind in ("audio", "image")}
     MAIN_HEALTH = config["model_base_url"].removesuffix("/v1") + "/health"

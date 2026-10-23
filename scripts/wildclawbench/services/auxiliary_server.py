@@ -5,24 +5,29 @@ from __future__ import annotations
 
 import argparse
 import base64
-import fcntl
 import hashlib
 import json
 import logging
+import math
+import os
+import subprocess
 import threading
 import time
 import uuid
+import wave
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
-import torch
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, PlainTextResponse, Response
 
 from scripts.wildclawbench.services.common import runtime_directory, service_config
+from scripts.wildclawbench.services.auxiliary_worker import limits, model_root, create_proxy, owned_command
 
 RUNTIME = runtime_directory()
+MODEL_ROOT = RUNTIME / "models"
+LIMITS = limits({})
 OMNI_SYSTEM = (
     "You are Qwen, a virtual human developed by the Qwen Team, Alibaba Group, "
     "capable of perceiving auditory and visual inputs, as well as generating text and speech."
@@ -31,23 +36,77 @@ OMNI_SYSTEM = (
 
 @contextmanager
 def gpu_job(local_lock):
-    """Serialize GPU work across both auxiliary server processes."""
-    with local_lock, (RUNTIME / "auxiliary-gpu.lock").open("a") as shared_lock:
-        fcntl.flock(shared_lock, fcntl.LOCK_EX)
+    """The parent owns the bounded cross-service lock; refuse private overlap."""
+    if not local_lock.acquire(blocking=False):
+        raise HTTPException(429, "Private model worker already has an active job")
+    try:
+        yield
+    finally:
         try:
-            yield
+            torch.cuda.empty_cache()
         finally:
-            try:
-                torch.cuda.empty_cache()
-            finally:
-                fcntl.flock(shared_lock, fcntl.LOCK_UN)
+            local_lock.release()
+
+
+def integer(value, name, maximum, minimum=1):
+    if type(value) is not int or not minimum <= value <= maximum:
+        raise ValueError(f"{name} must be an integer between {minimum} and {maximum}")
+    return value
+
+
+def bounded_text(value, name, maximum):
+    if not isinstance(value, str) or not value.strip() or len(value) > maximum:
+        raise ValueError(f"{name} must be nonempty text of at most {maximum} characters")
+    return value
+
+
+def audio_file(path):
+    """Reject compressed duration bombs before the model/audio decoder loads them."""
+    if not 0 < path.stat().st_size <= LIMITS["max_audio_bytes"]:
+        raise ValueError("Audio file exceeds configured byte limit or is empty")
+    # Decode only enough audio to establish whether it fits the limit. Unlike
+    # metadata duration, a decoded sample count also works for AAC/stream inputs.
+    cap = LIMITS["max_audio_seconds"] + .1
+    destination = path.with_name(path.stem + ".validated.wav")
+    owned_command(["ffmpeg", "-hide_banner", "-nostdin", "-v", "error", "-y", "-i", str(path),
+                   "-map", "0:a:0", "-vn", "-t", str(cap), "-ac", "1", "-ar", "16000",
+                   "-acodec", "pcm_s16le", "-fs", str(int(cap * 16000 * 2) + 4096),
+                   "-f", "wav", str(destination)], check=True, capture_output=True,
+                  timeout=LIMITS["ffmpeg_timeout_seconds"])
+    with wave.open(str(destination), "rb") as decoded:
+        duration = decoded.getnframes() / decoded.getframerate()
+    if not math.isfinite(duration) or not 0 < duration <= LIMITS["max_audio_seconds"]:
+        raise ValueError("Audio duration exceeds configured limit")
+    return duration
+
+
+def image_parameters(body):
+    bounded_text(body.get("prompt"), "prompt", LIMITS["max_text_chars"])
+    negative = body.get("negative_prompt")
+    if negative is not None:
+        bounded_text(negative, "negative_prompt", LIMITS["max_text_chars"])
+    size = body.get("size", "1024x1024")
+    if not isinstance(size, str) or not __import__("re").fullmatch(r"\d{3,4}x\d{3,4}", size):
+        raise ValueError("Invalid image size")
+    width, height = map(int, size.split("x"))
+    if min(width, height) < 256 or max(width, height) > 1536 or width % 8 or height % 8 or width * height > LIMITS["max_image_pixels"]:
+        raise ValueError("Image dimensions exceed configured limits")
+    count = integer(body.get("n", 1), "n", LIMITS["max_image_count"])
+    steps = integer(body.get("steps", 30), "steps", LIMITS["max_image_steps"])
+    seed = integer(body.get("seed", 42), "seed", 2**32 - count, minimum=0)
+    guidance = body.get("guidance_scale", 7.5)
+    if isinstance(guidance, bool) or not isinstance(guidance, (int, float)) or not math.isfinite(guidance) or not 0 <= guidance <= 20:
+        raise ValueError("guidance_scale must be finite and between 0 and 20")
+    if body.get("response_format", "url") not in {"url", "b64_json"}:
+        raise ValueError("Unsupported image response_format")
+    return width, height, count, steps, seed, guidance
 
 
 class AudioModel:
     def __init__(self):
         from transformers import Qwen2_5OmniForConditionalGeneration, Qwen2_5OmniProcessor
 
-        directory = RUNTIME / "models" / "qwen2.5-omni-7b"
+        directory = MODEL_ROOT / "qwen2.5-omni-7b"
         self.model = Qwen2_5OmniForConditionalGeneration.from_pretrained(
             directory,
             dtype=torch.bfloat16,
@@ -56,8 +115,8 @@ class AudioModel:
             local_files_only=True,
         ).eval()
         self.processor = Qwen2_5OmniProcessor.from_pretrained(directory, local_files_only=True)
+        self.infer = torch.inference_mode()(self.infer)
 
-    @torch.inference_mode()
     def infer(self, conversation, *, max_tokens: int, speech: bool = False, speaker: str = "Chelsie", seed: int = 42):
         from qwen_omni_utils import process_mm_info
 
@@ -104,21 +163,16 @@ class ImageModel:
         from diffusers import StableDiffusionXLPipeline
 
         self.pipeline = StableDiffusionXLPipeline.from_pretrained(
-            RUNTIME / "models" / "sdxl-base-1.0",
+            MODEL_ROOT / "sdxl-base-1.0",
             torch_dtype=torch.float16,
             variant="fp16",
             use_safetensors=True,
             local_files_only=True,
         ).to("cuda:0")
+        self.infer = torch.inference_mode()(self.infer)
 
-    @torch.inference_mode()
     def infer(self, body):
-        width, height = map(int, body.get("size", "1024x1024").split("x"))
-        if min(width, height) < 256 or max(width, height) > 1536 or width % 8 or height % 8:
-            raise ValueError("image dimensions must be multiples of 8 between 256 and 1536")
-        count = int(body.get("n", 1))
-        if not 1 <= count <= 4:
-            raise ValueError("n must be between 1 and 4")
+        width, height, count, steps, seed, guidance = image_parameters(body)
         images = []
         for index in range(count):
             images.extend(
@@ -128,15 +182,17 @@ class ImageModel:
                     width=width,
                     height=height,
                     num_images_per_prompt=1,
-                    num_inference_steps=int(body.get("steps", 30)),
-                    guidance_scale=float(body.get("guidance_scale", 7.5)),
-                    generator=torch.Generator(device="cuda:0").manual_seed(int(body.get("seed", 42)) + index),
+                    num_inference_steps=steps,
+                    guidance_scale=guidance,
+                    generator=torch.Generator(device="cuda:0").manual_seed(seed + index),
                 ).images
             )
         return images
 
 
-def create_app(kind: str) -> FastAPI:
+def create_worker_app(kind: str) -> FastAPI:
+    global torch
+    import torch
     app = FastAPI(title=f"WildClawBench local {kind} inference")
     lock = threading.Lock()
     directory = RUNTIME / f"auxiliary-{kind}"
@@ -201,7 +257,10 @@ def create_app(kind: str) -> FastAPI:
     def fail(path, began, exception):
         finish(path, began, {"error": str(exception), "error_type": type(exception).__name__})
         logging.exception("local auxiliary inference failed")
-        raise HTTPException(status_code=503, detail=str(exception)) from exception
+        if isinstance(exception, HTTPException):
+            raise exception
+        raise HTTPException(status_code=422 if isinstance(exception, (ValueError, subprocess.CalledProcessError))
+                            else 503, detail=str(exception)) from exception
 
     @app.get("/health")
     @app.get("/healthz")
@@ -218,31 +277,49 @@ def create_app(kind: str) -> FastAPI:
             raise HTTPException(404, "chat is provided by the audio service")
         request_id, path, began = begin(body)
         try:
+            max_tokens = integer(body.get("max_tokens", 2048), "max_tokens", LIMITS["max_audio_tokens"])
+            seed = integer(body.get("seed", 42), "seed", 2**32 - 1, minimum=0)
+            messages = body.get("messages")
+            if not isinstance(messages, list) or not 1 <= len(messages) <= 64:
+                raise ValueError("messages must contain between 1 and 64 entries")
+            total_text, total_audio, audio_count = 0, 0, 0
             conversation = [{"role": "system", "content": [{"type": "text", "text": OMNI_SYSTEM}]}]
-            for message in body["messages"]:
+            for message in messages:
+                if not isinstance(message, dict) or message.get("role") not in {"system", "user", "assistant"}:
+                    raise ValueError("Invalid audio message")
                 parts = message.get("content")
                 if isinstance(parts, str):
                     parts = [{"type": "text", "text": parts}]
                 content = []
                 for index, part in enumerate(parts or []):
                     if part["type"] == "text":
+                        total_text += len(bounded_text(part.get("text"), "text", LIMITS["max_text_chars"]))
+                        if total_text > LIMITS["max_text_chars"]:
+                            raise ValueError("Audio conversation exceeds text limit")
                         content.append(part)
                     elif part["type"] == "input_audio":
                         audio = part["input_audio"]
                         audio_format = audio.get("format", "wav")
                         if audio_format not in {"wav", "mp3", "flac", "ogg", "opus", "aac"}:
                             raise ValueError("unsupported input_audio format")
+                        encoded = audio.get("data")
+                        audio_count += 1
+                        if not isinstance(encoded, str) or len(encoded) > 4 * ((LIMITS["max_audio_bytes"] + 2) // 3) or audio_count > 8:
+                            raise ValueError("Audio data exceeds configured limit")
                         audio_path = path / f"audio-{len(conversation)}-{index}.{audio_format}"
-                        audio_path.write_bytes(base64.b64decode(audio["data"], validate=True))
-                        content.append({"type": "audio", "audio": str(audio_path)})
+                        audio_path.write_bytes(base64.b64decode(encoded, validate=True))
+                        total_audio += audio_file(audio_path)
+                        if total_audio > LIMITS["max_audio_seconds"]:
+                            raise ValueError("Total audio duration exceeds configured limit")
+                        content.append({"type": "audio", "audio": str(audio_path.with_name(audio_path.stem + ".validated.wav"))})
                     else:
                         raise ValueError(f"unsupported audio chat content type {part['type']}")
                 conversation.append({"role": message["role"], "content": content})
             with gpu_job(lock):
                 answer, _, prompt_tokens, completion_tokens = model.infer(
                     conversation,
-                    max_tokens=int(body.get("max_tokens", 2048)),
-                    seed=int(body.get("seed", 42)),
+                    max_tokens=max_tokens,
+                    seed=seed,
                 )
             response = {
                 "id": "chatcmpl-" + request_id,
@@ -253,7 +330,7 @@ def create_app(kind: str) -> FastAPI:
                     {
                         "index": 0,
                         "message": {"role": "assistant", "content": answer},
-                        "finish_reason": "length" if completion_tokens >= int(body.get("max_tokens", 2048)) else "stop",
+                        "finish_reason": "length" if completion_tokens >= max_tokens else "stop",
                     }
                 ],
                 "usage": {
@@ -293,6 +370,12 @@ def create_app(kind: str) -> FastAPI:
         }
         _, path, began = begin(body)
         try:
+            integer(max_tokens, "max_tokens", LIMITS["max_audio_tokens"])
+            integer(seed, "seed", 2**32 - 1, minimum=0)
+            if prompt is not None:
+                bounded_text(prompt, "prompt", LIMITS["max_text_chars"])
+            if language is not None:
+                bounded_text(language, "language", 128)
             if response_format not in {"json", "text"}:
                 raise ValueError("Local transcription supports json and text without fabricated timestamps")
             suffix = Path(file.filename or "input.wav").suffix.lower()
@@ -300,13 +383,14 @@ def create_app(kind: str) -> FastAPI:
             digest, size = hashlib.sha256(), 0
             with audio_path.open("wb") as destination:
                 for chunk in iter(lambda: file.file.read(8 * 1024 * 1024), b""):
+                    if size + len(chunk) > LIMITS["max_audio_bytes"]:
+                        raise ValueError("Audio upload exceeds configured byte limit")
                     destination.write(chunk)
                     digest.update(chunk)
                     size += len(chunk)
             body["file"] = {"name": file.filename, "bytes": size, "sha256": digest.hexdigest()}
             (path / "request.json").write_text(json.dumps(body, indent=2) + "\n")
-            if size == 0:
-                raise ValueError("The submitted audio file is empty")
+            audio_file(audio_path)
             instruction = (
                 "Transcribe the speech in this audio verbatim. Return only the transcript, without explanations."
             )
@@ -320,7 +404,7 @@ def create_app(kind: str) -> FastAPI:
                     "role": "user",
                     "content": [
                         {"type": "text", "text": instruction},
-                        {"type": "audio", "audio": str(audio_path)},
+                        {"type": "audio", "audio": str(audio_path.with_name(audio_path.stem + ".validated.wav"))},
                     ],
                 },
             ]
@@ -355,6 +439,12 @@ def create_app(kind: str) -> FastAPI:
         try:
             import soundfile as sf
 
+            input_text = bounded_text(body.get("input"), "input", LIMITS["max_speech_chars"])
+            max_tokens = integer(body.get("max_tokens", 2048), "max_tokens", LIMITS["max_audio_tokens"])
+            seed = integer(body.get("seed", 42), "seed", 2**32 - 1, minimum=0)
+            requested_format = body.get("response_format", "mp3")
+            if requested_format not in {"wav", "mp3", "flac", "opus", "aac", "pcm"}:
+                raise ValueError("unsupported speech response_format")
             voice = body.get("voice", "Chelsie")
             speaker = "Ethan" if str(voice).lower() in {"ethan", "onyx", "echo"} else "Chelsie"
             conversation = [
@@ -364,7 +454,7 @@ def create_app(kind: str) -> FastAPI:
                     "content": [
                         {
                             "type": "text",
-                            "text": "Read the following text aloud exactly, without adding any words: " + body["input"],
+                            "text": "Read the following text aloud exactly, without adding any words: " + input_text,
                         }
                     ],
                 },
@@ -372,27 +462,22 @@ def create_app(kind: str) -> FastAPI:
             with gpu_job(lock):
                 text, audio, _, _ = model.infer(
                     conversation,
-                    max_tokens=int(body.get("max_tokens", 2048)),
+                    max_tokens=max_tokens,
                     speech=True,
                     speaker=speaker,
-                    seed=int(body.get("seed", 42)),
+                    seed=seed,
                 )
-            if audio is None or audio.numel() == 0:
+            if audio is None or not 0 < audio.numel() <= 24000 * LIMITS["max_audio_seconds"]:
                 raise RuntimeError("Omni returned no generated waveform")
             output = path / "speech.wav"
             sf.write(output, audio.reshape(-1).detach().float().cpu().numpy(), 24000)
-            requested_format = body.get("response_format", "mp3")
-            if requested_format not in {"wav", "mp3", "flac", "opus", "aac", "pcm"}:
-                raise ValueError("unsupported speech response_format")
             if requested_format != "wav":
-                import subprocess
-
                 converted = path / ("speech." + requested_format)
                 command = ["ffmpeg", "-loglevel", "error", "-y", "-i", str(output)]
                 if requested_format == "pcm":
                     command += ["-f", "s16le", "-acodec", "pcm_s16le"]
                 command.append(str(converted))
-                subprocess.run(command, check=True, capture_output=True)
+                owned_command(command, check=True, capture_output=True, timeout=LIMITS["ffmpeg_timeout_seconds"])
                 output = converted
             finish(
                 path, began, {"transcript": text, "audio_file": str(output), "sample_rate": 24000, "speaker": speaker}
@@ -420,7 +505,7 @@ def create_app(kind: str) -> FastAPI:
                 if body.get("response_format", "url") == "b64_json":
                     item["b64_json"] = base64.b64encode(output.read_bytes()).decode()
                 else:
-                    item["url"] = str(request.base_url).rstrip("/") + f"/artifacts/{request_id}/image-{index}.png"
+                    item["url"] = request.headers.get("x-public-base-url", str(request.base_url)).rstrip("/") + f"/artifacts/{request_id}/image-{index}.png"
                 data.append(item)
             response = {"created": int(time.time()), "data": data, "model": metadata["model"]}
             finish(path, began, response)
@@ -443,11 +528,27 @@ def main() -> None:
 
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--kind", choices=["audio", "image"], required=True)
-    parser.add_argument("--port", type=int, required=True)
+    parser.add_argument("--port", type=int)
+    parser.add_argument("--worker-socket", type=Path)
     args, config = service_config(parser)
-    global RUNTIME
+    global RUNTIME, MODEL_ROOT, LIMITS
     RUNTIME = Path(config["runtime_dir"])
-    uvicorn.run(create_app(args.kind), host="0.0.0.0", port=args.port)
+    MODEL_ROOT = model_root(config)
+    LIMITS = limits(config)
+    if args.worker_socket:
+        # The GPU owner cannot outlive its dedicated API parent.
+        import ctypes
+        import signal
+        parent = os.getppid()
+        if ctypes.CDLL(None, use_errno=True).prctl(1, signal.SIGKILL, 0, 0, 0) != 0 or os.getppid() != parent:
+            raise RuntimeError("Cannot bind model worker lifetime to API parent")
+        os.umask(0o077)
+        uvicorn.run(create_worker_app(args.kind), uds=str(args.worker_socket), access_log=False)
+    else:
+        if not args.port:
+            parser.error("--port is required for the public service")
+        config["service_config_path"] = str(args.config.resolve())
+        uvicorn.run(create_proxy(args.kind, config), host="0.0.0.0", port=args.port, access_log=False)
 
 
 if __name__ == "__main__":

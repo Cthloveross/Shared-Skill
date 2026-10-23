@@ -704,7 +704,7 @@ def _configured_history_sources(config: dict, bundles: list[dict], bank: dict,
                                 sessions: list[dict]) -> tuple[list[dict], list[dict]]:
     """Select the explicitly frozen source protocol without changing evidence."""
     if config.get("alignment", {}).get("source_evidence_revision") == "native-history-frozen-alias-union-v3":
-        from source_evidence_v2 import resolve_history_sources_for_config
+        from scripts.injection.source_evidence_v2 import resolve_history_sources_for_config
         return resolve_history_sources_for_config(config, bundles, bank, sessions)
     return _history_sources(bundles, bank, sessions)
 
@@ -802,7 +802,7 @@ def _collect_atomic_candidate(attempt: Path, bank_dir: Path, bank: dict, session
                  "source_bank_sha256": record["source_bank_sha256"], "engine": "native-agent-whole-night",
                  "validation_status": "not_validated", "proposal_artifact": str(attempt / "candidate.json")}
     try:
-        selected, evidence = _history_sources(bundles, bank, sessions)
+        selected, evidence = _configured_history_sources(config, bundles, bank, sessions)
     except ValueError as error:
         candidate.update(source_task_ids=[], source_session_ids=[], source_evidence=[], reason=str(error))
         _attach_typed_sources(candidate, config)

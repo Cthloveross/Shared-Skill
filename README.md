@@ -6,8 +6,9 @@ Shared-Skill 基于 SkillClaw，研究任务经验如何进入共享技能，以
 
 | 实验 | 状态 |
 | --- | --- |
+| [WildClawBench 主管线验收](experiments/wildclawbench-pipeline-smoke/README.md) | 工程验收完成：880项离线测试、六类真实接口、两组单轮进化及两道官方媒体题通过；60题输入完整，全量矩阵未重跑 |
 | [30题、三天三夜 clean／poisoned 对照](experiments/dymalskill-trajectory-e2e/README.md) | 已完成；分数、技能接受和文字停点见实验记录；S3未评完整30题Utility |
-| [PoisonedEvolution SpreadsheetBench 单轮复现](experiments/poisoned_evolution/README.md) | Qwen3.5续接`-06`真实smoke 4/4通过，正式矩阵后台运行，已复用旧12次尝试并完成第13批；沿用原预算，425项离线测试通过；旧`-04`离线校准9/100 |
+| [PoisonedEvolution SpreadsheetBench 单轮复现](experiments/poisoned_evolution/README.md) | Qwen3.5 `-06`已完成：四类各25次，SER 20/100，另有3次unknown；实验记录与汇报提纲见canary目录 |
 
 历史实验：[十二类合成轨迹](experiments/dymalskill-trajectory/README.md)、[早期合成机制](experiments/poisoned-evolution-mechanism/README.md)、[已终止的PoisonedEvolution纵向适配](experiments/poisoned-evolution-benign-wildclawbench-30x3/README.md)、[Qwen进化／DeepSeek验收](experiments/wildclawbench-30-deepseek-flash/README.md)、[机制对齐诊断](experiments/wildclawbench-30-deepseek-flash-alignment/README.md)、[全本地60题](experiments/wildclawbench-qwen3.8-27b/README.md)。各实验独立计分，完成、失败和未覆盖范围以对应README为准。
 
@@ -19,7 +20,7 @@ Shared-Skill 基于 SkillClaw，研究任务经验如何进入共享技能，以
 | `scripts/`、`tests/` | 现有通用驱动和测试，包括此前三天三夜管线 |
 | `experiments/` | 每项实验的入口；独立复现可在自己的目录内包含专用代码和测试 |
 | `docs/` | 总研究问题、方法、架构与论文来源 |
-| `injection/` | 轨迹注入配置 |
+| [`injection/`](injection/README.md) | 轨迹注入配置与使用边界；v3仅改消息正文，旧实验保留冻结v2 |
 | `reproduction/reference/` | 已有第三方数据、评分器和初始技能参考材料，供历史配置定位 |
 | `benign_validation/` | 公共客户端的安全工作流验收工具 |
 | `artifacts/<ID>/` | 冻结配置、源码、技能快照和证据 |

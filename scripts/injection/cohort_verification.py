@@ -87,7 +87,8 @@ def verify_night_safe_prompt(run_dir: Path, branch: Path, expected_prompt: str) 
                      bootstrap_path=str(agents_path), bootstrap_sha256=_hash(agents_raw),
                      prompt_sha256=_hash(expected_prompt.encode()), protocol_hash=protocol)
         successes = 0
-        for request in sorted((run_dir / "runtime/api-evidence" / run_id).glob("*/request.json")):
+        evidence_root = Path(settings.get("gateway_log_dir", run_dir / "runtime/api-evidence"))
+        for request in sorted((evidence_root / run_id).glob("*/request.json")):
             body = _read(request)
             if not isinstance(body.get("tools"), list) or not body["tools"]:
                 continue  # Native session summaries are separate from the acting Agent.

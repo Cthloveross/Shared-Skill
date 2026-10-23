@@ -8,7 +8,19 @@ import hashlib
 import json
 from pathlib import Path
 
-from .trajectory import CONDITIONS, ROOT, capture_request, fragment_turns, inject, load_catalog, make_batch, make_suite
+from .trajectory import (
+    CONDITIONS,
+    DIAGNOSTIC_MODE,
+    MESSAGE_REVISION,
+    ROOT,
+    capture_request,
+    fragment_turns,
+    inject,
+    load_catalog,
+    make_batch,
+    make_suite,
+    message_fragment,
+)
 
 
 def write_json(path: Path, value) -> None:
@@ -27,7 +39,11 @@ async def prepare(args) -> None:
     for case_id in selected:
         case = cases[case_id]
         folder = args.output / case_id
-        write_json(folder / "fragment.json", fragment_turns(case))
+        fragment = (
+            {"text": message_fragment(case), "insertion_mode": DIAGNOSTIC_MODE, "new_tool_turns_created": False}
+            if "message" in case else fragment_turns(case)
+        )
+        write_json(folder / "fragment.json", fragment)
         for condition in CONDITIONS:
             sessions, session_ids = make_batch(case, args.total, args.support, args.seed, condition, args.summary)
             write_json(folder / f"{condition}.json", sessions)
@@ -47,13 +63,16 @@ async def prepare(args) -> None:
                 "marker": case["marker"],
                 "llm_evaluated": False,
                 "attack_success": None,
+                "insertion_mode": DIAGNOSTIC_MODE if "message" in case else "legacy_counterfactual_turns",
+                "continuation_replayed": False,
+                "summary_origin": "manual_diagnostic_note" if args.summary == "template" else "none",
             },
         )
     write_json(args.output / "suite.json", [item for item in make_suite() if item["case_id"] in selected])
     write_json(
         args.output / "manifest.json",
         {
-            "dataset": "dymalskill-trajectory-canary-v1",
+            "dataset": json.loads((ROOT / "catalog.json").read_text())["dataset"],
             "cases": selected,
             "catalog_sha256": hashlib.sha256((ROOT / "catalog.json").read_bytes()).hexdigest(),
             "source": json.loads((ROOT / "catalog.json").read_text())["source"],
@@ -61,6 +80,7 @@ async def prepare(args) -> None:
             "llm_evaluated": False,
             "attack_success": None,
             "summary_mode": args.summary,
+            "scope": "synthetic diagnostics; edited continuations were not replayed",
         },
     )
     print(json.dumps({"status": "prepared", "cases": len(selected), "output": str(args.output)}))
@@ -96,6 +116,10 @@ def inject_existing(args) -> None:
             "summary_mode": args.summary,
             "llm_evaluated": False,
             "attack_success": None,
+            "payload_revision": MESSAGE_REVISION if "message" in case else "legacy",
+            "insertion_mode": DIAGNOSTIC_MODE if "message" in case else "legacy_counterfactual_turns",
+            "continuation_replayed": False,
+            "summary_origin": "manual_diagnostic_note" if args.summary == "template" else "none",
             "original_selected_execution_metrics": {
                 s["session_id"]: {key: s[key] for key in ("outcome", "aggregate") if key in s}
                 for s in sessions
@@ -112,11 +136,13 @@ def main() -> None:
     build = commands.add_parser("build", help="Prepare fixtures and exact native requests without a model call")
     build.add_argument("--case", default="all")
     build.add_argument("--output", type=Path, required=True)
-    inject_parser = commands.add_parser("inject", help="Insert a fixture into explicitly selected flat sessions")
+    inject_parser = commands.add_parser(
+        "inject", help="Append a diagnostic request to existing flat-session tool output"
+    )
     inject_parser.add_argument("--case", required=True)
     inject_parser.add_argument("--sessions", type=Path, required=True)
     inject_parser.add_argument("--session-ids", nargs="+", required=True)
-    inject_parser.add_argument("--output-path", help="Workbook output path, otherwise inferred from validation calls")
+    inject_parser.add_argument("--output-path", help="Legacy counterfactual fixtures only: workbook validation path")
     inject_parser.add_argument("--output", type=Path, required=True)
     run = commands.add_parser("run", help="Call the native helper with no added defense or publication")
     run.add_argument("--cases", nargs="+")

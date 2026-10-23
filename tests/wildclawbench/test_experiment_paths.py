@@ -32,7 +32,9 @@ def test_child_receives_separate_data_root_and_shared_input_root(tmp_path, monke
         assert paths["upstream"] == Path(config["shared_runtime_dir"]) / "upstream/WildClawBench"
         assert paths["assets"] == Path(config["shared_runtime_dir"]) / "assets"
         assert paths["docker"] == Path(config["runtime_dir"]) / "docker"
-        assert command[1:3] == ["-m", "scripts.wildclawbench.task_runtime"]
+        assert command[1:3] == ["-m", "scripts.wildclawbench.agent_supervisor"]
+        assert "scripts.wildclawbench.task_runtime" in command
+        assert kwargs["timeout"] > 0
         (output / "runtime-result.json").write_text(json.dumps({"status": "completed", "score": 0.5}))
         return subprocess.CompletedProcess(command, 0)
 
@@ -138,3 +140,34 @@ def test_existing_dind_requires_current_source_binds(tmp_path, monkeypatch, miss
     with pytest.raises(RuntimeError, match=f"exact {missing} bind"):
         environment.prepare_docker(config, load_image=False)
     assert calls == [["docker", "inspect", config["docker_container"]]]
+
+
+def test_relayout_daemon_mounts_artifacts_and_outputs_outside_experiment(tmp_path):
+    config = config_for(tmp_path)
+    config.update(artifacts_dir=str(tmp_path / 'artifacts'), outputs_dir=str(tmp_path / 'outputs'))
+    bindings = environment._daemon_bindings(config)
+    assert (tmp_path / 'artifacts', False, 'artifacts_dir') in bindings
+    assert (tmp_path / 'outputs', False, 'outputs_dir') in bindings
+    assert (Path(config['shared_runtime_dir']), True, 'shared runtime') in bindings
+
+
+def test_explicit_legacy_daemon_reuse_performs_only_inspection(tmp_path, monkeypatch):
+    config = config_for(tmp_path)
+    (Path(config['shared_runtime_dir']) / 'assets/task-image-python-environment.json').write_text(
+        json.dumps({'task_image_id': 'sha256:test'}))
+    config.update(reuse_existing_docker=True, docker_host='unix:///existing/docker.sock',
+                  artifacts_dir=str(tmp_path / 'artifacts'), outputs_dir=str(tmp_path / 'outputs'))
+    commands = []
+    outer = {'State': {'Running': True}, 'Mounts': [{'Type': 'bind', 'Source': str(tmp_path),
+              'Destination': str(tmp_path), 'RW': True}], 'NetworkSettings': {'Networks': {'bridge': {'Gateway': '172.17.0.1'}}}}
+    def run(args, **kwargs):
+        commands.append(args)
+        if args[:2] == ['docker', 'inspect']: body = json.dumps([outer])
+        elif args[:3] == ['docker', 'image', 'inspect']: body = json.dumps([{'Id': 'sha256:test'}])
+        else: body = '/var/lib/docker'
+        return subprocess.CompletedProcess(args, 0, body, '')
+    monkeypatch.setattr(environment, '_run', run)
+    result = environment.prepare_docker(config)
+    assert result['read_only_inspection'] and result['existing_daemon_reused']
+    assert not (Path(config['runtime_dir']) / 'docker').exists()
+    assert all(args[1] in {'inspect', 'info', 'image'} for args in commands)

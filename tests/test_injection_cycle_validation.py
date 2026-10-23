@@ -43,6 +43,17 @@ def test_cohort_inputs_validate_exact_original_and_frozen_tree(cohort):
         validation.validate_cohort_inputs(binding, task)
 
 
+def test_input_binding_does_not_bind_its_own_runtime_config(cohort):
+    source, task, _ = cohort
+    binding = validation.prepare_input_binding(source, [task])
+    validation.e2e.write_json(source / "config.runtime.json", {
+        "all_tasks": [task], validation.BINDING_KEY: binding})
+    assert validation.validate_cohort_inputs(binding, task)["validated"] is True
+    assert validation.prepare_input_binding(source, [task]) == binding
+    with pytest.raises(ValueError, match="descriptors changed"):
+        validation.prepare_input_binding(source, [{**task, "user_id": "other"}])
+
+
 @pytest.mark.parametrize("mutation", ["original", "frozen", "descriptor", "missing"])
 def test_invalid_cohort_inputs_fail_before_execution(cohort, mutation):
     source, task, binding = cohort
@@ -105,7 +116,7 @@ def test_adapter_uses_real_controller_score_recovery_without_agent_rerun(cohort,
         calls.append("agent")
         assert config["task"]["source_path"] == task["source_path"]
         assert config["round"] == 4 and config["execution_id"]
-        return {"status": "pending_score", "score": None}
+        return {"status": "pending_score", "score": None, "scoring_recovery_eligible": True}
 
     def rescore(task_id, directory, config):
         calls.append("score-recovery")
@@ -201,3 +212,114 @@ def test_execution_bridge_separates_sandbox_contract_and_rejects_other_binding(c
         assert calls == [sandbox_config]
         with pytest.raises(ValueError, match="different cohort input binding"):
             runtime.execute_task(task["task_id"], source, source, {validation.BINDING_KEY: {"wrong": True}})
+
+
+def test_fresh_two_task_day_to_native_candidate_validation_without_method_revision(cohort, monkeypatch):
+    """Real scheduler, source resolver, provenance, gates and publish; model I/O is fake."""
+    import shutil
+    from scripts.injection import e2e_cycles as cycles, resilient_runner
+    from scripts.wildclawbench import run as controller, evolution, environment, task_runtime, provenance
+    from scripts.wildclawbench.protocol import tree_hash
+    from sharedskill.skill_bundle import read_skill_bundle
+
+    source, first, _ = cohort
+    first["category"] = "test"
+    second = copy.deepcopy(first)
+    second.update(task_id="03_task_3", short_id="03.03", user_id="user-02")
+    folder = source / "frozen/tasks/03.03"
+    shutil.copytree(Path(first["source_path"]).parent, folder)
+    second["source_path"] = str(folder / "task.md")
+    Path(second["source_path"]).write_text(Path(first["source_path"]).read_text().replace(
+        str(Path(first["source_path"]).parent), str(folder)))
+    second["input_manifest"] = validation.e2e.tree_manifest(folder / "task-workspace")
+    second["input_sha256"] = second["input_manifest"]["sha256"]
+    tasks = [first, second]
+    binding = validation.prepare_input_binding(source, tasks)
+    settings = {"all_tasks": tasks, "rounds": 1, "task_count": 2, "users": 2,
+        "model_id": "fixture-model", "model_revision": "fixture-revision",
+        "protocol_hash": "day-protocol", "seed": 42, "infrastructure_retries": 0,
+        "runtime_dir": str(source / "runtime"), "alignment_gateway_port": 19000,
+        "local_api_base_url": "http://unused/v1", "score_tolerance": 0,
+        "agent_prompt_sha256": "fixture-prompt", "runtime_contract_sha256": "fixture-runtime",
+        validation.BINDING_KEY: binding,
+        "alignment": {"version": "native-night-atomic-v1", "native_candidate_scope": "per-skill-v1",
+            "source_evidence_revision": "native-history-frozen-alias-union-v3"},
+        "execution_protocol": {"version": "resilient-v1", "conditions": ["clean"],
+            "max_concurrency": 2, "max_transient_retries": 1,
+            "circuit_breaker": {"same_signature_limit": 2}, "stage_budgets": {"night_seconds": 60}}}
+    validation.e2e.write_json(source / "config.runtime.json", settings)
+    bank = source / "banks/S0"
+    (bank / "alpha").mkdir(parents=True)
+    (bank / "alpha/SKILL.md").write_text("---\nname: alpha\ndescription: Procedure\n---\nOriginal procedure.\n")
+    calls = []
+
+    def execute(task_id, _bank, _directory, config):
+        assert provenance.validate_task_inputs(config, config["task"])["validated"] is True
+        calls.append((config["phase"], task_id))
+        return {"status": "completed", "score": .5 if config["phase"] == "day" else .8,
+            "session": {"turns": [{"prompt_text": "Task", "response_text": "Completed", "read_skills": []}]}}
+
+    monkeypatch.setattr(task_runtime, "execute_task", execute)
+    with validation.validation_adapter(controller, binding):
+        rows = controller.run_stage(tasks, bank, source, settings, "day", 1)
+    assert all(row["status"] == "completed" for row in rows)
+    sessions = [row["session"] for row in rows]
+    for session in sessions:
+        session.update(original_session_id=session["session_id"],
+                       native_uploaded_sha256="fixture-upload", native_record_segment_index=1)
+    rows_by_task = {row["task_id"]: row for row in rows}
+    importer = SimpleNamespace(directory=source, manifest_path=source / "fixture-import.json",
+        manifest={"fixture": True}, sessions=lambda *_: copy.deepcopy(sessions),
+        scored_row=lambda task, *_: (rows_by_task[task["task_id"]], {"reused_without_execution_or_rescoring": True}))
+    validation.e2e.write_json(importer.manifest_path, importer.manifest)
+    monkeypatch.setattr(resilient_runner, "baseline_import", lambda _: importer)
+    # Full baseline-import identity/byte validation has dedicated tests; this
+    # fixture exercises the new-run call chain using the scores just produced.
+    monkeypatch.setattr(cycles.cohort, "validate_resume", lambda *_a, **_k: None)
+    monkeypatch.setattr(cycles, "sources", lambda: [])
+    monkeypatch.setattr(cycles, "start_gateway", lambda *_: (None, "http://unused", None))
+    monkeypatch.setattr(cycles, "stop_gateway", lambda *_: None)
+    monkeypatch.setattr(environment, "preflight_candidate_bank", lambda *_: {"passed": True})
+    monkeypatch.setattr(controller, "outcome_preference", lambda *_: "candidate")
+    collected = []
+
+    def propose(directory, parent, day_sessions, config):
+        attempt = directory / "evolution/fixture-model-output"
+        workspace = attempt / "workspace/skills"
+        shutil.copytree(parent, workspace)
+        skill = workspace / "alpha/SKILL.md"
+        skill.write_text(skill.read_text() + "Check the final artifact before delivery.\n")
+        history = workspace / "alpha/history/v1_evidence.md"
+        history.parent.mkdir()
+        # Registered abbreviations must resolve to BOTH canonical task IDs,
+        # identically when collecting the proposal and validating it later.
+        history.write_text("Successful Day evidence: day-03.01/03.03\n")
+        source_bank = {p.name: read_skill_bundle(p) for p in parent.iterdir()}
+        normalized = [evolution._normalize_session(s, set(source_bank), False) for s in day_sessions]
+        candidates = evolution._collect_atomic_candidate(attempt, parent, source_bank, normalized,
+            config, {"source_bank_sha256": tree_hash(parent)})
+        collected.extend(candidates)
+        return candidates
+
+    monkeypatch.setattr(evolution, "propose_candidates", propose)
+    payload = source / "payload.json"
+    validation.e2e.write_json(payload, {})
+    config = {"settings": settings, "source_run": str(source), "sources": [], "rounds": 1,
+        "run_id": "fixture-fresh", "source_protocol_hash": settings["protocol_hash"],
+        "native_llm_request_timeout_seconds": 60, "bootstrap_manifest_sha256": "fixture-import",
+        "frozen_payload": str(payload), "payload_sha256": validation.e2e.sha256(payload.read_bytes())}
+    run = source / "cycle"
+    result = cycles.run_stage(run, config, "clean", 1, bank)
+    assert result["status"] == "completed" and result["changeset_accepted"] is True
+    assert result["input_coverage_complete"] is True
+    assert len(collected) == 1
+    candidate = collected[0]
+    assert candidate["source_task_ids"] == sorted(task["task_id"] for task in tasks)
+    assert all(row["source_policy"] == "native-history-frozen-alias-union-v3"
+               for row in candidate["source_evidence"])
+    assert sorted(calls) == sorted((phase, task["task_id"]) for phase in ("day", "validation") for task in tasks)
+    assert tree_hash(Path(result["published_bank"])) != tree_hash(bank)
+    proofs = list((run / "rounds/01/clean/branches/clean/executions/validation").rglob("input-validation.json"))
+    assert len(proofs) == 2 and all(validation.e2e.read_json(p)["validated"] for p in proofs)
+    assert cycles.run_stage(run, config, "clean", 1, bank) == result
+    assert len(calls) == 4

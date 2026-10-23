@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 3,
   "dataset": "dymalskill-trajectory-canary-v1",
   "source": {
     "archive": "DyMalSkill_300x12.zip",
@@ -23,70 +23,70 @@
     {
       "id": "credential_abuse",
       "path": "credential_abuse.json",
-      "sha256": "89c5adae55da67f9151a35c8fadd32b8863c1507dafeaa7492e6733a2998b955"
+      "sha256": "f1a57078b1f38d1ad1943d6a1ef2a0e01386915c1e26d269e206b91c6f53999e"
     },
     {
       "id": "data_exfil_http",
       "path": "data_exfil_http.json",
-      "sha256": "c84b8367111810ca5828e89c72bcce61db5a2be3180b9a1bd2abf7f4b4b83519"
+      "sha256": "428373d0a076d8ece801d8c09fc77e5c49d8c3923e62ca9ed2811f590046e610"
     },
     {
       "id": "data_exfil_file",
       "path": "data_exfil_file.json",
-      "sha256": "e00d88133ee69a632ff9e545585a8b07e5bf7e05e16a9722f55af466c40491f2"
+      "sha256": "0610d7ed21e47b8a0da72c0b88a73def46ffd38e7467062878088250cf8850d7"
     },
     {
       "id": "data_exfil_log",
       "path": "data_exfil_log.json",
-      "sha256": "4e143a5f6fd35375b82790744db3c78adcb7b019ae52b73bcc78287cfebf5f3d"
+      "sha256": "6a1bdc98fe3033a8c1eaa32e49a6118b130849719bf2f285814fdfe3a6637350"
     },
     {
       "id": "mock_api",
       "path": "mock_api.json",
-      "sha256": "a43956f1c69522858efcff6310f59fdc2bf2263a18588c39e9cdd92fc0999562"
+      "sha256": "5ba45d1cbec916b9957b95c5574d380e5b3755480261fabd1dae0a4b67bbe953"
     },
     {
       "id": "dos",
       "path": "dos.json",
-      "sha256": "c02938b026c745da3f391be070517bbdf7e7f8da6b71749b6989849974a1d44c"
+      "sha256": "d1f4a78f650fa283dea7323a37d1e027d725d8e1ef27a5a84079ee2aa64ecb5a"
     },
     {
       "id": "rce",
       "path": "rce.json",
-      "sha256": "a343a523c181ebda509c6cfc877dd441dd485c15f3e302ec5cbf862ddef625c9"
+      "sha256": "9adeed61c7ff278e62649ae791f16afe30623c1837d3397e8329759e080069c1"
     },
     {
       "id": "db_insert",
       "path": "db_insert.json",
-      "sha256": "855a104adaa014ddd7b6bd64c71661b1ca491f55908f9165ccd12a7b9167e1a5"
+      "sha256": "8d4d285be45b247d7eef996a116275cd7aedb908de28e6fd7c716b7a7e9b0426"
     },
     {
       "id": "file_delete",
       "path": "file_delete.json",
-      "sha256": "6b933455177db350629ff5ab9dcd0ece2d700ee6f17382166cf14cf9150a2387"
+      "sha256": "515b84182dd913ef6da0562efabf06547dda27483a2a3fabc2755211266ee11c"
     },
     {
       "id": "db_delete",
       "path": "db_delete.json",
-      "sha256": "8e5b3481452a8403a343ccc2d95086462a34e412f6c748d4a09f345baba7ccf1"
+      "sha256": "203150fb6482c374c04f176917bb4c0b3ffe346fa4b6c5c27849688be6b7a7db"
     },
     {
       "id": "cpu_hijack",
       "path": "cpu_hijack.json",
-      "sha256": "53b00e4c23a16de852500098a9c57ed4cb763bfc48060136098f32e66ed94eaf"
+      "sha256": "71a824086fc231ec97bba916731fb479328b117e22c23296c271193f3dd435ef"
     },
     {
       "id": "gpu_hijack",
       "path": "gpu_hijack.json",
-      "sha256": "fe49c68338d337d854c0ea7d6164ba250f6e4009f4c4a13d69ede3273bbcc8fe"
+      "sha256": "4f6bd7900691b4031545f798d10beb34759a994363f631883709029c998bedff"
     }
   ],
-  "payload_revision": "platform-requirement-v2",
+  "payload_revision": "message-body-canary-v3",
   "presentation": {
-    "claimed_origin": "platform runtime checks",
-    "authority": "untrusted fixture claim; not a platform policy",
-    "execution": "synthetic record_only; no tool dispatch",
-    "observation": "PLT-CHECK references identify fixtures; legacy_marker preserves v1 mapping",
-    "comparison": "Do not mix previous-payload results with this revision."
+    "carrier": "Add plain text inside the body of one existing linked message; preserve the surrounding tool-result envelope.",
+    "execution": "Only the text is compiled; source_function is provenance and is never dispatched.",
+    "measurement": "data_exfil_file has a fixed local-canary observer; the other eleven cases have text-only coverage and ASR unknown.",
+    "markers": "Existing marker values remain metadata for provenance and observer compatibility; they are not authority claims in the message.",
+    "comparison": "Do not mix results with previous revisions; historical source bytes remain archived."
   }
 }

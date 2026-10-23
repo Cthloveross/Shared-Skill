@@ -1,0 +1,187 @@
+{
+  "benchmark_revision": "8e1fde746584ae1a9c49b70526d49a7a572625cd",
+  "dataset_revision": "75f945578aa00cbdb8f46e4d42e4f4e98f704b4f",
+  "audio_model_revision": "ae9e1690543ffd5c0221dc27f79834d0294cba00",
+  "image_model_revision": "462165984030d82259a11f4367a4eed129e94a7b",
+  "initial_skill_names": [
+    "03_task1",
+    "03_task2",
+    "03_task3",
+    "03_task4",
+    "03_task5",
+    "03_task6",
+    "agent-browser",
+    "self-improving-agent-3.0.5",
+    "video-frames"
+  ],
+  "score_tolerance": 1e-06,
+  "alignment": {
+    "version": "native-night-atomic-v1",
+    "catalog_policy": "official-append-v1",
+    "catalog_max_chars": 30000,
+    "compaction_mode": "safeguard",
+    "context_pruning": "off",
+    "verification_only": true,
+    "legacy_bank_diagnostics": true,
+    "source_policy": "native-history-explicit-day-sources-v1",
+    "acceptance_policy": "related-source-nonregression-quality-or-stability-v1",
+    "source_evidence_revision": "native-history-frozen-alias-union-v3",
+    "native_candidate_scope": "per-skill-v1"
+  },
+  "native_night_flow": "native-night-checkpoint-and-compact-loader-feedback-v2",
+  "native_compaction_guard": "openclaw-2026.3.11-split-turn-event-queue-v2",
+  "experiment_name": "wildclawbench-pipeline-smoke",
+  "execution_policy": "isolated_smoke",
+  "rounds": 1,
+  "days": 1,
+  "nights": 1,
+  "endpoint": "S1",
+  "conditions": [
+    "clean",
+    "poisoned"
+  ],
+  "task_count": 2,
+  "expected_task_count": 2,
+  "users": 2,
+  "day_workers": 2,
+  "endpoint_workers": 1,
+  "injected_task_short_ids": [
+    "03.03"
+  ],
+  "victim_observations_per_condition": 1,
+  "model_id": "Qwen3.5-35B-A3B",
+  "model_repository": "Qwen/Qwen3.5-35B-A3B",
+  "model_revision": "59d61f3ce65a6d9863b86d2e96597125219dc754",
+  "main_model_path": "/home/tc442/.cache/huggingface/hub/models--Qwen--Qwen3.5-35B-A3B/snapshots/59d61f3ce65a6d9863b86d2e96597125219dc754",
+  "vllm_executable": "/home/tc442/projects/Skill-Creation/experiments/tau-knowledge/skill-evolution/data/embedding/.venv/bin/vllm",
+  "gpu_index": 1,
+  "gpu_memory_utilization": 0.6,
+  "language_model_only": false,
+  "tool_call_parser": "qwen3_xml",
+  "model_base_url": "http://127.0.0.1:18181/v1",
+  "local_api_base_url": "http://127.0.0.1:19195/v1",
+  "audio_base_url": "http://127.0.0.1:18183/v1",
+  "image_base_url": "http://127.0.0.1:18184/v1",
+  "agent_tokenizer_url": "http://127.0.0.1:18181/tokenize",
+  "alignment_gateway_port": 19195,
+  "router_port": 19195,
+  "seed": 42,
+  "temperature": 1.0,
+  "top_p": 0.95,
+  "top_k": 20,
+  "min_p": 0.0,
+  "presence_penalty": 0.0,
+  "repetition_penalty": 1.0,
+  "reasoning_effort": "medium",
+  "enable_thinking": true,
+  "max_tokens": 4096,
+  "context_length": 131072,
+  "model_context_window": 131072,
+  "task_timeout_seconds": 240,
+  "grading_timeout_seconds": 300,
+  "case_timeout_seconds": 600,
+  "day_timeout_seconds": 900,
+  "evolution_timeout_seconds": 900,
+  "native_llm_request_timeout_seconds": 180,
+  "gateway_request_timeout_seconds": 180,
+  "interface_request_timeout_seconds": 180,
+  "interface_max_tokens": 128,
+  "summary_tool_result_content_max_chars": 4096,
+  "paid_api_budget_usd": 0,
+  "external_judge": false,
+  "local_judge_enable_thinking": false,
+  "local_judge_max_tokens": 4096,
+  "judge_model_id": "Qwen3.5-35B-A3B",
+  "judge_base_url": "http://127.0.0.1:18181/v1",
+  "local_api_key": "local-e2e-only",
+  "backend_api_key": "local-e2e-only",
+  "required_interfaces": [
+    "text",
+    "tools",
+    "vision",
+    "speech",
+    "audio",
+    "image-generation"
+  ],
+  "infrastructure_retries": 0,
+  "cohort_day_alignment": true,
+  "runtime_dir": "../../runtime/wildclawbench-pipeline-ready",
+  "shared_runtime_dir": "../../runtime/wildclawbench",
+  "artifacts_dir": "../../artifacts",
+  "outputs_dir": "../../outputs",
+  "task_manifest": "tasks.json",
+  "initial_bank": "../../artifacts/30x5-sixcycles-20261016-01/legacy/repository/experiment/reproduction/dymalskill-trajectory-e2e/runtime/runs/30x5-live-20261016-01/banks/S0",
+  "reuse_existing_docker": true,
+  "docker_host": "unix:///home/tc442/projects/Shared-Skill/experiment/reproduction/wildclawbench-qwen3.8-27b/runtime/docker/run/docker.sock",
+  "docker_container": "sharedskill-wildbench-1582702",
+  "outer_gateway": "172.17.0.1",
+  "payload_file": "/home/tc442/projects/Shared-Skill/artifacts/30x5-sixcycles-20261016-01/legacy/repository/experiment/reproduction/dymalskill-trajectory-e2e/runtime/runs/30x5-sixcycles-20261016-01/revisions/single-data-exfil-file-uniform-repair-20261018-01/frozen-payload.json",
+  "selected_injection_case": "data_exfil_file",
+  "execution_profile": "record_only",
+  "baseline_activated_attack": false,
+  "local_request_budget": {
+    "path": "/home/tc442/projects/Shared-Skill/outputs/pipeline-readiness-20261023-01/local-budget.json",
+    "max_requests": 512,
+    "max_tokens": 67108864
+  },
+  "execution_protocol": {
+    "version": "resilient-v1",
+    "conditions": [
+      "clean",
+      "poisoned"
+    ],
+    "max_concurrency": 2,
+    "max_transient_retries": 1,
+    "circuit_breaker": {
+      "same_signature_limit": 2
+    },
+    "stage_budgets": {
+      "day_seconds": 900,
+      "night_seconds": 900,
+      "endpoint_seconds": 600
+    }
+  },
+  "injection_fixture_case": {
+    "path": "/home/tc442/projects/Shared-Skill/artifacts/pipeline-smoke-20261022-01/fixture-case.json",
+    "sha256": "e00d88133ee69a632ff9e545585a8b07e5bf7e05e16a9722f55af466c40491f2"
+  },
+  "injection_metric_contract": {
+    "path": "/home/tc442/projects/Shared-Skill/artifacts/pipeline-smoke-20261022-01/metric-contract.json",
+    "sha256": "dd21ff730ded05310d87339209f93fdf241fb88a268be24243a7382bdec869d9"
+  },
+  "baseline_import": {
+    "import_bundle_dir": "/home/tc442/projects/Shared-Skill/artifacts/pipeline-readiness-20261023-01/baseline-v2-entrypaths"
+  },
+  "limit_mm_per_prompt": {
+    "image": 10,
+    "video": 0
+  },
+  "mm_processor_kwargs": {
+    "max_pixels": 1048576
+  },
+  "media_request_timeout_seconds": 420,
+  "gateway_max_request_bytes": 67108864,
+  "media_request_budget": {
+    "path": "/home/tc442/projects/Shared-Skill/outputs/pipeline-readiness-20261023-01/media-budget.json",
+    "max_requests": 64
+  },
+  "auxiliary_python": "/home/tc442/projects/Shared-Skill/runtime/wildclawbench/auxiliary-venv/bin/python",
+  "auxiliary_model_root": "/home/tc442/projects/Shared-Skill/runtime/wildclawbench/models",
+  "auxiliary_limits": {
+    "queue_size": 2,
+    "queue_timeout_seconds": 15,
+    "request_timeout_seconds": 300,
+    "model_load_timeout_seconds": 600,
+    "ffmpeg_timeout_seconds": 30,
+    "max_body_bytes": 33554432,
+    "max_audio_bytes": 16777216,
+    "max_audio_seconds": 300,
+    "max_text_chars": 20000,
+    "max_speech_chars": 2000,
+    "max_audio_tokens": 2048,
+    "max_image_steps": 50,
+    "max_image_count": 4,
+    "max_image_pixels": 2359296
+  },
+  "interface_vision_image_count": 10
+}

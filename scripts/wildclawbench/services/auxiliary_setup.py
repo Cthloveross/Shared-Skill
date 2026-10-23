@@ -11,6 +11,7 @@ from pathlib import Path
 from huggingface_hub import snapshot_download
 
 from scripts.wildclawbench.services.common import runtime_directory, service_config
+from scripts.wildclawbench.services.auxiliary_worker import model_root
 
 RUNTIME = runtime_directory()
 MODELS = {
@@ -47,10 +48,13 @@ def main() -> None:
     args, config = service_config(parser)
     global RUNTIME
     RUNTIME = Path(config["runtime_dir"])
+    shared = Path(config.get("shared_runtime_dir", RUNTIME))
+    models = model_root(config)
     for name, relative in (("audio", "qwen2.5-omni-7b"), ("image", "sdxl-base-1.0")):
-        MODELS[name]["directory"] = str(RUNTIME / "models" / relative)
+        MODELS[name]["directory"] = str(models / relative)
     report = {"started_at": datetime.now(timezone.utc).isoformat(), "models": {}}
-    destination = RUNTIME / "auxiliary-downloads.json"
+    destination = Path(config.get("auxiliary_download_manifest", shared / "auxiliary-downloads.json"))
+    destination.parent.mkdir(parents=True, exist_ok=True)
     RUNTIME.mkdir(parents=True, exist_ok=True)
     for name, model in MODELS.items():
         started = time.monotonic()

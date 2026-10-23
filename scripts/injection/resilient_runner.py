@@ -19,6 +19,7 @@ import os
 from pathlib import Path
 import re
 import shutil
+import tempfile
 import threading
 import time
 from typing import Any, Callable, Iterable, Literal
@@ -26,7 +27,24 @@ from typing import Any, Callable, Iterable, Literal
 
 VERSION = "resilient-v1"
 QUEUE_SCHEMA = "resilient-case-queue-v1"
-BASELINE_SCHEMA = "same-stage-day-baseline-import-v1"
+BASELINE_SCHEMA = "same-stage-day-baseline-import-v2"
+LEGACY_BASELINE_SCHEMA = "same-stage-day-baseline-import-v1"
+EXECUTION_IDENTITY_FIELDS = (
+    "model_id", "model_revision", "temperature", "top_p", "top_k", "min_p",
+    "presence_penalty", "repetition_penalty", "reasoning_effort", "max_tokens", "context_length", "seed",
+    "enable_thinking", "chat_template_kwargs", "required_shared_skill",
+    "task_timeout_seconds", "grading_timeout_seconds", "grade_timeout_seconds", "native_llm_request_timeout_seconds",
+    "external_judge", "judge_model_id", "judge_reasoning_effort", "judge_max_tokens",
+    "local_judge_enable_thinking", "local_judge_max_tokens",
+)
+JUDGE_IDENTITY_FIELDS = frozenset({"grading_timeout_seconds", "grade_timeout_seconds", "external_judge",
+    "judge_model_id", "judge_model_revision", "judge_reasoning_effort", "judge_max_tokens",
+    "local_judge_enable_thinking", "local_judge_max_tokens"})
+AGENT_REUSE_FIELDS = tuple(key for key in EXECUTION_IDENTITY_FIELDS if key not in JUDGE_IDENTITY_FIELDS) + (
+    "alignment", "benchmark_revision", "dataset_revision", "audio_model_revision", "image_model_revision",
+    "task_image_id", "initial_skill_names", "case_timeout_seconds", "model_context_window",
+)
+DERIVED_SOURCE_SCHEMA = "verified-agent-reuse-with-independent-grading-v1"
 INFRASTRUCTURE_SCHEMA = "resilient-infrastructure-circuit-v1"
 MAX_CONCURRENCY = 32
 ARCHIVE_RUN_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]*")
@@ -535,16 +553,16 @@ def baseline_import(config: dict) -> "BaselineImport | None":
 
 def baseline_execution_identity(config: dict, tasks: Iterable[dict], bank_sha256: str) -> dict:
     task_rows = [{key: task.get(key) for key in (
-        "task_id", "short_id", "user_id", "source_sha256", "input_sha256"
+        "task_id", "short_id", "user_id", "source_sha256", "input_sha256", "timeout_seconds"
     )} for task in tasks]
     identity = {
+        "identity_version": "baseline-execution-v2",
         "task_manifest_sha256": config.get("task_manifest_sha256", _canonical(task_rows)),
+        "task_conditions_sha256": _canonical(task_rows),
         "s0_bank_sha256": bank_sha256,
-        "model_id": config.get("model_id"), "model_revision": config.get("model_revision"),
-        "temperature": config.get("temperature"), "reasoning_effort": config.get("reasoning_effort"),
-        "max_tokens": config.get("max_tokens"), "context_length": config.get("context_length"),
+        **{field: config.get(field) for field in EXECUTION_IDENTITY_FIELDS},
         "agent_prompt_sha256": config.get("agent_prompt_sha256"),
-        "runtime_contract_sha256": config.get("runtime_contract_sha256"), "seed": config.get("seed"),
+        "runtime_contract_sha256": config.get("runtime_contract_sha256"),
     }
     required = ("task_manifest_sha256", "s0_bank_sha256", "model_id", "model_revision",
                 "agent_prompt_sha256", "runtime_contract_sha256")
@@ -588,9 +606,7 @@ def same_stage_day_baseline(stage: Path, task: dict, config: dict, bank_sha256: 
             or runtime_task.get("source_path") != task.get("source_path")
             or runtime.get("user_id") != task.get("user_id")):
         raise ProtocolError("Same-stage Day task/round identity differs")
-    fields = ("protocol_hash", "model_id", "model_revision", "seed", "temperature", "reasoning_effort",
-              "max_tokens", "context_length", "task_timeout_seconds", "grading_timeout_seconds",
-              "external_judge", "judge_model_id", "agent_prompt_sha256", "runtime_contract_sha256")
+    fields = (*EXECUTION_IDENTITY_FIELDS, "protocol_hash", "agent_prompt_sha256", "runtime_contract_sha256")
     if any(runtime.get(field) != config.get(field) for field in fields):
         raise ProtocolError("Same-stage Day model, sampling, prompt, runtime or budget identity differs")
     references = {}
@@ -609,12 +625,11 @@ def same_stage_day_baseline(stage: Path, task: dict, config: dict, bank_sha256: 
 
 
 class BaselineImport:
-    """Read a preflight-built, digest-bound 30-task Day import bundle."""
+    """Read a preflight-built Day import with an exact task set and sealed bytes."""
 
     IDENTITY_FIELDS = (
-        "task_manifest_sha256", "s0_bank_sha256", "model_id", "model_revision",
-        "temperature", "reasoning_effort", "max_tokens", "context_length",
-        "agent_prompt_sha256", "runtime_contract_sha256", "seed",
+        "identity_version", "task_manifest_sha256", "task_conditions_sha256", "s0_bank_sha256",
+        *EXECUTION_IDENTITY_FIELDS, "agent_prompt_sha256", "runtime_contract_sha256",
     )
 
     def __init__(self, directory: Path):
@@ -625,20 +640,30 @@ class BaselineImport:
         if self.manifest_path.is_symlink() or not self.manifest_path.is_file():
             raise ProtocolError("baseline_import manifest is missing or symlinked")
         self.manifest = _read_json(self.manifest_path)
-        if not isinstance(self.manifest, dict) or self.manifest.get("schema") != BASELINE_SCHEMA:
+        if not isinstance(self.manifest, dict) or self.manifest.get("schema") not in {BASELINE_SCHEMA, LEGACY_BASELINE_SCHEMA}:
             raise ProtocolError("Unknown baseline import bundle schema")
         tasks = self.manifest.get("tasks")
-        if self.manifest.get("task_count") != 30 or not isinstance(tasks, list) or len(tasks) != 30:
-            raise ProtocolError("Baseline import must contain exactly 30 tasks")
+        if (not isinstance(tasks, list) or not tasks
+                or type(self.manifest.get("task_count")) is not int
+                or self.manifest["task_count"] != len(tasks)):
+            raise ProtocolError("Baseline import task_count must match its nonempty task set")
         self.tasks = {item.get("task_id"): item for item in tasks}
-        if None in self.tasks or len(self.tasks) != 30:
+        if None in self.tasks or len(self.tasks) != len(tasks):
             raise ProtocolError("Baseline import task identities are missing or duplicated")
         for item in tasks:
-            for field in ("result", "session"):
-                reference = item.get(field)
+            for reference in [item.get("result"), *self._session_references(item)]:
                 if not isinstance(reference, dict):
-                    raise ProtocolError(f"Baseline task lacks {field} reference")
+                    raise ProtocolError("Baseline task lacks a result/session reference")
                 self._reference(reference)
+
+    @staticmethod
+    def _session_references(item: dict) -> list[dict]:
+        if "sessions" not in item:
+            return [item.get("session")]
+        rows = item["sessions"]
+        if not isinstance(rows, list) or not rows or "session" in item:
+            raise ProtocolError("Baseline task requires one unambiguous session-reference list")
+        return rows
 
     def _reference(self, reference: dict) -> Path:
         if set(reference) != {"path", "sha256"} or not re.fullmatch(r"[0-9a-f]{64}", str(reference["sha256"])):
@@ -654,6 +679,9 @@ class BaselineImport:
         return path
 
     def verify_identity(self, expected: dict) -> None:
+        if (self.manifest.get("schema") != BASELINE_SCHEMA
+                or expected.get("identity_version") != "baseline-execution-v2"):
+            raise ProtocolError("Legacy baseline identity is read-only; rebuild a verified v2 import for a new run")
         actual = self.manifest.get("execution_identity", {})
         selected = {field: expected.get(field) for field in self.IDENTITY_FIELDS}
         if actual != selected:
@@ -662,26 +690,31 @@ class BaselineImport:
     def sessions(self, tasks: Iterable[dict], expected_identity: dict) -> list[dict]:
         self.verify_identity(expected_identity)
         supplied = list(tasks)
-        if {task["task_id"] for task in supplied} != set(self.tasks):
+        if len(supplied) != len(self.tasks) or {task["task_id"] for task in supplied} != set(self.tasks):
             raise ProtocolError("Baseline import task cohort differs")
         sessions = []
         for task in supplied:
             item = self.tasks[task["task_id"]]
             self._verify_task(item, task)
-            session = _read_json(self._reference(item["session"]))
-            outcome = session.get("outcome", {})
-            if (session.get("task_id") != task["task_id"] or not session.get("session_id")
+            refs = self._session_references(item)
+            for index, reference in enumerate(refs):
+                session = _read_json(self._reference(reference))
+                outcome = session.get("outcome", {})
+                expected_index = index + 1 if "sessions" in item else 0
+                if (session.get("task_id") != task["task_id"] or not session.get("session_id")
                     or session.get("user_id") != task.get("user_id")
                     or session.get("phase") != "day"
                     or session.get("skill_bank_sha256") != expected_identity["s0_bank_sha256"]
                     or not session.get("original_session_id")
                     or not re.fullmatch(r"[0-9a-f]{64}", str(session.get("native_uploaded_sha256", "")))
-                    or session.get("native_record_segment_index") != 0
-                    or session.get("native_record_segment_count") != 1
+                    or session.get("native_record_segment_index") != expected_index
+                    or session.get("native_record_segment_count", len(refs)) != len(refs)
                     or outcome.get("score") != item.get("score")
                     or bool(outcome.get("timed_out")) != item.get("timed_out")):
-                raise ProtocolError("Imported Day session identity differs")
-            sessions.append(session)
+                    raise ProtocolError("Imported Day session identity differs")
+                sessions.append(session)
+        if len({session["session_id"] for session in sessions}) != len(sessions):
+            raise ProtocolError("Imported Day session identities are duplicated")
         return sessions
 
     def scored_row(self, task: dict, expected_identity: dict, bank_sha256: str) -> tuple[dict, dict]:
@@ -706,16 +739,395 @@ class BaselineImport:
         proof = {"policy": BASELINE_SCHEMA, "reused_without_execution_or_rescoring": True,
             "task_id": task["task_id"], "short_id": task["short_id"], "score": score,
             "timed_out": bool(row.get("timed_out")), "bank_sha256": bank_sha256,
-            "source_result": item["result"], "source_session": item["session"],
+            "source_result": item["result"], "source_sessions": self._session_references(item),
             "source_record_relabelled": False, "new_model_calls": 0}
         return view, proof
 
     @staticmethod
     def _verify_task(item: dict, task: dict) -> None:
-        expected = {key: task.get(key) for key in ("task_id", "short_id", "user_id", "source_sha256", "input_sha256")}
+        expected = {key: task.get(key) for key in ("task_id", "short_id", "user_id", "source_sha256", "input_sha256", "timeout_seconds")}
         actual = {key: item.get(key) for key in expected}
         if actual != expected:
             raise ProtocolError("Imported Day task/input identity differs")
+
+
+def build_baseline_import_from_run(source: Path, destination: Path) -> BaselineImport:
+    """Freeze one completed, current Day as a reusable baseline without model calls.
+
+    Source files and their configuration stay untouched. Prompt/runtime digests
+    come from the actual executions, and every finalized native segment survives.
+    """
+    from scripts.injection import e2e_30 as cohort
+    from scripts.wildclawbench.protocol import tree_hash
+    from scripts.wildclawbench import alignment_snapshot
+
+    source, destination = source.resolve(), destination.absolute()
+    settings = _read_json(source / "config.runtime.json")
+    derived = _read_json(source / "derived-source.json")
+    tasks = settings["all_tasks"]
+    if not tasks or len({task["task_id"] for task in tasks}) != len(tasks):
+        raise ProtocolError("Fresh baseline requires distinct tasks")
+    cohort.validate_resume(source, settings, tree_hash,
+                           expected_injected_ids=settings["injected_task_short_ids"])
+    day = _read_json(source / "day/state.json", {})
+    finalized = _read_json(source / "finalized-day-inputs/manifest.json", {})
+    bank_hash = tree_hash(source / "banks/S0")
+    if (day.get("status") != "completed" or day.get("scored_tasks") != len(tasks)
+            or finalized.get("input_coverage_complete") is not True
+            or finalized.get("task_count") != len(tasks) or finalized.get("bank_sha256") != bank_hash):
+        raise ProtocolError("Fresh baseline lacks complete scored Day and finalized native inputs")
+    prompts, contracts, rows = [], [], []
+    variant_fields = ("approved_variant", "execution_preamble_source", "timeout_seconds", "judge_model",
+                      "audio_judge_route", "shared_skill_bank", "search", "local_image_generation", "modified_checks_sha256")
+    runtime_fields = ("benchmark_revision", "dataset_revision", "model_revision", "audio_model_revision",
+                      "image_model_revision", "task_image_id", "external_judge", "judge_model_id", "judge_reasoning_effort")
+    # EXECUTION_IDENTITY_FIELDS excludes the separate Night evolver timeout.
+    comparable = EXECUTION_IDENTITY_FIELDS
+    for task in tasks:
+        loaded = cohort.load_completed_day(source, task)
+        if loaded is None:
+            raise ProtocolError("Fresh baseline contains an incomplete task")
+        state, _ = loaded
+        output, _ = cohort.day_paths(source, task, state)
+        result_path = output / "experiment-result.json"
+        result = _read_json(result_path)
+        runtime = _read_json(output / "runtime-config.json")
+        binding = _read_json(output / "execution-binding.json")
+        execution = _read_json(output / "execution.json")
+        score = result.get("score")
+        expected_protocol = derived["source_protocol_hash"] if derived else settings.get("protocol_hash")
+        scoring_run_id = (derived["tasks"][task["short_id"]]["scoring_run_id"] if derived
+                          else binding.get("run_id"))
+        if (result.get("task_id") != task["task_id"] or result.get("status") != "completed"
+                or isinstance(score, bool) or not isinstance(score, (int, float))
+                or not math.isfinite(score) or not 0 <= score <= 1
+                or score != state.get("task_score") or state.get("bank_sha256") != bank_hash
+                or binding.get("bank_sha256") != bank_hash
+                or binding.get("protocol_hash") != expected_protocol
+                or result.get("run_id") != scoring_run_id
+                or runtime.get("user_id") != task["user_id"]
+                or runtime.get("task", {}).get("source_path") != task["source_path"]
+                or execution.get("task_id") != task["task_id"] or execution.get("scoring_status") != "completed"):
+            raise ProtocolError("Fresh baseline execution identity or score differs")
+        compared = tuple(field for field in comparable if not derived or field not in JUDGE_IDENTITY_FIELDS)
+        if any(runtime.get(field) != settings.get(field) for field in compared):
+            raise ProtocolError("Fresh baseline effective sampling/budget differs from its declared configuration")
+        identity = alignment_snapshot.execution_identity(task["task_id"], binding["run_id"], binding, runtime)
+        seal = alignment_snapshot.verify_agent_output(output, identity)
+        if execution.get("output_snapshot_sha256") != seal["manifest_sha256"]:
+            raise ProtocolError("Fresh baseline Agent output seal differs")
+        prompt_path = output / "execution-prompt.txt"
+        variant = _read_json(output / "task-variant.json")
+        prompt_sha = hashlib.sha256(prompt_path.read_bytes()).hexdigest()
+        if variant.get("execution_prompt_sha256") != prompt_sha:
+            raise ProtocolError("Fresh baseline execution prompt differs from its variant")
+        prompts.append({"task_id": task["task_id"], "sha256": prompt_sha})
+        contracts.append({"task_id": task["task_id"],
+            "variant": {field: variant.get(field) for field in variant_fields},
+            "runtime": {field: runtime.get(field) for field in runtime_fields}})
+        segments = cohort.finalized_day_segments(source, task)
+        if not segments or any(proof.get("input_coverage_complete", proof.get("native_finalization", {}).get(
+                "input_coverage_complete")) is not True for _, proof, _ in segments):
+            raise ProtocolError("Fresh baseline native-session coverage is incomplete")
+        rows.append((task, result_path, result, segments))
+    identity = baseline_execution_identity({**settings,
+        "agent_prompt_sha256": _canonical(prompts), "runtime_contract_sha256": _canonical(contracts)}, tasks, bank_hash)
+    source_ref = {"run_dir": str(source), "config_sha256": hashlib.sha256((source / "config.runtime.json").read_bytes()).hexdigest(),
+                  "finalized_inputs_sha256": hashlib.sha256((source / "finalized-day-inputs/manifest.json").read_bytes()).hexdigest()}
+    if derived:
+        source_ref["derived_source_sha256"] = hashlib.sha256((source / "derived-source.json").read_bytes()).hexdigest()
+    if destination.exists():
+        existing = BaselineImport(destination)
+        existing.verify_identity(identity)
+        if existing.manifest.get("source") != source_ref:
+            raise ProtocolError("Existing fresh baseline import belongs to another Day")
+        existing.sessions(tasks, identity)
+        for task in tasks:
+            existing.scored_row(task, identity, bank_hash)
+        return existing
+    building = destination.with_name(destination.name + f".building-{os.getpid()}")
+    if building.exists():
+        raise ProtocolError("Uncommitted baseline import exists; reconcile it before retry")
+    building.mkdir(parents=True)
+    records = []
+    try:
+        def copied(original: Path, relative: Path) -> dict:
+            target = building / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(original, target)
+            return {"path": relative.as_posix(), "sha256": hashlib.sha256(target.read_bytes()).hexdigest()}
+
+        for task, result_path, result, segments in rows:
+            short = task["short_id"]
+            result_ref = copied(result_path, Path("results") / (short + ".json"))
+            session_refs = []
+            for _, proof, _ in segments:
+                relative = Path(proof["selected_segment"]["session_path"])
+                original = source / "finalized-day-inputs" / short / relative
+                if relative.is_absolute() or ".." in relative.parts or not original.resolve().is_relative_to(source):
+                    raise ProtocolError("Finalized session path escapes its source Day")
+                session_refs.append(copied(original, Path("sessions") / short / relative))
+            records.append({**{key: task.get(key) for key in (
+                "task_id", "short_id", "user_id", "source_sha256", "input_sha256", "timeout_seconds")},
+                "score": result["score"], "timed_out": bool(result.get("timed_out")),
+                "result": result_ref, "sessions": session_refs})
+        _write_json(building / "manifest.json", {"schema": BASELINE_SCHEMA, "task_count": len(tasks),
+            "execution_identity": identity, "tasks": records, "source": source_ref})
+        candidate = BaselineImport(building)
+        candidate.sessions(tasks, identity)
+        for task in tasks:
+            candidate.scored_row(task, identity, bank_hash)
+        os.replace(building, destination)
+    except BaseException:
+        shutil.rmtree(building)
+        raise
+    return BaselineImport(destination)
+
+
+def _file_reference(path: Path) -> dict:
+    if path.is_symlink() or not path.is_file():
+        raise ProtocolError(f"Missing or symlinked evidence: {path}")
+    return {"path": str(path.resolve()), "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
+
+
+def _verify_file_reference(reference: dict) -> Path:
+    path = Path(reference["path"])
+    if _file_reference(path) != reference:
+        raise ProtocolError(f"Preserved evidence changed: {path}")
+    return path
+
+
+def _verify_source_changes(before: list[dict], after: list[dict], reviews: list[dict]) -> None:
+    old, new = ({item["path"]: item["sha256"] for item in rows} for rows in (before, after))
+    changed = {path: (old.get(path), new.get(path)) for path in old.keys() | new.keys()
+               if old.get(path) != new.get(path)}
+    supplied = {item["path"]: item for item in reviews}
+    if len(supplied) != len(reviews) or set(supplied) != set(changed):
+        raise ProtocolError("Source compatibility review must cover exactly every changed source")
+    scopes = {"grading_only", "resume_only", "night_validation", "experiment_definition", "backend_only"}
+    for path, pair in changed.items():
+        item = supplied[path]
+        if ((item.get("before_sha256"), item.get("after_sha256")) != pair
+                or item.get("scope") not in scopes or not str(item.get("reason", "")).strip()):
+            raise ProtocolError("Source compatibility review has an unverified change: " + path)
+
+
+def derived_source_files(source: Path, tasks: list[dict]) -> tuple[list[dict], list[dict]]:
+    """List the preserved/current inputs to an explicit compatibility review."""
+    from scripts.injection import e2e, e2e_30 as cohort
+    before = cohort.verify_frozen_sources(source, require_live=False)
+    current = {item["path"]: _file_reference(Path(item["path"])) for item in before}
+    for task in tasks:
+        for item in e2e.source_manifest(e2e.ROOT / "scripts/wildclawbench", task)["files"]:
+            current[item["path"]] = item
+    return before, [current[path] for path in sorted(current)]
+
+
+def _check_reused_agent(source_output: Path, task: dict, source_settings: dict, settings: dict) -> dict:
+    """Authenticate original Agent evidence and render the new task prompt offline."""
+    from scripts.wildclawbench import alignment_snapshot, task_runtime
+    execution = _read_json(source_output / "execution.json")
+    runtime = _read_json(source_output / "runtime-config.json")
+    binding = _read_json(source_output / "execution-binding.json")
+    if execution.get("status") != "agent_completed" or execution.get("task_id") != task["task_id"]:
+        raise ProtocolError("Only a completed original Agent execution can be reused")
+    if any(runtime.get(field) != source_settings.get(field) for field in AGENT_REUSE_FIELDS):
+        raise ProtocolError("Actual original Agent parameters differ from their declared source")
+    if any(settings.get(field) != source_settings.get(field) for field in AGENT_REUSE_FIELDS):
+        raise ProtocolError("Changed Agent sampling, input runtime or task policy requires a new execution")
+    identity = alignment_snapshot.execution_identity(task["task_id"], binding["run_id"], binding, runtime)
+    seal = alignment_snapshot.verify_agent_output(source_output, identity)
+    if execution.get("output_snapshot_sha256") != seal["manifest_sha256"]:
+        raise ProtocolError("Original Agent execution references a different output seal")
+    config = {**settings, "task": task, "user_id": task["user_id"]}
+    spec = task_runtime.task_spec(task["task_id"], config)
+    spec["timeout_seconds"] = min(int(spec["timeout_seconds"]), int(config["task_timeout_seconds"]))
+    with tempfile.TemporaryDirectory(prefix="sharedskill-agent-prompt-") as directory:
+        rendered = task_runtime._variants(spec, config, Path(directory), "http://127.0.0.1/unused/v1")
+        expected = (source_output / "execution-prompt.txt").read_bytes()
+        if rendered["prompt"].encode() != expected:
+            raise ProtocolError("Current task rendering changes the original Agent prompt")
+    return {"agent_manifest_sha256": seal["manifest_sha256"],
+            "agent_prompt_sha256": hashlib.sha256(expected).hexdigest(), "source_run_id": binding["run_id"]}
+
+
+def validate_derived_source(run: Path, settings: dict, tree_hash, *, require_live: bool = True) -> None:
+    """A derived source retains old Agent identity and independently proven scores."""
+    from scripts.injection import e2e_30 as cohort
+    from scripts.wildclawbench import grade_recovery, alignment_snapshot
+    proof = _read_json(run / "derived-source.json", {})
+    if proof.get("schema") != DERIVED_SOURCE_SCHEMA or proof.get("status") != "completed":
+        raise ProtocolError("Derived baseline source is not committed")
+    if _file_reference(run / "config.runtime.json") != proof["configuration"] or _read_json(run / "config.runtime.json") != settings:
+        raise ProtocolError("Derived source configuration changed")
+    source = Path(proof["source_run"])
+    parent_settings = _read_json(_verify_file_reference(proof["source_configuration"]))
+    if (source / "derived-source.json").exists():
+        raise ProtocolError("Chained derived sources require a separately reviewed provenance policy")
+    cohort.validate_resume(source, parent_settings, tree_hash,
+                           expected_injected_ids=parent_settings["injected_task_short_ids"], frozen_source_only=True)
+    before = cohort.verify_frozen_sources(source, require_live=False)
+    after = cohort.verify_frozen_sources(run, require_live=require_live)
+    _verify_source_changes(before, after, proof["source_changes"])
+    if (settings["all_tasks"] != parent_settings["all_tasks"]
+            or any(settings.get(field) != parent_settings.get(field) for field in AGENT_REUSE_FIELDS)
+            or tree_hash(run / "banks/S0") != proof["bank_sha256"]
+            or tree_hash(source / "banks/S0") != proof["bank_sha256"]):
+        raise ProtocolError("Derived source changed the original task, Agent policy or S0")
+    for task in settings["all_tasks"]:
+        item = proof["tasks"][task["short_id"]]
+        receipt_path = _verify_file_reference(item["grading_receipt"])
+        receipt = grade_recovery.verify_recovery(receipt_path.parent)
+        if receipt.get("status") != "completed" or Path(receipt["source_output"]).resolve() != Path(item["source_output"]):
+            raise ProtocolError("Independent grading is incomplete or belongs to another Agent")
+        for reference in item["source_evidence"].values():
+            _verify_file_reference(reference)
+        _verify_file_reference(item["original_session"])
+        output = run / "day/tasks" / task["short_id"] / "task"
+        binding, runtime = (_read_json(output / name) for name in ("execution-binding.json", "runtime-config.json"))
+        identity = alignment_snapshot.execution_identity(task["task_id"], binding["run_id"], binding, runtime)
+        seal = alignment_snapshot.verify_agent_output(output, identity)
+        if seal["manifest_sha256"] != item["agent_manifest_sha256"]:
+            raise ProtocolError("Derived source changed the completed Agent snapshot")
+        result = _read_json(output / "experiment-result.json")
+        if _file_reference(output / "experiment-result.json") != item["result"]:
+            raise ProtocolError("Derived source score differs from its grading import")
+        if result != _read_json(_verify_file_reference(item["grading_result"])):
+            raise ProtocolError("Derived source score differs from the independent grading attempt")
+        loaded = cohort.load_completed_day(run, task)
+        if loaded is None or loaded[0]["task_score"] != result["score"]:
+            raise ProtocolError("Derived source contains an incomplete scored task")
+    from scripts.injection.cycle_validation import _bound_tasks, validate_cohort_inputs
+    bound = _bound_tasks(settings["cohort_validation_binding"])
+    for task in settings["all_tasks"]:
+        validate_cohort_inputs(settings["cohort_validation_binding"], task, expected_tasks=bound)
+    finalized = _read_json(run / "finalized-day-inputs/manifest.json", {})
+    if (finalized.get("input_coverage_complete") is not True
+            or finalized.get("task_count") != len(settings["all_tasks"])):
+        raise ProtocolError("Derived source lacks complete native trajectory coverage")
+    cohort.finalize_day_sessions(run, settings["all_tasks"], [], proof["bank_sha256"])
+
+
+def build_derived_baseline_source(source: Path, destination: Path, attempts: dict[str, Path],
+                                  requested: dict, source_changes: list[dict]) -> Path:
+    """Create a new source ID after reviewed code repairs, without executing Agents.
+
+    The caller supplies an explicit review of every changed source digest. This
+    records a reviewed compatibility claim, not a claim of identical backends.
+    """
+    from scripts.injection import e2e, e2e_30 as cohort
+    from scripts.injection.cycle_validation import prepare_input_binding
+    from scripts.wildclawbench import grade_recovery
+    from scripts.wildclawbench.protocol import tree_hash
+    source, destination = source.resolve(), destination.resolve()
+    if destination.exists():
+        raise ProtocolError("Derived source ID already exists; verify it instead of rebuilding")
+    original = _read_json(source / "config.runtime.json")
+    if (source / "derived-source.json").exists():
+        raise ProtocolError("Only original Agent runs can be the parent of a derived source")
+    cohort.validate_resume(source, original, tree_hash,
+                           expected_injected_ids=original["injected_task_short_ids"], frozen_source_only=True)
+    tasks = original["all_tasks"]
+    if set(attempts) != {task["short_id"] for task in tasks}:
+        raise ProtocolError("Independent grading must cover the complete frozen task cohort")
+    settings = {**original, **requested, "all_tasks": tasks, "task": original["task"],
+                "task_manifest_sha256": original["task_manifest_sha256"]}
+    cohort.validate_local_execution(settings)
+    before, after = derived_source_files(source, tasks)
+    _verify_source_changes(before, after, source_changes)
+    records = {}
+    for task in tasks:
+        short = task["short_id"]
+        prior_state = _read_json(source / "day/tasks" / short / "state.json")
+        output, service = cohort.day_paths(source, task, prior_state)
+        agent = _check_reused_agent(output, task, original, settings)
+        attempt = Path(attempts[short]).resolve()
+        receipt = grade_recovery.verify_recovery(attempt)
+        result_path = attempt / receipt["result_path"]
+        result = _read_json(result_path)
+        score = result.get("score")
+        if (receipt.get("status") != "completed" or Path(receipt["source_output"]).resolve() != output.resolve()
+                or result.get("task_id") != task["task_id"] or result.get("status") != "completed"
+                or isinstance(score, bool) or not isinstance(score, (int, float))
+                or not math.isfinite(score) or not 0 <= score <= 1):
+            raise ProtocolError("Derived source needs a verified finite score for every original Agent")
+        attempt_config = _read_json(attempt / "runtime-config.json")
+        if any(attempt_config.get(key) != settings.get(key) for key in JUDGE_IDENTITY_FIELDS):
+            raise ProtocolError("Independent grading policy differs from the derived comparison")
+        records[short] = {**agent, "source_output": str(output.resolve()), "source_service": str(service.resolve()),
+            "grading_attempt": str(attempt), "grading_receipt": _file_reference(attempt / "grade-recovery.json"),
+            "grading_result": _file_reference(result_path), "scoring_run_id": result.get("run_id"),
+            "source_evidence": {name: _file_reference(output / name) for name in (
+                "execution.json", "execution-binding.json", "runtime-config.json", "agent-output-manifest.json")}}
+        upload = _read_json(service / "upload-evidence.json")
+        for relative in ("uploaded-session.json", "upload-evidence.json", "service.json", "records/conversations.jsonl",
+                         "shared-objects/" + upload["object_key"]):
+            records[short]["source_evidence"]["native:" + relative] = _file_reference(service / relative)
+    destination.mkdir(parents=True)
+    try:
+        shutil.copytree(source / "banks/S0", destination / "banks/S0")
+        shutil.copytree(source / "frozen/tasks", destination / "frozen/tasks")
+        shutil.copyfile(source / "phase-handoff.json", destination / "phase-handoff.json")
+        sessions = []
+        for task in tasks:
+            short, item = task["short_id"], records[task["short_id"]]
+            output = destination / "day/tasks" / short / "task"
+            shutil.copytree(item["grading_attempt"], output)
+            result = _read_json(_verify_file_reference(item["grading_result"]))
+            _write_json(output / "experiment-result.json", result)
+            item["result"] = _file_reference(output / "experiment-result.json")
+            service = destination / "services" / ("day-" + short)
+            shutil.copytree(item["source_service"], service)
+            state = _read_json(source / "day/tasks" / short / "state.json")
+            session = _read_json(service / "native-day-session.json")
+            item["original_session"] = _file_reference(Path(item["source_service"]) / "native-day-session.json")
+            session["outcome"] = {"score": result["score"], "timed_out": bool(result.get("timed_out")),
+                                  "tool_errors": int(result.get("tool_errors") or 0)}
+            _write_json(service / "native-day-session.json", session)
+            sessions.append(session)
+            _write_json(destination / "day/tasks" / short / "state.json", {**state,
+                "status": "completed", "task_status": "completed", "task_score": result["score"],
+                "timed_out": bool(result.get("timed_out")), "task_output": str(output.relative_to(destination)),
+                "service_dir": str(service.relative_to(destination)), "grade_recovery": item["grading_receipt"]})
+        settings.update(runtime_dir=str(destination / "runtime"),
+                        gateway_log_dir=str(e2e.new_gateway_evidence_dir(destination, settings)))
+        settings.pop("stage_budget", None)
+        settings["cohort_validation_binding"] = prepare_input_binding(destination, tasks)
+        settings["protocol_hash"] = _canonical({"source_protocol": original["protocol_hash"],
+            "sources": after, "source_changes": source_changes, "grading": records,
+            "settings": {key: value for key, value in settings.items() if key != "protocol_hash"}})
+        _write_json(destination / "config.runtime.json", settings)
+        _write_json(destination / "state.json", {"status": "baseline_ready", "run_id": destination.name,
+            "injected_task_short_ids": settings["injected_task_short_ids"], "new_agent_executions": 0})
+        _write_json(destination / "day/state.json", {"status": "completed", "scored_tasks": len(tasks),
+            "task_count": len(tasks), "uploaded_sessions": len(tasks),
+            "mean_score": sum(session["outcome"]["score"] for session in sessions) / len(tasks)})
+        _write_json(destination / "day/task/shared-skill-names.json", sorted(
+            path.parent.name for path in (destination / "banks/S0").glob("*/SKILL.md")))
+        for index, item in enumerate(after):
+            path = destination / "frozen/source" / f"{index:04d}-{Path(item['path']).name}"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            data = _verify_file_reference(item).read_bytes()
+            path.write_bytes(data)
+        _write_json(destination / "frozen-source.json", {"files": after, "sha256": _canonical(after)})
+        cohort.finalize_day_sessions(destination, tasks, sessions, tree_hash(destination / "banks/S0"))
+        proof = {"schema": DERIVED_SOURCE_SCHEMA, "status": "completed", "source_run": str(source),
+            "source_configuration": _file_reference(source / "config.runtime.json"),
+            "configuration": _file_reference(destination / "config.runtime.json"),
+            "source_protocol_hash": original["protocol_hash"], "source_changes": source_changes,
+            "bank_sha256": tree_hash(source / "banks/S0"), "tasks": records,
+            "agent_execution": "original unchanged sealed outputs; no Agent rerun",
+            "session_outcome": "derived from independent scoring; original native uploads unchanged",
+            "backend_differences": {key: {"source": original.get(key), "current": settings.get(key)} for key in (
+                "language_model_only", "gpu_memory_utilization", "limit_mm_per_prompt", "mm_processor_kwargs")
+                if original.get(key) != settings.get(key)},
+            "limitation": "Reviewed source compatibility and prompt equality do not prove identical inference backends."}
+        _write_json(destination / "derived-source.json", proof)
+        validate_derived_source(destination, settings, tree_hash)
+    except BaseException:
+        _write_json(destination / "state.json", {"status": "derived_source_incomplete", "new_agent_executions": 0})
+        raise
+    return destination
 
 
 def build_baseline_import_from_archive(
@@ -789,8 +1201,7 @@ def build_baseline_import_from_archive(
             or len(source_config.get("all_tasks", [])) != 30):
         raise ProtocolError("Archived Day1 is not a complete 30-task scored stage")
     source_tasks = {task["task_id"]: task for task in source_config["all_tasks"]}
-    comparable = ("model_id", "model_revision", "temperature", "reasoning_effort",
-                  "max_tokens", "context_length", "seed")
+    comparable = EXECUTION_IDENTITY_FIELDS
     if any(source_config.get(field) != selected_identity.get(field) for field in comparable):
         raise ProtocolError("Archived Day1 model or sampling identity differs")
 
@@ -813,7 +1224,7 @@ def build_baseline_import_from_archive(
         for task in supplied:
             archived_task = source_tasks.get(task["task_id"])
             expected_task = {key: task.get(key) for key in (
-                "task_id", "short_id", "user_id", "source_sha256", "input_sha256")}
+                "task_id", "short_id", "user_id", "source_sha256", "input_sha256", "timeout_seconds")}
             actual_task = {key: archived_task.get(key) if archived_task else None for key in expected_task}
             if actual_task != expected_task:
                 raise ProtocolError(f"Archived task/input identity differs: {task.get('short_id')}")

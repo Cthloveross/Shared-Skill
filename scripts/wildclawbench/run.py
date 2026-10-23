@@ -11,6 +11,7 @@ import fcntl
 import hashlib
 import importlib.metadata
 import json
+import math
 import os
 import random
 import shutil
@@ -183,6 +184,9 @@ def check_services(config: dict):
     status = response.json()
     if not status.get("ready"):
         raise RuntimeError(f"Local capabilities are not ready: {status.get('roles')}")
+    if (config.get("alignment") and config.get("protocol_hash")
+            and config["protocol_hash"] != status.get("protocol_hash")):
+        raise RuntimeError("Gateway protocol differs from the frozen execution protocol")
 
 
 def _recovery_json(reference: dict) -> dict:
@@ -365,6 +369,11 @@ def run_one(
             if any(current[key] != registered[key] for key in ("bank_sha256", "files", "directories", "skills")):
                 raise ValueError("Supplied bank manifest changed before completed result reuse")
         return previous
+    if (previous and previous.get("scoring_recovery_eligible") is not True
+            and (previous.get("status") == "pending_score" or (directory / "execution.json").exists())):
+        # Sealing an Agent output does not authorize rerunning successful or
+        # deterministically failed judge calls. Preserve the original unknown.
+        return previous
     started = previous.get("started_at", now()) if previous else now()
     task_config = {
         **config,
@@ -503,7 +512,7 @@ def run_stage(
             result_path = Path(result["output_dir"]) / "result.json"
             retry_eligible = True
             retry_reason = None
-            if result.get("status") == "infrastructure_error":
+            if result.get("status") in {"infrastructure_error", "pending_score"}:
                 execution_path = Path(result["output_dir"]) / "execution.json"
                 try:
                     execution = json.loads(execution_path.read_text())
@@ -520,12 +529,23 @@ def run_stage(
                     retry_eligible = False
                     retry_reason = "agent_started_evidence_sealed"
                 elif execution is not None:
-                    retry_reason = "frozen_agent_output_score_recovery"
+                    retry_eligible = result.get("scoring_recovery_eligible") is True
+                    retry_reason = ("frozen_agent_output_score_recovery" if retry_eligible
+                                    else "scoring_recovery_not_explicitly_eligible")
+                elif result.get("status") == "pending_score":
+                    retry_eligible = False
+                    retry_reason = "scoring_recovery_lacks_agent_snapshot"
+                elif (result.get("infrastructure_retry_eligible") is False
+                      or any((Path(result["output_dir"]) / name).exists() for name in (
+                          "agent-started.json", "agent.stdout", "agent.stderr", "chat.jsonl", "agent-quiescence.json"))):
+                    retry_eligible = False
+                    retry_reason = "agent_started_evidence_unsealed"
             return {"status": result.get("status"), "score": result.get("score"),
                     "task_id": result.get("task_id"), "short_id": result.get("short_id"),
                     "error_type": result.get("error_type"), "error": result.get("error"),
                     "infrastructure_retry_eligible": retry_eligible,
                     "infrastructure_retry_reason": retry_reason,
+                    "scoring_recovery_eligible": result.get("scoring_recovery_eligible"),
                     "result_reference": {"path": str(result_path.resolve()),
                         "sha256": hashlib.sha256(result_path.read_bytes()).hexdigest()}}
 
@@ -566,9 +586,10 @@ def run_stage(
                 execution = json.loads(execution_path.read_text())
             except (OSError, json.JSONDecodeError):
                 return False
-            # execute_task detects execution.json and enters replay-only
-            # scoring; supervised Day recovery verifies the frozen snapshot.
-            return execution.get("status") == "agent_completed"
+            # Recovery also needs an explicit runtime classification proving
+            # that rerunning the judge cannot repeat any successful judgment.
+            return (execution.get("status") == "agent_completed" and isinstance(prior, dict)
+                    and prior.get("scoring_recovery_eligible") is True)
 
         outcomes = resilient_runner.run_case_queue(cases, execute_case,
             run_dir / "operations/resilient-queues" / (queue_id + ".json"),
@@ -636,16 +657,14 @@ def run_stage(
 
 def outcome_preference(old: list[dict], new: list[dict], directory: Path, config: dict) -> str:
     """Blind per-task comparison by the frozen judge, using real outcome evidence."""
+    from scripts.wildclawbench.task_runtime import _judge_api_url, local_judge_settings
+
     directory.mkdir(parents=True, exist_ok=True)
     old_by_id = {r["task_id"]: r for r in old}
     verdicts = []
     for candidate in new:
         baseline = old_by_id[candidate["task_id"]]
         path = directory / (candidate["short_id"] + ".json")
-        if path.exists():
-            verdicts.append(json.loads(path.read_text())["preference"])
-            continue
-
         def evidence(record):
             session = record.get("session", {})
             trajectory = json.dumps(
@@ -681,30 +700,60 @@ def outcome_preference(old: list[dict], new: list[dict], directory: Path, config
                 {"role": "user", "content": json.dumps(prompt, ensure_ascii=False)},
             ],
         }
+        identity = {
+            "policy": "outcome-comparator-evidence-v2", "task_id": candidate["task_id"],
+            "baseline_bank_sha256": baseline["skill_bank_sha256"],
+            "candidate_bank_sha256": candidate["skill_bank_sha256"],
+            "baseline_evidence_sha256": canonical_hash(baseline),
+            "candidate_evidence_sha256": canonical_hash(candidate),
+            "request_sha256": canonical_hash(body),
+            "judge_policy": {key: config.get(key) for key in (
+                "protocol_hash", "external_judge", "model_id", "model_revision", "seed", "temperature",
+                "top_p", "top_k", "min_p", "presence_penalty", "repetition_penalty", "reasoning_effort",
+                "enable_thinking", "max_tokens", "context_length", "judge_model_id", "judge_model_revision",
+                "judge_reasoning_effort", "judge_max_tokens")},
+            "local_judge_settings": local_judge_settings(config),
+        }
+
+        def interpret(verdict):
+            if not isinstance(verdict, dict) or verdict.get("preference") not in {"A", "B", "tie"}:
+                raise ValueError("Invalid outcome comparator result; candidate remains pending")
+            return ("tie" if verdict["preference"] == "tie" else
+                    "candidate" if verdict["preference"] == ("A" if flip else "B") else "baseline")
+
+        if path.exists():
+            saved = json.loads(path.read_text())
+            if (saved.get("comparison_identity") != identity
+                    or saved.get("baseline_bank") != baseline["skill_bank_sha256"]
+                    or saved.get("candidate_bank") != candidate["skill_bank_sha256"]
+                    or saved.get("blind_swap") != bool(flip)
+                    or saved.get("preference") != interpret(saved.get("verdict"))):
+                raise ValueError("Cached outcome comparison evidence, bank or judge policy changed")
+            verdicts.append(saved["preference"])
+            continue
         comparison_id = "compare-" + hashlib.sha256(str(directory).encode()).hexdigest()[:24]
         budget = resilient_runner.active_budget(config) if resilient_runner.enabled(config) else None
         timeout = min(1800, max(1, int(budget.require_remaining("outcome-comparator")))) if budget else 1800
         response = httpx.post(
-            config["local_api_base_url"].removesuffix("/v1")
-            + f"/runs/{comparison_id}"
-            + ("/judge" if config.get("external_judge") else "")
-            + "/v1/chat/completions",
+            _judge_api_url(config["local_api_base_url"].removesuffix("/v1")
+                           + f"/runs/{comparison_id}/v1", config) + "/chat/completions",
             json=body,
             headers={"Authorization": "Bearer " + config["local_api_key"]},
             timeout=timeout,
             trust_env=False,
         )
         response.raise_for_status()
-        raw = response.json()["choices"][0]["message"]["content"]
+        payload = response.json()
+        choices = payload.get("choices") if isinstance(payload, dict) else None
+        if not isinstance(choices, list) or not choices or not isinstance(choices[0], dict):
+            raise ValueError("Outcome comparator returned no valid completion; candidate remains pending")
+        choice = choices[0]
+        raw = choice.get("message", {}).get("content") if isinstance(choice.get("message"), dict) else None
+        if choice.get("finish_reason") != "stop" or not isinstance(raw, str) or not raw.strip():
+            raise ValueError("Outcome comparator response is incomplete or empty; candidate remains pending")
         content = raw.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
         verdict = json.loads(content)
-        if verdict.get("preference") not in {"A", "B", "tie"}:
-            raise ValueError("Invalid outcome comparator result; candidate remains pending")
-        preference = (
-            "tie"
-            if verdict["preference"] == "tie"
-            else ("candidate" if verdict["preference"] == ("A" if flip else "B") else "baseline")
-        )
+        preference = interpret(verdict)
         write_json(
             path,
             {
@@ -713,6 +762,7 @@ def outcome_preference(old: list[dict], new: list[dict], directory: Path, config
                 "verdict": verdict,
                 "baseline_bank": baseline["skill_bank_sha256"],
                 "candidate_bank": candidate["skill_bank_sha256"],
+                "comparison_identity": identity,
             },
         )
         verdicts.append(preference)
@@ -872,7 +922,7 @@ def _collector_revision(config: dict, directory: Path) -> dict | None:
 def _prepare_alignment_candidate(candidate: dict, bank: Path, sessions: list[dict], tasks: list[dict],
                                  directory: Path, config: dict, parent_hash: str, per_skill: bool) -> dict:
     """Verify one proposal and materialize its immutable candidate bank."""
-    from scripts.wildclawbench.evolution import _history_sources, _normalize_session
+    from scripts.wildclawbench.evolution import _configured_history_sources, _normalize_session
     from sharedskill.skill_bundle import read_skill_bundle, read_skill_bundle_with_meta
 
     if resilient_runner.enabled(config):
@@ -884,7 +934,7 @@ def _prepare_alignment_candidate(candidate: dict, bank: Path, sessions: list[dic
     source_bank = {path.name: read_skill_bundle(path) for path in bank.iterdir()
                    if path.is_dir() and (path / "SKILL.md").is_file()}
     day = [_normalize_session(session, set(source_bank), restrict_to_bank=False) for session in sessions]
-    resolved, evidence = _history_sources(candidate["bundles"], source_bank, day)
+    resolved, evidence = _configured_history_sources(config, candidate["bundles"], source_bank, day)
     if (candidate["source_evidence"] != evidence
             or candidate["source_session_ids"] != sorted(session["source_session_id"] for session in resolved)
             or candidate["source_task_ids"] != sorted({session["task_id"] for session in resolved})):
@@ -964,7 +1014,7 @@ def _alignment_night(number: int, bank: Path, sessions: list[dict], tasks: list[
             _alignment_skip(run_dir, number, rejected, rejected.get("reason", "unverifiable_sources"), rejected)
     accepted = False
     working = bank
-    accepted_candidates, skill_decisions = [], []
+    accepted_candidates, skill_decisions, validation_gaps = [], [], []
     if per_skill:
         skill_decisions.extend({"name": item["name"], "candidate_id": item["candidate_id"],
             "individual_accepted": False, "individual_reason": item["reason"],
@@ -977,6 +1027,9 @@ def _alignment_night(number: int, bank: Path, sessions: list[dict], tasks: list[
             if not resilient_runner.enabled(config):
                 raise
             decision = _resilient_candidate_failure(run_dir, number, candidate, error)
+            validation_gaps.append({"candidate_id": decision["candidate_id"], "name": candidate.get("name"),
+                "phase": "candidate_preparation", "reason": decision["reason"],
+                "error_type": decision["error_type"], "error": decision["error"]})
             if per_skill:
                 skill_decisions.append({"name": candidate.get("name"),
                     "candidate_id": decision["candidate_id"], "individual_accepted": False,
@@ -1100,6 +1153,10 @@ def _alignment_night(number: int, bank: Path, sessions: list[dict], tasks: list[
             write_json(decision_file, decision)
         if per_skill and decision.get("pending"):
             raise RuntimeError("Cached per-skill scoring is incomplete; do not publish a missing-score rejection")
+        if decision.get("unknown"):
+            validation_gaps.append({"candidate_id": identity, "name": candidate["name"],
+                "phase": "candidate_validation", "reason": decision["reason"],
+                "error_type": decision.get("error_type"), "error": decision.get("error")})
         accepted = decision["accepted"]
         if accepted:
             if per_skill:
@@ -1118,6 +1175,10 @@ def _alignment_night(number: int, bank: Path, sessions: list[dict], tasks: list[
                     accepted_candidates.append(candidate)
                 else:
                     _alignment_skip(run_dir, number, candidate, merge["reason"], merge, score_available=True)
+                    if merge.get("unknown"):
+                        validation_gaps.append({"candidate_id": identity, "name": candidate["name"],
+                            "phase": "candidate_merge", "reason": merge["reason"],
+                            "error_type": merge.get("error_type"), "error": merge.get("error")})
                 event(run_dir, "candidate_merge_decision", round=number, **merge)
             else:
                 working = proposed
@@ -1144,7 +1205,7 @@ def _alignment_night(number: int, bank: Path, sessions: list[dict], tasks: list[
         os.replace(temporary, published)
     publication = {"round": number, "parent_sha256": parent_hash, "bank_sha256": bank_hash,
                    "timestamp": now(), "candidate_count": len(candidates), "alignment": settings,
-                   "changeset_accepted": accepted}
+                   "changeset_accepted": accepted, "validation_gaps": validation_gaps}
     if collection:
         publication["collector_revision"] = config["collector_revision"]
     if config.get("source_amendment"):
@@ -1324,20 +1385,31 @@ def pilot(tasks: list[dict], bank: Path, run_dir: Path, config: dict):
     result = run_stage(selected, bank, run_dir, config, "pilot", 0)
     elapsed = time.monotonic() - start
     total_seconds = sum(r["wall_seconds"] for r in result)
+    expected = {task["task_id"] for task in selected}
+    graded = [r["task_id"] for r in result
+              if r.get("task_id") in expected and r.get("status") == "completed"
+              and type(r.get("score")) in (int, float) and math.isfinite(r["score"])]
+    passed = len(result) == len(expected) and len(graded) == len(expected) and set(graded) == expected
     write_json(
         run_dir / "pilot-gate.json",
         {
-            "passed": True,
+            "passed": passed,
             "tasks": len(result),
+            "expected_tasks": len(expected),
+            "completed_grades": len(set(graded)),
+            "unknown": len(expected - set(graded)),
             "timestamp": now(),
             "wall_seconds": elapsed,
             "task_seconds": total_seconds,
             "fixed_execution_count": fixed_execution_count(tasks, config),
-            "extrapolated_fixed_wall_hours": elapsed * fixed_execution_count(tasks, config) / len(result) / 3600,
+            "extrapolated_fixed_wall_hours": elapsed * fixed_execution_count(tasks, config) / len(result) / 3600 if result else None,
             "limitations": "Selected pilot tasks; excludes all night proposal/A-B overhead. "
             "GPU contention prevents linear scaling.",
         },
     )
+    if not passed:
+        update_state(run_dir, "pilot_incomplete")
+        raise RuntimeError("Pilot requires one completed finite reward for every selected task")
     event(
         run_dir,
         "pilot_finished",

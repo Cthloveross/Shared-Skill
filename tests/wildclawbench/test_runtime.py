@@ -22,12 +22,12 @@ from contextlib import ExitStack
 from pathlib import Path
 from unittest.mock import patch
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parents[2]
 
 from scripts.wildclawbench import environment
 from scripts.wildclawbench import task_runtime as runtime
 
-SOURCE = ROOT / "runtime" / "upstream" / "WildClawBench"
+SOURCE = ROOT / "runtime" / "wildclawbench" / "upstream" / "WildClawBench"
 HAS_CORPUS = (SOURCE / "src" / "utils" / "task_parser.py").is_file()
 
 
@@ -56,7 +56,7 @@ def official_execution_prompt(task):
 @unittest.skipUnless(HAS_CORPUS, "Prepare pinned benchmark sources first")
 class OfficialCorpusTests(unittest.TestCase):
     def test_all_60_parse_and_accept_original_grader_keywords(self):
-        config = {"experiment_root": str(ROOT)}
+        config = {"experiment_root": str(ROOT), "shared_runtime_dir": str(ROOT / "runtime/wildclawbench")}
         files = sorted((SOURCE / "tasks").glob("*/*task_*.md"))
         self.assertEqual(len(files), 60)
         ids, categories = set(), set()
@@ -75,7 +75,8 @@ class OfficialCorpusTests(unittest.TestCase):
         self.assertEqual(len(categories), 6)
 
     def test_59_prompts_unchanged_and_only_ocr_is_documented_variant(self):
-        config = {"experiment_root": str(ROOT), "model_id": "qwen3.8-27b"}
+        config = {"experiment_root": str(ROOT), "model_id": "qwen3.8-27b",
+                  "shared_runtime_dir": str(ROOT / "runtime/wildclawbench")}
         unchanged, ocr = 0, 0
         with tempfile.TemporaryDirectory() as temporary:
             for file in sorted((SOURCE / "tasks").glob("*/*task_*.md")):
@@ -230,6 +231,9 @@ class GraderTests(unittest.TestCase):
             event = {"fingerprint": "f", "kind": "model_api", "status": 200}
 
             def copy_out(name, source, path, config, **kwargs):
+                if source.endswith("grade-quiescence.json"):
+                    path.write_text(json.dumps({"quiescent": True, "surviving_writers": []}))
+                    return True
                 if source.endswith("judge-api.jsonl"):
                     path.write_text(json.dumps(event) + "\n")
                     return True
@@ -643,7 +647,8 @@ class GraderHTTPTimeoutTests(unittest.TestCase):
                 self.assertEqual(injected["_sharedskill_model_api_base_url"], self.BASE_URL)
                 self.assertEqual(injected["_sharedskill_grading_timeout_seconds"], expected_timeout)
                 grade_call = next((args, kwargs) for args, kwargs in calls if "python3" in args)
-                self.assertEqual(grade_call[1]["timeout"], expected_timeout)
+                self.assertEqual(grade_call[1]["timeout"], expected_timeout + 15)
+                self.assertEqual(grade_call[0][grade_call[0].index("--timeout") + 1], str(expected_timeout))
                 self.assertIn("OPENROUTER_BASE_URL=" + self.BASE_URL, grade_call[0])
 
 
@@ -1448,6 +1453,7 @@ class TaskExecutionTests(unittest.TestCase):
             self.assertEqual(result["status"], "pending_score")
             self.assertIsNone(result["score"])
             self.assertTrue(result["scoring_parse_failures"])
+            self.assertFalse(result["scoring_recovery_eligible"])
 
     def test_http_200_with_empty_scoring_completion_is_pending(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -1463,6 +1469,7 @@ class TaskExecutionTests(unittest.TestCase):
             result = execution.execute()
             self.assertEqual(result["status"], "pending_score")
             self.assertIsNone(result["score"])
+            self.assertFalse(result["scoring_recovery_eligible"])
 
     def test_successful_retry_resolves_matching_prior_scoring_failure(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -1707,3 +1714,151 @@ print(json.dumps({'draws':draws, 'injected_errors':[x<0.2 for x in draws],
 
 if __name__ == "__main__":
     unittest.main()
+
+class RuntimeAuditRegressionTests(unittest.TestCase):
+    def test_missing_ground_truth_is_unknown_but_missing_delivery_is_scored(self):
+        for error, expected in [
+            ('missing gt file: /tmp_workspace/gt/all_data.csv', 'pending_score'),
+            ('gt_dir does not exist or is not a directory: /tmp_workspace/gt', 'pending_score'),
+            ('no .tex files found under gt_dir: /tmp_workspace/gt', 'pending_score'),
+            ('missing output file: /tmp_workspace/results/summary.json', 'completed'),
+        ]:
+            with self.subTest(error=error), tempfile.TemporaryDirectory() as td:
+                execution = MockExecution(Path(td))
+                execution.grade_scores = {'correctness': 0.0, 'error': error}
+                result = execution.execute()
+                self.assertEqual(result['status'], expected)
+                self.assertEqual(result['score'], 0.0 if expected == 'completed' else None)
+
+    def test_cleanup_failure_does_not_erase_completed_measurement(self):
+        with tempfile.TemporaryDirectory() as td:
+            execution = MockExecution(Path(td))
+            docker = execution.docker
+            def failing_cleanup(args, config, **kwargs):
+                if args[:2] == ['rm', '--force']:
+                    raise subprocess.TimeoutExpired('docker rm', 1)
+                return docker(args, config, **kwargs)
+            execution.docker = failing_cleanup
+            result = execution.execute()
+            self.assertEqual(result['status'], 'completed')
+            self.assertIn('cleanup_error', result)
+            self.assertEqual(json.loads((execution.output / 'runtime-result.json').read_text())['score'], 0.0)
+
+    def test_configured_agent_limit_and_durable_retry_boundary(self):
+        with tempfile.TemporaryDirectory() as td:
+            execution = MockExecution(Path(td))
+            with execution.context():
+                result = runtime._execute_child(execution.spec['task_id'], execution.bank, execution.output,
+                                                {'task_timeout_seconds': 2}, False)
+            args = next(event[1] for event in execution.events if event[0] == 'agent')
+            self.assertEqual(args[args.index('--timeout') + 1], '2')
+            self.assertFalse(result['infrastructure_retry_eligible'])
+            self.assertTrue((execution.output / 'agent-started.json').is_file())
+
+    def test_grader_timeout_stops_container_before_collecting_evidence(self):
+        with tempfile.TemporaryDirectory() as td:
+            events = []
+            def docker(args, config, **kwargs):
+                events.append(('docker', args))
+                if '/tmp/_grade_runner.py' in args:
+                    self.assertIn('/tmp/sharedskill-grade-supervisor.py', args)
+                    raise subprocess.TimeoutExpired('grade', 1)
+                return completed()
+            def copy_out(name, source, path, config, **kwargs):
+                events.append(('copy', source))
+                return False
+            with patch.object(runtime, '_docker', side_effect=docker), patch.object(runtime, '_copy_in'), \
+                 patch.object(runtime, '_copy_out', side_effect=copy_out), \
+                 patch.object(environment, 'container_api_url', return_value='http://local/v1'):
+                scores, _ = runtime._grade('private-test', {'automated_checks': 'def grade(**kw): return {}'}, Path(td), {})
+            self.assertTrue(scores['_grading_infrastructure_error'])
+            stopped = next(i for i, event in enumerate(events) if event[0] == 'docker' and event[1][0] == 'stop')
+            copied = next(i for i, event in enumerate(events) if event == ('copy', '/tmp/sharedskill-mock-replay.json'))
+            self.assertLess(stopped, copied)
+
+
+def test_case_deadline_stops_a_real_child_and_disallows_agent_retry(tmp_path, monkeypatch):
+    output = tmp_path / 'case'
+    original_run = subprocess.run
+    writer = tmp_path / 'late-writer'
+    def child(command, **kwargs):
+        split = command.index('--')
+        late = f'import time;time.sleep(1);open({str(writer)!r},"w").write("late")'
+        code = ('import pathlib,subprocess,sys,time;'
+                f'pathlib.Path({str(output / "agent-started.json")!r}).write_text("{{}}");'
+                f'subprocess.Popen([sys.executable,"-c",{late!r}],start_new_session=True);time.sleep(10)')
+        return original_run(command[:split + 1] + [sys.executable, '-c', code], **kwargs)
+    monkeypatch.setattr(runtime.subprocess, 'run', child)
+    monkeypatch.setattr(runtime, '_docker', lambda *args, **kwargs: completed())
+    result = runtime.execute_task('test', tmp_path / 'bank', output, {'case_timeout_seconds': .3})
+    assert result['status'] == 'infrastructure_error' and result['score'] is None
+    assert result['infrastructure_retry_eligible'] is False
+    stopped = json.loads((output / 'case-quiescence.json').read_text())
+    assert stopped['deadline_expired'] and stopped['quiescent']
+    __import__('time').sleep(1)
+    assert not writer.exists()
+
+
+def test_local_judge_configuration_and_variant_routes(tmp_path):
+    import pytest
+    config = {'model_id': 'local-model', 'enable_thinking': True, 'max_tokens': 4096,
+              'local_judge_enable_thinking': False, 'local_judge_max_tokens': 2048}
+    assert runtime.local_judge_settings({}) is None
+    for invalid in ({'local_judge_enable_thinking': 0}, {'local_judge_enable_thinking': None},
+                    {'local_judge_max_tokens': True}, {'local_judge_max_tokens': 0},
+                    {'local_judge_max_tokens': 131072}, {'external_judge': True}):
+        with pytest.raises(ValueError):
+            runtime.local_judge_settings({**config, **invalid})
+    source = tmp_path / 'official.md'
+    source.write_text('official-source')
+    checks = 'base="https://api.openai.com/v1"\nother="https://openrouter.ai/api/v1"'
+    spec = {'task_id': 'test-local-judge', 'prompt': 'Do the task.', 'automated_checks': checks,
+            'warmup': 'api="https://api.openai.com/v1"', 'timeout_seconds': 60, 'file_path': str(source)}
+    base = 'http://local/runs/test/v1'
+    result = runtime._variants(spec, config, tmp_path, base)
+    assert result['automated_checks'].count('http://local/runs/test/local-judge/v1') == 2
+    assert result['warmup'] == f'api="{base}"'
+    manifest = json.loads((tmp_path / 'task-variant.json').read_text())
+    assert manifest['local_judge_settings'] == {'enable_thinking': False, 'max_tokens': 2048}
+    assert runtime._judge_api_url(base, {}) == base
+    assert runtime._judge_api_url(base, {'external_judge': True}) == 'http://local/runs/test/judge/v1'
+    assert runtime._judge_api_url('http://local/runs/test/judge/v1', {'external_judge': True}) == 'http://local/runs/test/judge/v1'
+    assert runtime._judge_api_url('http://local/runs/test/local-judge/v1', config) == 'http://local/runs/test/local-judge/v1'
+
+
+def test_grade_uses_same_local_judge_route_in_runner_and_environment(tmp_path):
+    commands = []
+    def docker(args, config, **kwargs):
+        commands.append(args)
+        return completed('{"overall_score": 1}')
+    def copy_out(name, source, path, config, **kwargs):
+        if source.endswith('grade-quiescence.json'):
+            path.write_text('{"quiescent": true, "surviving_writers": []}')
+        return True
+    config = {'local_judge_enable_thinking': False, 'local_judge_max_tokens': 2048}
+    with patch.object(runtime, '_docker', side_effect=docker), patch.object(runtime, '_copy_in'), \
+         patch.object(runtime, '_copy_out', side_effect=copy_out), \
+         patch.object(environment, 'container_api_url', return_value='http://local/runs/test/v1'):
+        scores, _ = runtime._grade('private-test', {'automated_checks': 'def grade(**kw): return {}'}, tmp_path, config)
+    expected = 'http://local/runs/test/local-judge/v1'
+    assert scores['overall_score'] == 1
+    assert f'_sharedskill_model_api_base_url={expected!r}' in (tmp_path / 'grade-runner.py').read_text()
+    command = next(args for args in commands if 'OPENROUTER_BASE_URL=' + expected in args)
+    assert 'OPENAI_BASE_URL=' + expected in command
+
+
+def test_only_all_transient_failed_judges_allow_automatic_whole_grader_retry():
+    transient = {'kind': 'model_api', 'fingerprint': 'failed', 'status': 503}
+    assert runtime._scoring_recovery_eligible([transient], [])
+    assert not runtime._scoring_recovery_eligible([], [])
+    assert not runtime._scoring_recovery_eligible([transient], ['judge_failed'])
+    for status in (200, 400, 401, 403, 404, None):
+        assert not runtime._scoring_recovery_eligible([{**transient, 'status': status}], [])
+    for extra in ({'kind': 'model_api', 'fingerprint': 'success', 'status': 200},
+                  {'kind': 'model_api', 'fingerprint': 'empty', 'status': 200, 'error': 'empty content'},
+                  {'kind': 'mock_api', 'fingerprint': 'mock', 'status': 500}):
+        assert not runtime._scoring_recovery_eligible([transient, extra], [])
+    with tempfile.TemporaryDirectory() as temporary:
+        execution = MockExecution(Path(temporary))
+        execution.grade_events = [transient]
+        assert execution.execute()['scoring_recovery_eligible'] is True

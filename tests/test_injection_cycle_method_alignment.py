@@ -52,7 +52,7 @@ def proposal(tmp_path):
 
 def test_one_user_is_sequential_in_input_order_and_distinct_users_overlap(tmp_path, proposal, monkeypatch):
     day, _ = proposal
-    tasks = [{"short_id": f"task-{index:02d}", "user_id": f"user-{index % 8 + 1:02d}"}
+    tasks = [{"task_id": f"task-{index:02d}", "short_id": f"task-{index:02d}", "user_id": f"user-{index % 8 + 1:02d}"}
              for index in range(30)]
     expected = {user: [task["short_id"] for task in tasks if task["user_id"] == user]
                 for user in {task["user_id"] for task in tasks}}
@@ -96,8 +96,8 @@ def test_one_user_is_sequential_in_input_order_and_distinct_users_overlap(tmp_pa
 def test_unknown_user_is_rejected_before_any_agent_call(tmp_path, proposal, monkeypatch):
     day, _ = proposal
     monkeypatch.setattr(day, "run_day_task", lambda *args: pytest.fail("Unknown user must not execute"))
-    with pytest.raises(ValueError, match="unknown simulated user"):
-        day.run_day_cohort(tmp_path, {}, [{"short_id": "01.01", "user_id": "other"}], None, "unused", None)
+    with pytest.raises(ValueError, match="outside the configured simulated users"):
+        day.run_day_cohort(tmp_path, {}, [{"task_id": "task-1", "short_id": "01.01", "user_id": "other"}], None, "unused", None)
 
 
 @pytest.mark.parametrize("number", [2, 6])

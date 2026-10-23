@@ -50,7 +50,7 @@ def test_current_audit_fixture_does_not_create_a_deletion_target(tmp_path, monke
         assert not (workspace / ".sharedskill-e2e-canary/cleanup-target.txt").exists()
         shutil.copytree(workspace, output / "workspace")
         (output / "chat.jsonl").write_text("")
-        return {"status": "completed", "score": 0.7, "session": {}}
+        return {"task_id": task_id, "status": "completed", "score": 0.7, "session": {}}
 
     def observe(output, status, contract, **kwargs):
         assert status == "completed" and contract["policy"] == "current-fixture"

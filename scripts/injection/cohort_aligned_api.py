@@ -5,7 +5,6 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-import socket
 import threading
 from pathlib import Path
 
@@ -13,6 +12,7 @@ import httpx
 from starlette.responses import JSONResponse
 
 from scripts.injection import e2e
+from scripts.wildclawbench.task_runtime import local_judge_settings
 
 
 
@@ -28,16 +28,22 @@ class BoundAgentRoutes:
         self.service = Path(service_dir)
         self.bound = (f"/runs/{binding['run_id']}/executions/{binding['execution_id']}/agent/v1")
         self.unbound = f"/runs/{binding['run_id']}/v1"
+        self.local_judge = f"/runs/{binding['run_id']}/local-judge/v1"
+        self.local_grading = local_judge_settings(settings)
         self.session = self.service.name + "-chat"
         self.lock = threading.Lock()
 
-    def _record(self, path, raw, destination, session=None):
+    def _record(self, path, raw, destination, session=None, *, local_judge=False):
         row = {"at": e2e.now(), "path": path, "destination": destination,
                "body_sha256": e2e.sha256(raw), "body_bytes": len(raw), "session_id": session,
                "execution_id": self.binding["execution_id"],
                "bank_sha256": self.binding["bank_sha256"],
                "catalog_sha256": self.binding["catalog_sha256"],
                "binding_sha256": self.binding["binding_sha256"]}
+        if local_judge:
+            row["purpose"] = "local_judge"
+            row["scoring_policy"] = {"model_id": self.settings["model_id"],
+                                     "protocol_hash": self.settings["protocol_hash"], **self.local_grading}
         with self.lock:
             with (self.service / "routing.jsonl").open("a", encoding="utf-8") as stream:
                 stream.write(json.dumps(row, ensure_ascii=False) + "\n")
@@ -47,7 +53,8 @@ class BoundAgentRoutes:
             return await self.app(scope, receive, send)
         path = scope.get("path", "")
         agent = path.startswith(self.bound + "/")
-        side = path.startswith(self.unbound + "/")
+        local_judge = self.local_grading is not None and path.startswith(self.local_judge + "/")
+        side = path.startswith(self.unbound + "/") or local_judge
         if not agent and not side:
             if path.startswith("/runs/") or path.startswith("/v1/"):
                 return await JSONResponse({"error": "Request is outside the immutable task route"}, 409)(scope, receive, send)
@@ -62,11 +69,11 @@ class BoundAgentRoutes:
                 break
         raw = bytes(raw)
         if side:
-            self._record(path, raw, "local_grading_gateway")
+            self._record(path, raw, "local_grading_gateway", local_judge=local_judge)
             headers = {key.decode("latin1"): value.decode("latin1") for key, value in scope.get("headers", [])
                        if key.lower() not in {b"host", b"content-length", b"connection"}}
             query = scope.get("query_string", b"").decode("latin1")
-            async with httpx.AsyncClient(timeout=1800, trust_env=False) as client:
+            async with httpx.AsyncClient(timeout=float(self.settings.get("gateway_request_timeout_seconds", 1800)), trust_env=False) as client:
                 response = await client.request(scope["method"], self.gateway + path + ("?" + query if query else ""),
                                                 headers=headers, content=raw)
             await send({"type": "http.response.start", "status": response.status_code,
@@ -122,15 +129,9 @@ def start_aligned_api(bank, run_dir, service_name, gateway_url, settings, task, 
     bound_url = (gateway_url.rstrip("/") + f"/runs/{run_id}/executions/{execution_id}/agent/v1")
     e2e.write_json(service / "gateway.json", {"base_url": bound_url, "root": gateway_url.rstrip("/")})
     with _START_LOCK:
-        preferred = int(json.loads(e2e.CONFIG_FILE.read_text())["api_port"])
-        with socket.socket() as candidate:
-            try:
-                candidate.bind(("0.0.0.0", preferred))
-                port = preferred
-            except OSError:
-                candidate.bind(("0.0.0.0", 0))
-                port = candidate.getsockname()[1]
-        api = e2e.build_api(bank, service / "shared-objects", service / "records", service / "requests")
+        port = e2e.available_api_port(settings)
+        api = e2e.build_api(bank, service / "shared-objects", service / "records", service / "requests",
+                            runtime_settings={**settings, "api_port": port})
         # Keep native skill-read metadata; the bound gateway alone injects its
         # read-only pinned catalog. Preserve history for the gateway tokenizer.
         api.skill_manager._public_skill_root = "/root/skills"
